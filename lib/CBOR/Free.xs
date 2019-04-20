@@ -83,9 +83,8 @@ SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
 SV *_encode( SV *value, SV *buffer ) {
     SV *RETVAL;
 
-    if (1 || !SvROK(value)) {
+    if (!SvROK(value)) {
 
-/*
         if (SVt_NULL == SvTYPE(value)) {
             if (buffer) {
                 sv_catpvn( buffer, "\xf6", 1 );
@@ -106,7 +105,6 @@ SV *_encode( SV *value, SV *buffer ) {
                 RETVAL = _init_length_buffer( 0 - val, TYPE_NEGINT, buffer );
             }
             else {
-printf("uok? %d\n", SvUOK(value));
                 RETVAL = _init_length_buffer( val, TYPE_UINT, buffer );
             }
         }
@@ -128,14 +126,11 @@ printf("uok? %d\n", SvUOK(value));
             }
         }
         else if (SvPOK(value)) {
-*/
-        if (1) {
-            //STRLEN len = SvCUR(value);
+            STRLEN len = SvCUR(value);
 
-            //char *val = SvPVX(value);
+            char *val = SvPVX(value);
 
-            //bool encode_as_text = SvUTF8(value);
-            /*
+            bool encode_as_text = SvUTF8(value);
             if (!encode_as_text) {
                 STRLEN i;
                 for (i=0; i<len; i++) {
@@ -145,23 +140,15 @@ printf("uok? %d\n", SvUOK(value));
                 // Encode as text if there were no high-bit octets.
                 encode_as_text = (i == len);
             }
-            */
 
-//return RETVAL = newSVpv("\127abcdefghijklmnopqrstuvw", 24);
-
-            /*
             RETVAL = _init_length_buffer(
                 len,
-                //(encode_as_text ? TYPE_UTF8 : TYPE_BINARY),
-                TYPE_BINARY,
+                (encode_as_text ? TYPE_UTF8 : TYPE_BINARY),
                 buffer
             );
-            */
-            RETVAL = newSVpv("\127", 1);
 
             //sv_catpvn( RETVAL, val, len );
-            //sv_catpvn_flags( RETVAL, val, len, SV_CATBYTES );
-            sv_catpvn_flags( RETVAL, "abcdefghijklmnopqrstuvw", 23, SV_CATBYTES );
+            sv_catpvn_flags( RETVAL, val, len, SV_CATBYTES );
         }
     }
     else {
@@ -194,7 +181,7 @@ printf("uok? %d\n", SvUOK(value));
 
                 // Store the key.
                 _init_length_buffer( key_length, TYPE_BINARY, RETVAL );
-                sv_catpvn( RETVAL, key, key_length );
+                sv_catpvn_flags( RETVAL, key, key_length, SV_CATBYTES );
 
                 _encode( cur, RETVAL );
             }

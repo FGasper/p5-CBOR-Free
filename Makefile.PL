@@ -17,7 +17,7 @@ WriteMakefile1(
         },
     },
 
-    NAME         => 'Protocol::DBus',
+    NAME         => 'CBOR::Free',
     AUTHOR       => 'Felipe Gasper (FELIPE)',
     VERSION_FROM => 'lib/CBOR/Free.pm',         # finds \$VERSION
     ABSTRACT_FROM => 'lib/CBOR/Free.pm',
@@ -43,6 +43,8 @@ WriteMakefile1(
         'Test::Exception' => 0,
         'Test::More'      => 0,
     },
+
+    SIGN => 1,
 );
 
 sub WriteMakefile1 {  #Compatibility code for old versions of EU::MM. Written by Alexandr Ciornii, version 2. Added by eumm-upgrade.
