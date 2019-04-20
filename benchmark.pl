@@ -5,7 +5,11 @@ use warnings;
 
 use Benchmark;
 
-use JSON::XS ();
+use lib '../Cpanel-JSON-XS/lib';
+use lib '../Cpanel-JSON-XS/blib/lib';
+use lib '../Cpanel-JSON-XS/blib/arch';
+use Cpanel::JSON::XS ();
+
 use CBOR::XS ();
 use Data::MessagePack ();
 
@@ -34,7 +38,7 @@ my $struct = "abcdefghijklmnopqrstuvw";
 
 print "benchmarking …$/";
 
-my $json = JSON::XS->new()->allow_nonref();
+my $json = Cpanel::JSON::XS->new()->allow_nonref();
 my $cbor = CBOR::XS->new();
 
 my $dmp = Data::MessagePack->new();
