@@ -18,29 +18,25 @@
 #define TYPE_OTHER  "\xe0"
 
 SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
-//printf("len: %d\n", sizeof(num));
-//printf("val: %d\n", num);
     if ( num < 0x18 ) {
-        num = (char) num;
-        num += *type;
+        char cnum = (char) num;
+        cnum += *type;
 
         if (buffer) {
-            sv_catpvn( buffer, &num, 1 );
+            sv_catpvn_flags( buffer, &cnum, 1, SV_CATBYTES );
         }
         else {
-            buffer = newSVpv( &num, 1);
-            //SvPOK_only(buffer);
+            buffer = newSVpv( &cnum, 1);
         }
     }
     else if ( num <= 0xff ) {
         char hdr[2] = { *type + 0x18, (char) num };
 
         if (buffer) {
-            sv_catpvn( buffer, hdr, 2 );
+            sv_catpvn_flags( buffer, hdr, 2, SV_CATBYTES );
         }
         else {
             buffer = newSVpv( hdr, 2 );
-            //SvPOK_only(buffer);
         }
     }
     else if ( num <= 0xffff ) {
@@ -51,11 +47,10 @@ SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
         memcpy( 1 + hdr, &native, 2 );
 
         if (buffer) {
-            sv_catpvn( buffer, hdr, 3 );
+            sv_catpvn_flags( buffer, hdr, 3, SV_CATBYTES );
         }
         else {
             buffer = newSVpv( hdr, 3 );
-            //SvPOK_only(buffer);
         }
     }
     else if ( num <= 0xffffffff ) {
@@ -66,11 +61,10 @@ SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
         memcpy( 1 + hdr, &native, 4 );
 
         if (buffer) {
-            sv_catpvn( buffer, hdr, 5 );
+            sv_catpvn_flags( buffer, hdr, 5, SV_CATBYTES );
         }
         else {
             buffer = newSVpv( hdr, 5 );
-            //SvPOK_only(buffer);
         }
     }
     else {
@@ -153,7 +147,7 @@ SV *_encode( SV *value, SV *buffer ) {
     }
     else {
         if (SVt_PVAV == SvTYPE(SvRV(value))) {
-            AV *array = SvRV(value);
+            AV *array = (AV *)SvRV(value);
             SSize_t len;
             len = 1 + av_len(array);
 
@@ -167,7 +161,7 @@ SV *_encode( SV *value, SV *buffer ) {
             }
         }
         else if (SVt_PVHV == SvTYPE(SvRV(value))) {
-            HV *hash = SvRV(value);
+            HV *hash = (HV *)SvRV(value);
 
             char *key;
             I32 key_length;
@@ -177,7 +171,7 @@ SV *_encode( SV *value, SV *buffer ) {
 
             RETVAL = _init_length_buffer( keyscount, TYPE_MAP, buffer );
 
-            while (cur = hv_iternextsv(hash, &key, &key_length)) {
+            while ((cur = hv_iternextsv(hash, &key, &key_length))) {
 
                 // Store the key.
                 _init_length_buffer( key_length, TYPE_BINARY, RETVAL );
