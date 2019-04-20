@@ -12,6 +12,8 @@ use_ok('CBOR::Free');
 my @tests = (
     [ [] => "\x80" ],
     [ [undef] => "\x81\xf6"],
+    [ [undef, undef] => "\x82\xf6\xf6"],
+    [ [undef, 1] => "\x82\xf6\x01" ],
     [ [undef, "abc"] => "\x82\xf6\x63\x61\x62\x63"],
 );
 
