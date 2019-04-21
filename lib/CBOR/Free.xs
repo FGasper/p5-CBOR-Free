@@ -115,9 +115,6 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 RETVAL = newSVpv("\xf6", 1);
             }
         }
-        //else if (0 == SvCUR(value)) {
-        //    RETVAL = newSVpv("\x40", 1);
-        //}
         else if (SvIOK(value)) {
             IV val = SvIVX(value);
 
