@@ -10,8 +10,9 @@ CBOR::Free - Fast CBOR for everyone
 
 # DESCRIPTION
 
-This library implements CBOR via XS under a license that permits
-commercial usage.
+This library implements [CBOR](https://tools.ietf.org/html/rfc7049)
+via XS under a license that permits commercial usage with no “strings
+attached”.
 
 # STATUS
 

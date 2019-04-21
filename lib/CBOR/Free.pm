@@ -17,8 +17,9 @@ CBOR::Free - Fast CBOR for everyone
 
 =head1 DESCRIPTION
 
-This library implements CBOR via XS under a license that permits
-commercial usage.
+This library implements L<CBOR|https://tools.ietf.org/html/rfc7049>
+via XS under a license that permits commercial usage with no “strings
+attached”.
 
 =head1 STATUS
 
