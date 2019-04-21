@@ -1,0 +1,12 @@
+.gitignore
+Makefile.PL
+benchmark.pl
+lib/CBOR/Free.pm
+lib/CBOR/Free.xs
+t/array.t
+t/float.t
+t/hash.t
+t/negint.t
+t/string.t
+t/uint.t
+t/undef.t
