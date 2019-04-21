@@ -25,6 +25,8 @@
 #define CBOR_TRUE   "\xf5"
 #define CBOR_NULL   "\xf6"
 
+#define CBOR_DOUBLE 0xfb
+
 #define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
 
 #define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
@@ -34,6 +36,8 @@
     else { \
         buffer = newSVpv( hdr, len ); \
     }
+
+bool is_big_endian = (htons(256) == (uint16_t) 256);
 
 SV *_init_length_buffer( pTHX_ UV num, const char type, SV *buffer ) {
     if ( num < 0x18 ) {
@@ -113,13 +117,9 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
     if (!SvROK(value)) {
 
         if (SVt_NULL == SvTYPE(value)) {
-            if (buffer) {
-                sv_catpvn_flags( buffer, CBOR_NULL, 1, SV_CATBYTES );
-                RETVAL = buffer;
-            }
-            else {
-                RETVAL = newSVpv(CBOR_NULL, 1);
-            }
+            _INIT_LENGTH_SETUP_BUFFER(buffer, CBOR_NULL, 1);
+
+            RETVAL = buffer;
         }
         else if (SvIOK(value)) {
             IV val = SvIVX(value);
@@ -138,15 +138,16 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
             char *valptr = (char *) &val;
 
-            char bytes[9] = { 0xfb, valptr[7], valptr[6], valptr[5], valptr[4], valptr[3], valptr[2], valptr[1], valptr[0] };
-
-            if (buffer) {
-                sv_catpvn( buffer, bytes, 9 );
-                RETVAL = buffer;
+            if (is_big_endian) {
+                char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
+                _INIT_LENGTH_SETUP_BUFFER(buffer, bytes, 9);
             }
             else {
-                RETVAL = newSVpv( bytes, 9 );
+                char bytes[9] = { CBOR_DOUBLE, valptr[7], valptr[6], valptr[5], valptr[4], valptr[3], valptr[2], valptr[1], valptr[0] };
+                _INIT_LENGTH_SETUP_BUFFER(buffer, bytes, 9);
             }
+
+            RETVAL = buffer;
         }
         else if (SvPOK(value)) {
             STRLEN len = SvCUR(value);
