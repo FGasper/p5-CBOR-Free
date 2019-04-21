@@ -17,27 +17,24 @@
 #define TYPE_TAG    0xc0
 #define TYPE_OTHER  0xe0
 
+#define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
+    if (buffer) { \
+        sv_catpvn_flags( buffer, hdr, len, SV_CATBYTES ); \
+    } \
+    else { \
+        buffer = newSVpv( hdr, len ); \
+    }
+
 SV *_init_length_buffer( UV num, const char type, SV *buffer ) {
     if ( num < 0x18 ) {
-        char cnum = (char) num;
-        cnum += type;
+        char hdr[1] = { type + (char) num };
 
-        if (buffer) {
-            sv_catpvn_flags( buffer, &cnum, 1, SV_CATBYTES );
-        }
-        else {
-            buffer = newSVpv( &cnum, 1);
-        }
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
     }
     else if ( num <= 0xff ) {
         char hdr[2] = { type + 0x18, (char) num };
 
-        if (buffer) {
-            sv_catpvn_flags( buffer, hdr, 2, SV_CATBYTES );
-        }
-        else {
-            buffer = newSVpv( hdr, 2 );
-        }
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
     }
     else if ( num <= 0xffff ) {
         char hdr[3] = { type + 0x19 };
@@ -46,12 +43,7 @@ SV *_init_length_buffer( UV num, const char type, SV *buffer ) {
 
         memcpy( 1 + hdr, &native, 2 );
 
-        if (buffer) {
-            sv_catpvn_flags( buffer, hdr, 3, SV_CATBYTES );
-        }
-        else {
-            buffer = newSVpv( hdr, 3 );
-        }
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
     }
     else if ( num <= 0xffffffff ) {
         char hdr[5] = { type + 0x1a };
@@ -60,12 +52,43 @@ SV *_init_length_buffer( UV num, const char type, SV *buffer ) {
 
         memcpy( 1 + hdr, &native, 4 );
 
-        if (buffer) {
-            sv_catpvn_flags( buffer, hdr, 5, SV_CATBYTES );
-        }
-        else {
-            buffer = newSVpv( hdr, 5 );
-        }
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
+    }
+    else {
+        // TODO: 64-bit
+    }
+
+    return buffer;
+}
+
+SV *_init_length_buffer_negint( UV num, SV *buffer ) {
+    if ( num > -0x19 ) {
+        char hdr[1] = { TYPE_NEGINT + (char) (-1 - num) };
+
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
+    }
+    else if ( num >= -0x100 ) {
+        char hdr[2] = { TYPE_NEGINT + 0x18, (char) (-1 - num) };
+
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
+    }
+    else if ( num >= -0x10000 ) {
+        char hdr[3] = { TYPE_NEGINT + 0x19 };
+
+        uint16_t native = htons(-1 - num);
+
+        memcpy( 1 + hdr, &native, 2 );
+
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
+    }
+    else if ( num >= -0x100000000 ) {
+        char hdr[5] = { TYPE_NEGINT + 0x1a };
+
+        uint32_t native = htonl(-1 - num);
+
+        memcpy( 1 + hdr, &native, 4 );
+
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
     }
     else {
         // TODO: 64-bit
@@ -95,8 +118,7 @@ SV *_encode( SV *value, SV *buffer ) {
             IV val = SvIVX(value);
 
             if (val < 0) {
-                // TODO: fix this for boundaries
-                RETVAL = _init_length_buffer( 0 - val, TYPE_NEGINT, buffer );
+                RETVAL = _init_length_buffer_negint( val, buffer );
             }
             else {
                 RETVAL = _init_length_buffer( val, TYPE_UINT, buffer );
