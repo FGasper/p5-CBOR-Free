@@ -25,6 +25,8 @@
 #define CBOR_TRUE   "\xf5"
 #define CBOR_NULL   "\xf6"
 
+#define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
+
 #define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
     if (buffer) { \
         sv_catpvn_flags( buffer, hdr, len, SV_CATBYTES ); \
@@ -208,7 +210,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             }
         }
 
-        else if (sv_derived_from(value, "Types::Serialiser::Boolean")) {
+        else if (sv_derived_from(value, BOOLEAN_CLASS)) {
             char *newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
 
             if (buffer) {
