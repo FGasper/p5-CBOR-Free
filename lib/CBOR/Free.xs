@@ -41,6 +41,25 @@
 
 bool is_big_endian = (htons(256) == (uint16_t) 256);
 
+void _croak_unrecognized(pTHX_ SV *value) {
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    EXTEND(SP, 2);
+    PUSHs( sv_2mortal(value) );
+    PUTBACK;
+
+    call_pv("CBOR::Free::_die_unrecognized", G_EVAL);
+
+    FREETMPS;
+    LEAVE;
+
+    croak(NULL);
+}
+
 SV *_init_length_buffer( pTHX_ UV num, const char type, SV *buffer ) {
     if ( num < 0x18 ) {
         char hdr[1] = { type + (char) num };
@@ -182,8 +201,26 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 buffer
             );
 
-            //sv_catpvn( RETVAL, val, len );
             sv_catpvn_flags( RETVAL, val, len, SV_CATBYTES );
+        }
+    }
+    else if (sv_isobject(value)) {
+        if (sv_derived_from(value, BOOLEAN_CLASS)) {
+            char *newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
+
+            if (buffer) {
+                sv_catpvn_flags( buffer, newbyte, 1, SV_CATBYTES );
+                RETVAL = buffer;
+            }
+            else {
+                RETVAL = newSVpv(newbyte, 1);
+            }
+        }
+
+        // TODO: Support TO_JSON() method?
+
+        else {
+            _croak_unrecognized(aTHX_ value);
         }
     }
     else {
@@ -221,22 +258,8 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 _encode( aTHX_ cur, RETVAL );
             }
         }
-
-        else if (sv_derived_from(value, BOOLEAN_CLASS)) {
-            char *newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
-
-            if (buffer) {
-                sv_catpvn_flags( buffer, newbyte, 1, SV_CATBYTES );
-                RETVAL = buffer;
-            }
-            else {
-                RETVAL = newSVpv(newbyte, 1);
-            }
-        }
-
         else {
-            printf("----------- unrecognized!\n");
-            // TODO: fail unrecognized
+            _croak_unrecognized(aTHX_ value);
         }
     }
 

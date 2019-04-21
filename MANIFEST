@@ -7,6 +7,9 @@ README.md
 benchmark.pl
 lib/CBOR/Free.pm
 lib/CBOR/Free.xs
+lib/CBOR/Free/X.pm
+lib/CBOR/Free/X/Base.pm
+lib/CBOR/Free/X/Recursion.pm
 ppport.h
 t/array.t
 t/boolean.t

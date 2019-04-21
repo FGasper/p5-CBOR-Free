@@ -29,6 +29,20 @@ Note that this distribution’s interface can still change. If you decide
 to use CBOR::Free in your project, please always check the changelog before
 upgrading.
 
+=head1 TODO
+
+=over
+
+=item * Build a decoder. :)
+
+=item * Add 64-bit number support.
+
+=item * Make it faster. On some platforms (e.g., Linux) it appears to be
+faster than L<JSON::XS> but not quite as fast as L<CBOR::XS>; on others
+(e.g., macOS), it’s slower than both.
+
+=back
+
 =head1 AUTHOR
 
 L<Gasper Software Consulting|http://gaspersoftware.com> (FELIPE)
@@ -58,6 +72,12 @@ BEGIN {
 
 sub _die_recursion {
     die CBOR::Free::X->create('Recursion', sprintf("Refuse to encode() more than %d times at once!", _MAX_RECURSION()))
+}
+
+sub _die_unrecognized {
+    my ($alien) = @_;
+
+    die CBOR::Free::X->create('Unrecognized', sprintf("Cannot encode to CBOR: $alien"));
 }
 
 1;

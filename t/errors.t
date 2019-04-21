@@ -27,4 +27,14 @@ throws_ok(
     'object that recurses with another object triggers recursion error',
 );
 
+#----------------------------------------------------------------------
+
+my $weird = bless( [], 'Weird' );
+
+throws_ok(
+    sub { diag sprintf('%v.02x', CBOR::Free::encode($weird)) },
+    'CBOR::Free::X::Unrecognized',
+    'unrecognized object triggers expected error',
+);
+
 done_testing;
