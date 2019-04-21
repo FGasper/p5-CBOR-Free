@@ -1,6 +1,10 @@
+#define PERL_NO_GET_CONTEXT
+
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
+
+#include "ppport.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +29,7 @@
         buffer = newSVpv( hdr, len ); \
     }
 
-SV *_init_length_buffer( UV num, const char type, SV *buffer ) {
+SV *_init_length_buffer( pTHX_ UV num, const char type, SV *buffer ) {
     if ( num < 0x18 ) {
         char hdr[1] = { type + (char) num };
 
@@ -61,7 +65,7 @@ SV *_init_length_buffer( UV num, const char type, SV *buffer ) {
     return buffer;
 }
 
-SV *_init_length_buffer_negint( UV num, SV *buffer ) {
+SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
     if ( num > -0x19 ) {
         char hdr[1] = { TYPE_NEGINT + (char) (-1 - num) };
 
@@ -97,7 +101,7 @@ SV *_init_length_buffer_negint( UV num, SV *buffer ) {
     return buffer;
 }
 
-SV *_encode( SV *value, SV *buffer ) {
+SV *_encode( pTHX_ SV *value, SV *buffer ) {
     SV *RETVAL;
 
     if (!SvROK(value)) {
@@ -118,10 +122,10 @@ SV *_encode( SV *value, SV *buffer ) {
             IV val = SvIVX(value);
 
             if (val < 0) {
-                RETVAL = _init_length_buffer_negint( val, buffer );
+                RETVAL = _init_length_buffer_negint( aTHX_ val, buffer );
             }
             else {
-                RETVAL = _init_length_buffer( val, TYPE_UINT, buffer );
+                RETVAL = _init_length_buffer( aTHX_ val, TYPE_UINT, buffer );
             }
         }
         else if (SvNOK(value)) {
@@ -157,7 +161,7 @@ SV *_encode( SV *value, SV *buffer ) {
                 encode_as_text = (i == len);
             }
 
-            RETVAL = _init_length_buffer(
+            RETVAL = _init_length_buffer( aTHX_
                 len,
                 (encode_as_text ? TYPE_UTF8 : TYPE_BINARY),
                 buffer
@@ -173,13 +177,13 @@ SV *_encode( SV *value, SV *buffer ) {
             SSize_t len;
             len = 1 + av_len(array);
 
-            RETVAL = _init_length_buffer( len, TYPE_ARRAY, buffer );
+            RETVAL = _init_length_buffer( aTHX_ len, TYPE_ARRAY, buffer );
 
             SSize_t i;
 
             for (i=0; i<len; i++) {
                 SV **cur = av_fetch(array, i, 0);
-                _encode( *cur, RETVAL );
+                _encode( aTHX_ *cur, RETVAL );
             }
         }
         else if (SVt_PVHV == SvTYPE(SvRV(value))) {
@@ -191,15 +195,15 @@ SV *_encode( SV *value, SV *buffer ) {
 
             I32 keyscount = hv_iterinit(hash);
 
-            RETVAL = _init_length_buffer( keyscount, TYPE_MAP, buffer );
+            RETVAL = _init_length_buffer( aTHX_ keyscount, TYPE_MAP, buffer );
 
             while ((cur = hv_iternextsv(hash, &key, &key_length))) {
 
                 // Store the key.
-                _init_length_buffer( key_length, TYPE_BINARY, RETVAL );
+                _init_length_buffer( aTHX_ key_length, TYPE_BINARY, RETVAL );
                 sv_catpvn_flags( RETVAL, key, key_length, SV_CATBYTES );
 
-                _encode( cur, RETVAL );
+                _encode( aTHX_ cur, RETVAL );
             }
         }
         else {
@@ -227,6 +231,6 @@ fake_encode( SV * value )
 SV *
 encode( SV * value )
     CODE:
-        RETVAL = _encode(value, NULL);
+        RETVAL = _encode(aTHX_ value, NULL);
     OUTPUT:
         RETVAL

@@ -1,5 +1,9 @@
 use ExtUtils::MakeMaker;
 
+use Devel::PPPort;
+
+Devel::PPPort::WriteFile();
+
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 WriteMakefile1(
@@ -24,6 +28,7 @@ WriteMakefile1(
     LICENSE      => 'perl',
 
     XSMULTI        => 1,
+    INC => '-I.',
 
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 7.12,
@@ -35,6 +40,10 @@ WriteMakefile1(
     PREREQ_PM    => {
         'parent'    => 0,
         'X::Tiny'   => 0,
+    },
+
+    BUILD_REQUIRES => {
+        'Devel::PPPort' => 0,
     },
 
     TEST_REQUIRES => {
