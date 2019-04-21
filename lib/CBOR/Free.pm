@@ -45,6 +45,8 @@ L<CBOR::XS> exists but is GPL-licensed.
 
 #----------------------------------------------------------------------
 
+use CBOR::Free::X;
+
 use XSLoader ();
 
 our ($VERSION);
@@ -52,6 +54,10 @@ our ($VERSION);
 BEGIN {
     $VERSION = '0.01';
     XSLoader::load();
+}
+
+sub _die_recursion {
+    die CBOR::Free::X->create('Recursion', sprintf("Refuse to encode() more than %d times at once!", _MAX_RECURSION()))
 }
 
 1;

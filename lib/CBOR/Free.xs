@@ -29,6 +29,8 @@
 
 #define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
 
+#define MAX_ENCODE_RECURSE 98
+
 #define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
     if (buffer) { \
         sv_catpvn_flags( buffer, hdr, len, SV_CATBYTES ); \
@@ -111,7 +113,16 @@ SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
     return buffer;
 }
 
+char encode_recurse = 0;
+
 SV *_encode( pTHX_ SV *value, SV *buffer ) {
+    encode_recurse++;
+    if (encode_recurse > MAX_ENCODE_RECURSE) {
+        encode_recurse = 0;
+        call_pv("CBOR::Free::_die_recursion", G_EVAL);
+        croak(NULL);
+    }
+
     SV *RETVAL;
 
     if (!SvROK(value)) {
@@ -235,6 +246,10 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 MODULE = CBOR::Free           PACKAGE = CBOR::Free
 
 PROTOTYPES: DISABLE
+
+BOOT:
+    HV *stash = gv_stashpvn("CBOR::Free", 10, FALSE);
+    newCONSTSUB(stash, "_MAX_RECURSION", newSViv( MAX_ENCODE_RECURSE ));
 
 SV *
 fake_encode( SV * value )

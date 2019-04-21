@@ -13,6 +13,7 @@ t/boolean.t
 t/float.t
 t/hash.t
 t/negint.t
+t/recursion.t
 t/string.t
 t/uint.t
 t/undef.t
