@@ -208,7 +208,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             }
         }
 
-        else if (sv_isobject(value) && sv_derived_from(value, "Types::Serialiser::Boolean")) {
+        else if (sv_derived_from(value, "Types::Serialiser::Boolean")) {
             char *newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
 
             if (buffer) {
