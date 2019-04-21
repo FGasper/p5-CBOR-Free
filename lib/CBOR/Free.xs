@@ -21,6 +21,10 @@
 #define TYPE_TAG    0xc0
 #define TYPE_OTHER  0xe0
 
+#define CBOR_FALSE  "\xf4"
+#define CBOR_TRUE   "\xf5"
+#define CBOR_NULL   "\xf6"
+
 #define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
     if (buffer) { \
         sv_catpvn_flags( buffer, hdr, len, SV_CATBYTES ); \
@@ -108,11 +112,11 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
         if (SVt_NULL == SvTYPE(value)) {
             if (buffer) {
-                sv_catpvn( buffer, "\xf6", 1 );
+                sv_catpvn_flags( buffer, CBOR_NULL, 1, SV_CATBYTES );
                 RETVAL = buffer;
             }
             else {
-                RETVAL = newSVpv("\xf6", 1);
+                RETVAL = newSVpv(CBOR_NULL, 1);
             }
         }
         else if (SvIOK(value)) {
@@ -203,7 +207,21 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 _encode( aTHX_ cur, RETVAL );
             }
         }
+
+        else if (sv_isobject(value) && sv_derived_from(value, "Types::Serialiser::Boolean")) {
+            char *newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
+
+            if (buffer) {
+                sv_catpvn_flags( buffer, newbyte, 1, SV_CATBYTES );
+                RETVAL = buffer;
+            }
+            else {
+                RETVAL = newSVpv(newbyte, 1);
+            }
+        }
+
         else {
+            printf("----------- unrecognized!\n");
             // TODO: fail unrecognized
         }
     }
