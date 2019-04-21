@@ -8,19 +8,19 @@
 #include <arpa/inet.h>  // for byte order conversions
 #include <string.h>
 
-#define TYPE_UINT   "\0"
-#define TYPE_NEGINT "\x20"
-#define TYPE_BINARY "\x40"
-#define TYPE_UTF8   "\x60"
-#define TYPE_ARRAY  "\x80"
-#define TYPE_MAP    "\xa0"
-#define TYPE_TAG    "\xc0"
-#define TYPE_OTHER  "\xe0"
+#define TYPE_UINT   0
+#define TYPE_NEGINT 0x20
+#define TYPE_BINARY 0x40
+#define TYPE_UTF8   0x60
+#define TYPE_ARRAY  0x80
+#define TYPE_MAP    0xa0
+#define TYPE_TAG    0xc0
+#define TYPE_OTHER  0xe0
 
-SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
+SV *_init_length_buffer( UV num, const char type, SV *buffer ) {
     if ( num < 0x18 ) {
         char cnum = (char) num;
-        cnum += *type;
+        cnum += type;
 
         if (buffer) {
             sv_catpvn_flags( buffer, &cnum, 1, SV_CATBYTES );
@@ -30,7 +30,7 @@ SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
         }
     }
     else if ( num <= 0xff ) {
-        char hdr[2] = { *type + 0x18, (char) num };
+        char hdr[2] = { type + 0x18, (char) num };
 
         if (buffer) {
             sv_catpvn_flags( buffer, hdr, 2, SV_CATBYTES );
@@ -40,7 +40,7 @@ SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
         }
     }
     else if ( num <= 0xffff ) {
-        char hdr[3] = { *type + 0x19 };
+        char hdr[3] = { type + 0x19 };
 
         uint16_t native = htons(num);
 
@@ -54,7 +54,7 @@ SV *_init_length_buffer( UV num, const char *type, SV *buffer ) {
         }
     }
     else if ( num <= 0xffffffff ) {
-        char hdr[5] = { *type + 0x1a };
+        char hdr[5] = { type + 0x1a };
 
         uint32_t native = htonl(num);
 
