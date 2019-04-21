@@ -49,7 +49,7 @@ if ($free_enc ne CBOR::XS::encode_cbor($struct)) {
 }
 
 Benchmark::cmpthese(
-    1000000,
+    3000000,
     {
         jsonxs => sub { $json->encode($struct) },
         cborxs => sub { $cbor->encode($struct) },
