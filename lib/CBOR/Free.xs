@@ -441,7 +441,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         break;
 
                     case 0xff:
-                        ret = newSVpvn("", 0);
+                        ret = newSVpvs("");
 
                         while (*(decstate->curbyte) != '\xff') {
                             SV *cur = _decode( aTHX_ decstate );
@@ -450,9 +450,6 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         }
 
                         ++decstate->curbyte;
-
-                        break;
-
                 }
             } while(0);
 
@@ -522,6 +519,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                     SSize_t i;
                     for (i=0; i<array_length; i++) {
+                        // XXX TODO: Will this leak?
                         cur = _decode( aTHX_ decstate );
                         array_items[i] = cur;
                     }
@@ -536,6 +534,75 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             break;
         case TYPE_MAP:
+            do {
+                SSize_t keycount;
+
+                HV *hash;
+
+                switch (_parse_for_uint_len( aTHX_ decstate)) {
+                    case 0:
+                        keycount = 0x1f & *(decstate->curbyte);
+                        ++decstate->curbyte;
+
+                        break;
+
+                    case 1:
+                        keycount = (SSize_t) *(decstate->curbyte);
+                        ++decstate->curbyte;
+
+                        break;
+
+                    case 2:
+                        do {
+                            uint16_t *len = (uint16_t *) decstate->curbyte;
+                            keycount = ntohs(*len);
+
+                            decstate->curbyte += 2;
+                        } while (0);
+
+                        break;
+
+                    case 4:
+                        do {
+                            uint32_t *len = (uint32_t *) decstate->curbyte;
+                            keycount = ntohl(*len);
+
+                            decstate->curbyte += 4;
+                        } while (0);
+
+                        break;
+
+                    case 8:
+                        croak("Can’t do 64-bit yet!");      // TODO
+                        break;
+
+                    case 0xff:
+                        hash = newHV();
+
+                        while (*(decstate->curbyte) != '\xff') {
+                            SV *curkey = _decode( aTHX_ decstate );
+                            SV *curval = _decode( aTHX_ decstate );
+
+                            hv_store(hash, SvPVX(curkey), SvCUR(curkey), curval, 0);
+                        }
+
+                        ++decstate->curbyte;
+                }
+
+                if (!hash) {
+                    hash = newHV();
+                    SSize_t i;
+                    for (i=0; i<keycount; i++) {
+                        SV *curkey = _decode( aTHX_ decstate );
+                        SV *curval = _decode( aTHX_ decstate );
+
+                        hv_store(hash, SvPVX(curkey), SvCUR(curkey), curval, 0);
+                    }
+                }
+
+                ret = newRV_noinc( (SV *) hash);
+            } while(0);
+
             break;
         case TYPE_TAG:
             break;
@@ -544,6 +611,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 case CBOR_FALSE:
                     ret = get_sv("Types::Serialiser::false", 0);
                     break;
+
                 case CBOR_TRUE:
                     ret = get_sv("Types::Serialiser::true", 0);
                     break;
