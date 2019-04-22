@@ -266,6 +266,109 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
     return RETVAL;
 }
 
+//----------------------------------------------------------------------
+
+typedef struct {
+    SV* cbor;
+    STRLEN size;
+    char* curbyte;
+    char* end;
+} decode_ctx;
+
+void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
+    if ((len + decstate->curbyte) > decstate->end) {
+printf("excess: %ld\n", (len + decstate->curbyte) - decstate->end);
+        croak("Excess!!!");
+    }
+}
+
+SV *_decode( pTHX_ decode_ctx* decstate ) {
+    SV *ret;
+
+    _decode_check_for_overage( aTHX_ decstate, 1);
+
+    switch ( *(decstate->curbyte) & 0xe0 ) {
+        case TYPE_UINT:
+            switch (*(decstate->curbyte)) {
+                case 0x18:
+                    _decode_check_for_overage( aTHX_ decstate, 2);
+
+                    ret = newSVuv( (unsigned char) *(1 + decstate->curbyte) );
+/*
+                    ++decstate->curbyte;
+                    ret = newSVpv( 1 + decstate->curbyte, *(decstat->curbyte) );
+                    decstate->curbyte += 1 + *(decstate->curbyte);
+
+                    _decode_check_for_overage(decstate);
+*/
+
+                    decstate->curbyte += 2;
+                    break;
+
+                case 0x19:
+                    _decode_check_for_overage( aTHX_ decstate, 3);
+
+                    do {
+                        uint16_t *num;
+                        num = (uint16_t *)(1 + decstate->curbyte);
+
+                        ret = newSVuv(ntohs(*num));
+                    } while (0);
+
+                    decstate->curbyte += 3;
+                    break;
+
+                case 0x1a:
+                    _decode_check_for_overage( aTHX_ decstate, 5);
+
+                    do {
+                        uint32_t *num;
+                        num = (uint32_t *)(1 + decstate->curbyte);
+
+                        ret = newSVuv(ntohl(*num));
+                    } while (0);
+
+                    decstate->curbyte += 5;
+                    break;
+
+                case 0x1b:
+                    //TODO: 64-bit
+                    break;
+
+                case 0x1c:
+                case 0x1d:
+                case 0x1e:
+                case 0x1f:
+                    croak("Unrecognized uint byte!");   // TODO
+                    break;
+
+                default:
+                    ret = newSVuv( *(decstate->curbyte) );
+                    ++decstate->curbyte;
+            }
+
+            break;
+        case TYPE_NEGINT:
+            break;
+        case TYPE_BINARY:
+            break;
+        case TYPE_UTF8:
+            break;
+        case TYPE_ARRAY:
+            break;
+        case TYPE_MAP:
+            break;
+        case TYPE_TAG:
+            break;
+        case TYPE_OTHER:
+            break;
+    }
+
+    return ret;
+}
+
+//----------------------------------------------------------------------
+
 MODULE = CBOR::Free           PACKAGE = CBOR::Free
 
 PROTOTYPES: DISABLE
@@ -288,5 +391,20 @@ SV *
 encode( SV * value )
     CODE:
         RETVAL = _encode(aTHX_ value, NULL);
+    OUTPUT:
+        RETVAL
+
+
+SV *
+decode( SV *cbor )
+    CODE:
+        decode_ctx decode_state = {
+            cbor,
+            SvCUR(cbor),
+            SvPVX(cbor),
+            SvEND(cbor)
+        };
+
+        RETVAL = _decode( aTHX_ &decode_state );
     OUTPUT:
         RETVAL

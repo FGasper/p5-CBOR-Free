@@ -10,13 +10,14 @@ lib/CBOR/Free.xs
 lib/CBOR/Free/X.pm
 lib/CBOR/Free/X/Base.pm
 lib/CBOR/Free/X/Recursion.pm
+lib/CBOR/Free/X/Unrecognized.pm
 ppport.h
 t/array.t
 t/boolean.t
+t/errors.t
 t/float.t
 t/hash.t
 t/negint.t
-t/recursion.t
 t/string.t
 t/uint.t
 t/undef.t
