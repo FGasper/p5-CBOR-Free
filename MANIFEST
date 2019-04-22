@@ -14,6 +14,7 @@ lib/CBOR/Free/X/Unrecognized.pm
 ppport.h
 t/array.t
 t/boolean.t
+t/decode.t
 t/errors.t
 t/float.t
 t/hash.t

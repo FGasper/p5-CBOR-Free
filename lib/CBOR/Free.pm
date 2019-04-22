@@ -59,9 +59,11 @@ L<CBOR::XS> exists but is GPL-licensed.
 
 #----------------------------------------------------------------------
 
+use Types::Serialiser;
+use XSLoader ();
+
 use CBOR::Free::X;
 
-use XSLoader ();
 
 our ($VERSION);
 

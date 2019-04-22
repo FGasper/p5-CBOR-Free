@@ -21,9 +21,10 @@
 #define TYPE_TAG    0xc0
 #define TYPE_OTHER  0xe0
 
-#define CBOR_FALSE  "\xf4"
-#define CBOR_TRUE   "\xf5"
-#define CBOR_NULL   "\xf6"
+#define CBOR_FALSE      0xf4
+#define CBOR_TRUE       0xf5
+#define CBOR_NULL       0xf6
+#define CBOR_UNDEFINED  0xf7
 
 #define CBOR_DOUBLE 0xfb
 
@@ -132,7 +133,7 @@ SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
     return buffer;
 }
 
-char encode_recurse = 0;
+uint8_t encode_recurse = 0;
 
 SV *_encode( pTHX_ SV *value, SV *buffer ) {
     encode_recurse++;
@@ -147,7 +148,8 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
     if (!SvROK(value)) {
 
         if (SVt_NULL == SvTYPE(value)) {
-            _INIT_LENGTH_SETUP_BUFFER(buffer, CBOR_NULL, 1);
+            char null = CBOR_NULL;
+            _INIT_LENGTH_SETUP_BUFFER(buffer, &null, 1);
 
             RETVAL = buffer;
         }
@@ -158,6 +160,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 RETVAL = _init_length_buffer_negint( aTHX_ val, buffer );
             }
             else {
+                // NB: SvUOK doesn’t work to identify nonnegatives … ?
                 RETVAL = _init_length_buffer( aTHX_ val, TYPE_UINT, buffer );
             }
         }
@@ -206,14 +209,14 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
     }
     else if (sv_isobject(value)) {
         if (sv_derived_from(value, BOOLEAN_CLASS)) {
-            char *newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
+            char newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
 
             if (buffer) {
-                sv_catpvn_flags( buffer, newbyte, 1, SV_CATBYTES );
+                sv_catpvn_flags( buffer, &newbyte, 1, SV_CATBYTES );
                 RETVAL = buffer;
             }
             else {
-                RETVAL = newSVpv(newbyte, 1);
+                RETVAL = newSVpv(&newbyte, 1);
             }
         }
 
@@ -233,8 +236,9 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
             SSize_t i;
 
+            SV **cur;
             for (i=0; i<len; i++) {
-                SV **cur = av_fetch(array, i, 0);
+                cur = av_fetch(array, i, 0);
                 _encode( aTHX_ *cur, RETVAL );
             }
         }
@@ -277,8 +281,55 @@ typedef struct {
 
 void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
     if ((len + decstate->curbyte) > decstate->end) {
-printf("excess: %ld\n", (len + decstate->curbyte) - decstate->end);
         croak("Excess!!!");
+    }
+}
+
+// NB: We already checked that curbyte is safe to read!
+uint8_t _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
+    switch (*(decstate->curbyte) & 0x1f) {  // 0x1f == 0b00011111
+        case 0x18:
+
+            //num = 2 * (num - 0x17)
+            //_decode_check_for_overage( aTHX_ decstate, 1 + num);
+            //return num
+
+            _decode_check_for_overage( aTHX_ decstate, 2);
+
+            ++decstate->curbyte;
+
+            return 1;
+
+        case 0x19:
+            _decode_check_for_overage( aTHX_ decstate, 3);
+
+            ++decstate->curbyte;
+            return 2;
+
+        case 0x1a:
+            _decode_check_for_overage( aTHX_ decstate, 5);
+
+            ++decstate->curbyte;
+            return 4;
+
+        case 0x1b:
+            _decode_check_for_overage( aTHX_ decstate, 9);
+
+            ++decstate->curbyte;
+            return 8;
+
+        case 0x1c:
+        case 0x1d:
+        case 0x1e:
+            croak("Unrecognized uint byte!");   // TODO
+            break;
+
+        case 0x1f:
+            ++decstate->curbyte;
+            return 255;
+
+        default:
+            return 0;
     }
 }
 
@@ -287,52 +338,42 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     _decode_check_for_overage( aTHX_ decstate, 1);
 
+    uint8_t uintlen;
+
     switch ( *(decstate->curbyte) & 0xe0 ) {
         case TYPE_UINT:
-            switch (*(decstate->curbyte)) {
-                case 0x18:
-                    _decode_check_for_overage( aTHX_ decstate, 2);
+            switch (uintlen = _parse_for_uint_len( aTHX_ decstate)) {
+                case 0:
+                case 1:
+                    ret = newSVuv( (uint8_t) *(decstate->curbyte) );
 
-                    ret = newSVuv( (unsigned char) *(1 + decstate->curbyte) );
-/*
                     ++decstate->curbyte;
-                    ret = newSVpv( 1 + decstate->curbyte, *(decstat->curbyte) );
-                    decstate->curbyte += 1 + *(decstate->curbyte);
-
-                    _decode_check_for_overage(decstate);
-*/
-
-                    decstate->curbyte += 2;
                     break;
 
-                case 0x19:
-                    _decode_check_for_overage( aTHX_ decstate, 3);
-
+                case 2:
                     do {
                         uint16_t *num;
-                        num = (uint16_t *)(1 + decstate->curbyte);
+                        num = (uint16_t *) decstate->curbyte;
 
                         ret = newSVuv(ntohs(*num));
                     } while (0);
 
-                    decstate->curbyte += 3;
+                    decstate->curbyte += 2;
                     break;
 
-                case 0x1a:
-                    _decode_check_for_overage( aTHX_ decstate, 5);
-
+                case 4:
                     do {
                         uint32_t *num;
-                        num = (uint32_t *)(1 + decstate->curbyte);
+                        num = (uint32_t *) decstate->curbyte;
 
                         ret = newSVuv(ntohl(*num));
                     } while (0);
 
-                    decstate->curbyte += 5;
+                    decstate->curbyte += 4;
                     break;
 
-                case 0x1b:
-                    //TODO: 64-bit
+                case 8:
+                    croak("Can’t do 64-bit yet!");      // TODO
                     break;
 
                 case 0x1c:
@@ -342,26 +383,160 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     croak("Unrecognized uint byte!");   // TODO
                     break;
 
-                default:
-                    ret = newSVuv( *(decstate->curbyte) );
-                    ++decstate->curbyte;
             }
 
             break;
         case TYPE_NEGINT:
+            croak("decode negint TODO");
             break;
         case TYPE_BINARY:
-            break;
         case TYPE_UTF8:
+            do {
+                switch (_parse_for_uint_len( aTHX_ decstate)) {
+                    case 0:
+                        ret = newSVpv( 1 + decstate->curbyte, 0x1f & *(decstate->curbyte) );
+                        ++decstate->curbyte;
+                        break;
+
+                    case 1:
+                        do {
+                            uint8_t len = *(decstate->curbyte);
+                            ret = newSVpv( 1 + decstate->curbyte, len );
+
+                            decstate->curbyte += 1 + len;
+                        } while (0);
+
+                        break;
+
+                    case 2:
+                        do {
+                            uint16_t *len;
+                            len = (uint16_t *) decstate->curbyte;
+
+                            ret = newSVpv( 2 + decstate->curbyte, ntohs(*len));
+
+                            decstate->curbyte += 2 + *len;
+                        } while (0);
+
+                        break;
+
+                    case 4:
+                        do {
+                            uint32_t *len;
+                            len = (uint32_t *) decstate->curbyte;
+
+                            ret = newSVpv( 4 + decstate->curbyte, ntohl(*len));
+
+                            decstate->curbyte += 4 + *len;
+                        } while (0);
+
+                        break;
+
+                    case 8:
+                        croak("Can’t do 64-bit yet!");      // TODO
+                        break;
+
+                    case 0xff:
+                        croak("Can’t do indefinite-length binary!");   // TODO
+                        break;
+
+                }
+            } while(0);
+
             break;
         case TYPE_ARRAY:
+            do {
+                SSize_t array_length;
+
+                AV *array;
+                SV *cur;
+
+                switch (_parse_for_uint_len( aTHX_ decstate)) {
+                    case 0:
+                        array_length = 0x1f & *(decstate->curbyte);
+                        ++decstate->curbyte;
+
+                        break;
+
+                    case 1:
+                        array_length = (SSize_t) *(decstate->curbyte);
+                        ++decstate->curbyte;
+
+                        break;
+
+                    case 2:
+                        do {
+                            uint16_t *len = (uint16_t *) decstate->curbyte;
+                            array_length = ntohs(*len);
+
+                            decstate->curbyte += 2;
+                        } while (0);
+
+                        break;
+
+                    case 4:
+                        do {
+                            uint32_t *len = (uint32_t *) decstate->curbyte;
+                            array_length = ntohl(*len);
+
+                            decstate->curbyte += 4;
+                        } while (0);
+
+                        break;
+
+                    case 8:
+                        croak("Can’t do 64-bit yet!");      // TODO
+                        break;
+
+                    case 0xff:
+                        array = newAV();
+
+                        while (*(decstate->curbyte) != '\xff') {
+                            cur = _decode( aTHX_ decstate );
+                            av_push(array, cur);
+                        }
+                }
+
+                if (!array) {
+                    SV **array_items;
+
+                    array_items = calloc( array_length, sizeof(SV *) );
+                    if (!array_items) {
+                        croak("Out of memory!");
+                    }
+
+                    SSize_t i;
+                    for (i=0; i<array_length; i++) {
+                        cur = _decode( aTHX_ decstate );
+                        array_items[i] = cur;
+                    }
+
+                    array = av_make(array_length, array_items);
+
+                    free(array_items);
+                }
+
+                ret = newRV_noinc( (SV *) array);
+            } while(0);
+
             break;
         case TYPE_MAP:
             break;
         case TYPE_TAG:
             break;
         case TYPE_OTHER:
-            break;
+            switch ((uint8_t) *(decstate->curbyte)) {
+                case CBOR_FALSE:
+                    ret = get_sv("Types::Serialiser::false", 0);
+                    break;
+                case CBOR_TRUE:
+                    ret = get_sv("Types::Serialiser::true", 0);
+                    break;
+
+                case CBOR_NULL:
+                case CBOR_UNDEFINED:
+                    ret = &PL_sv_undef;
+            }
     }
 
     return ret;
@@ -375,7 +550,7 @@ PROTOTYPES: DISABLE
 
 BOOT:
     HV *stash = gv_stashpvn("CBOR::Free", 10, FALSE);
-    newCONSTSUB(stash, "_MAX_RECURSION", newSViv( MAX_ENCODE_RECURSE ));
+    newCONSTSUB(stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
 
 SV *
 fake_encode( SV * value )
@@ -406,5 +581,6 @@ decode( SV *cbor )
         };
 
         RETVAL = _decode( aTHX_ &decode_state );
+        //sv_2mortal((SV*)RETVAL);
     OUTPUT:
         RETVAL

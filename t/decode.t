@@ -5,6 +5,7 @@ use warnings;
 
 use Test::More;
 
+use Types::Serialiser;
 use Data::Dumper;
 
 use_ok('CBOR::Free');
@@ -22,6 +23,16 @@ my @tests = (
     [ "\x19\xff\xff" => 65535 ],
     [ "\x1a\x00\x01\x00\x00" => 65536 ],
     [ "\x1a\xff\xff\xff\xff" => 0xffffffff ],
+
+    [ "\xf4" => Types::Serialiser::false() ],
+    [ "\xf5" => Types::Serialiser::true() ],
+    [ "\xf6" => undef ],
+    [ "\xf7" => undef ],
+
+    [ "\x80" => [] ],
+    [ "\x9f\xff" => [] ],
+    [ "\x81\x01" => [1] ],
+    [ "\x9f\x01\xff" => [1] ],
 );
 
 for my $t (@tests) {
@@ -37,9 +48,7 @@ for my $t (@tests) {
 sub _cmpbin {
     my ($got, $expect, $label) = @_;
 
-    $_ = sprintf('%v.02x', $_) for ($got, $expect);
-
-    return is( $got, $expect, $label );
+    return is_deeply( $got, $expect, $label );
 }
 
 done_testing;
