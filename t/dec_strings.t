@@ -45,5 +45,17 @@ for my $t (@tests) {
     );
 }
 
+is(
+    CBOR::Free::decode("\x5f\x41a\x42bc\xff"),
+    'abc',
+    'indefinite-length binary',
+);
+
+is(
+    CBOR::Free::decode("\x7f\x41a\x42bc\xff"),
+    'abc',
+    'indefinite-length UTF-8',
+);
+
 done_testing;
 

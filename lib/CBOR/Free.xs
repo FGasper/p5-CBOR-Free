@@ -394,8 +394,12 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             do {
                 switch (_parse_for_uint_len( aTHX_ decstate)) {
                     case 0:
-                        ret = newSVpv( 1 + decstate->curbyte, 0x1f & *(decstate->curbyte) );
-                        ++decstate->curbyte;
+                        do {
+                            uint8_t len = 0x1f & *(decstate->curbyte);
+                            ret = newSVpv( 1 + decstate->curbyte, len );
+                            decstate->curbyte += 1 + len;
+                        } while (0);
+
                         break;
 
                     case 1:
@@ -437,7 +441,16 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         break;
 
                     case 0xff:
-                        croak("Can’t do indefinite-length binary!");   // TODO
+                        ret = newSVpvn("", 0);
+
+                        while (*(decstate->curbyte) != '\xff') {
+                            SV *cur = _decode( aTHX_ decstate );
+
+                            sv_catsv(ret, cur);
+                        }
+
+                        ++decstate->curbyte;
+
                         break;
 
                 }
@@ -495,6 +508,8 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                             cur = _decode( aTHX_ decstate );
                             av_push(array, cur);
                         }
+
+                        ++decstate->curbyte;
                 }
 
                 if (!array) {
