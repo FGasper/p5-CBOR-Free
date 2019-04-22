@@ -136,7 +136,7 @@ SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
 uint8_t encode_recurse = 0;
 
 SV *_encode( pTHX_ SV *value, SV *buffer ) {
-    encode_recurse++;
+    ++encode_recurse;
     if (encode_recurse > MAX_ENCODE_RECURSE) {
         encode_recurse = 0;
         call_pv("CBOR::Free::_die_recursion", G_EVAL);
@@ -267,6 +267,8 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
         }
     }
 
+    --encode_recurse;
+
     return RETVAL;
 }
 
@@ -338,11 +340,9 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     _decode_check_for_overage( aTHX_ decstate, 1);
 
-    uint8_t uintlen;
-
     switch ( *(decstate->curbyte) & 0xe0 ) {
         case TYPE_UINT:
-            switch (uintlen = _parse_for_uint_len( aTHX_ decstate)) {
+            switch (_parse_for_uint_len( aTHX_ decstate)) {
                 case 0:
                 case 1:
                     ret = newSVuv( (uint8_t) *(decstate->curbyte) );
@@ -504,6 +504,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         while (*(decstate->curbyte) != '\xff') {
                             cur = _decode( aTHX_ decstate );
                             av_push(array, cur);
+                            sv_2mortal(cur);
                         }
 
                         ++decstate->curbyte;
@@ -519,9 +520,9 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                     SSize_t i;
                     for (i=0; i<array_length; i++) {
-                        // XXX TODO: Will this leak?
                         cur = _decode( aTHX_ decstate );
                         array_items[i] = cur;
+                        sv_2mortal(cur);
                     }
 
                     array = av_make(array_length, array_items);
@@ -584,6 +585,8 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                             SV *curval = _decode( aTHX_ decstate );
 
                             hv_store(hash, SvPVX(curkey), SvCUR(curkey), curval, 0);
+                            sv_2mortal(curkey);
+                            sv_2mortal(curval);
                         }
 
                         ++decstate->curbyte;
@@ -597,6 +600,8 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         SV *curval = _decode( aTHX_ decstate );
 
                         hv_store(hash, SvPVX(curkey), SvCUR(curkey), curval, 0);
+                        sv_2mortal(curkey);
+                        sv_2mortal(curval);
                     }
                 }
 
