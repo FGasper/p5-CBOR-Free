@@ -7,6 +7,7 @@ README.md
 benchmark.pl
 lib/CBOR/Free.pm
 lib/CBOR/Free.xs
+lib/CBOR/Free/Tagged.pm
 lib/CBOR/Free/X.pm
 lib/CBOR/Free/X/Base.pm
 lib/CBOR/Free/X/Recursion.pm
@@ -21,5 +22,6 @@ t/float.t
 t/hash.t
 t/negint.t
 t/string.t
+t/tag.t
 t/uint.t
 t/undef.t
