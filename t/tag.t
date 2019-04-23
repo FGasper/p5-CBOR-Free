@@ -10,11 +10,8 @@ use Data::Dumper;
 use_ok('CBOR::Free');
 
 my @tests = (
-    [ [] => "\x80" ],
-    [ [undef] => "\x81\xf6"],
-    [ [undef, undef] => "\x82\xf6\xf6"],
-    [ [undef, 1] => "\x82\xf6\x01" ],
-    [ [undef, [65536]] => "\x82\xf6\x81\x1a\0\1\0\0" ],
+    [ CBOR::Free::tag( 12, 12 ) => "\xcc\x0c" ],
+    [ CBOR::Free::tag( 24, "\0\1\2" ) => "\xd8\x18\x43\0\1\2"],
 );
 
 for my $t (@tests) {

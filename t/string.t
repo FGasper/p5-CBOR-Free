@@ -10,11 +10,15 @@ use Data::Dumper;
 use_ok('CBOR::Free');
 
 my @tests = (
-    [ q<> => "\x60" ],
+    [ q<> => "\x40" ],
     [ "\xff" => "\x41\xff" ],
-    [ 'abc' => "\x63\x61\x62\x63" ],
-    [ ('a' x 23) => "\x77" . ('a' x 23) ],
-    [ ('a' x 24) => "\x78\x18" . ('a' x 24) ],
+    [ 'abc' => "\x43\x61\x62\x63" ],
+    [ ('a' x 23) => "\x57" . ('a' x 23) ],
+    [ ('a' x 24) => "\x58\x18" . ('a' x 24) ],
+
+    [ 'épée' => "\x46\xc3\xa9p\xc3\xa9e" ],
+
+    [ do { utf8::decode(my $v = 'épée'); $v } => "\x66\xc3\xa9p\xc3\xa9e" ],
 );
 
 for my $t (@tests) {

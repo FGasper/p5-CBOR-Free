@@ -59,17 +59,25 @@ L<CBOR::XS> exists but is GPL-licensed.
 
 #----------------------------------------------------------------------
 
-use Types::Serialiser;
 use XSLoader ();
 
-use CBOR::Free::X;
+use Types::Serialiser;
 
+use CBOR::Free::X;
+use CBOR::Free::Tagged;
 
 our ($VERSION);
 
 BEGIN {
     $VERSION = '0.01';
     XSLoader::load();
+}
+
+*true = *Types::Serialiser::true;
+*false = *Types::Serialiser::false;
+
+sub tag {
+    return CBOR::Free::Tagged->new(@_);
 }
 
 sub _die_recursion {

@@ -4,15 +4,14 @@ use strict;
 use warnings;
 
 use Test::More;
-use Types::Serialiser;
 
 use Data::Dumper;
 
 use_ok('CBOR::Free');
 
 my @tests = (
-    [ Types::Serialiser::true() => "\xf5" ],
-    [ Types::Serialiser::false() => "\xf4" ],
+    [ CBOR::Free::true() => "\xf5" ],
+    [ CBOR::Free::false() => "\xf4" ],
 );
 
 for my $t (@tests) {

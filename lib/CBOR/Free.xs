@@ -29,6 +29,7 @@
 #define CBOR_DOUBLE 0xfb
 
 #define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
+#define TAGGED_CLASS    "CBOR::Free::Tagged"
 
 #define MAX_ENCODE_RECURSE 98
 
@@ -188,6 +189,8 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             char *val = SvPVX(value);
 
             bool encode_as_text = SvUTF8(value);
+
+            /*
             if (!encode_as_text) {
                 STRLEN i;
                 for (i=0; i<len; i++) {
@@ -197,6 +200,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 // Encode as text if there were no high-bit octets.
                 encode_as_text = (i == len);
             }
+            */
 
             RETVAL = _init_length_buffer( aTHX_
                 len,
@@ -218,6 +222,14 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             else {
                 RETVAL = newSVpv(&newbyte, 1);
             }
+        }
+        else if (sv_derived_from(value, TAGGED_CLASS)) {
+            AV *array = (AV *)SvRV(value);
+            SV **tag = av_fetch(array, 0, 0);
+            IV tagnum = SvIV(*tag);
+
+            RETVAL = _init_length_buffer( aTHX_ tagnum, TYPE_TAG, buffer );
+            sv_catsv(RETVAL, _encode( aTHX_ *(av_fetch(array, 1, 0)), buffer));
         }
 
         // TODO: Support TO_JSON() method?
@@ -504,7 +516,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         while (*(decstate->curbyte) != '\xff') {
                             cur = _decode( aTHX_ decstate );
                             av_push(array, cur);
-                            sv_2mortal(cur);
+                            //sv_2mortal(cur);
                         }
 
                         ++decstate->curbyte;
@@ -522,7 +534,6 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     for (i=0; i<array_length; i++) {
                         cur = _decode( aTHX_ decstate );
                         array_items[i] = cur;
-                        sv_2mortal(cur);
                     }
 
                     array = av_make(array_length, array_items);
@@ -599,9 +610,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         SV *curkey = _decode( aTHX_ decstate );
                         SV *curval = _decode( aTHX_ decstate );
 
-                        hv_store(hash, SvPVX(curkey), SvCUR(curkey), curval, 0);
+                        char *keystr = SvPOK(curkey) ? SvPVX(curkey) : SvPV_nolen(curkey);
+
+                        hv_store(hash, keystr, SvCUR(curkey), curval, 0);
                         sv_2mortal(curkey);
-                        sv_2mortal(curval);
+                        //sv_2mortal(curval);
                     }
                 }
 
@@ -614,11 +627,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
         case TYPE_OTHER:
             switch ((uint8_t) *(decstate->curbyte)) {
                 case CBOR_FALSE:
-                    ret = get_sv("Types::Serialiser::false", 0);
+                    ret = get_sv("CBOR::Free::false", 0);
                     break;
 
                 case CBOR_TRUE:
-                    ret = get_sv("Types::Serialiser::true", 0);
+                    ret = get_sv("CBOR::Free::true", 0);
                     break;
 
                 case CBOR_NULL:
