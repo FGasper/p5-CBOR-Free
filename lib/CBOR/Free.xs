@@ -43,6 +43,51 @@
 // populated in XS BOOT code below.
 bool is_big_endian;
 
+//----------------------------------------------------------------------
+// Definitions
+
+typedef struct {
+    SV* cbor;
+    STRLEN size;
+    char* curbyte;
+    char* end;
+} decode_ctx;
+
+void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
+    if ((len + decstate->curbyte) > decstate->end) {
+        croak("Excess!!!");
+    }
+}
+
+enum enum_sizetype {
+    //tiny = 0,
+    small = 1,
+    medium = 2,
+    large = 4,
+    huge = 8,
+    indefinite = 255,
+};
+
+union anyint {
+    uint8_t u8;
+    uint16_t u16;
+    uint32_t u32;
+    uint64_t u64;
+};
+
+typedef struct {
+    enum enum_sizetype sizetype;
+    union anyint size;
+} struct_sizeparse;
+
+//----------------------------------------------------------------------
+// Prototypes
+// TODO: Be C99-compliant.
+
+SV *_decode( pTHX_ decode_ctx* decstate );
+
+//----------------------------------------------------------------------
+
 void _croak_unrecognized(pTHX_ SV *value) {
     dSP;
 
@@ -286,43 +331,9 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
 //----------------------------------------------------------------------
 
-typedef struct {
-    SV* cbor;
-    STRLEN size;
-    char* curbyte;
-    char* end;
-} decode_ctx;
-
-void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
-    if ((len + decstate->curbyte) > decstate->end) {
-        croak("Excess!!!");
-    }
-}
-
-enum enum_sizetype {
-    //tiny = 0,
-    small = 1,
-    medium = 2,
-    large = 4,
-    huge = 8,
-    indefinite = 255,
-};
-
-union anyint {
-    uint8_t u8;
-    uint16_t u16;
-    uint32_t u32;
-    uint64_t u64;
-};
-
-struct struct_sizeparse {
-    enum enum_sizetype sizetype;
-    union anyint size;
-};
-
 // NB: We already checked that curbyte is safe to read!
-struct struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
-    struct struct_sizeparse ret;
+struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
+    struct_sizeparse ret;
 
     switch (*(decstate->curbyte) & 0x1f) {  // 0x1f == 0b00011111
         case 0x18:
@@ -405,12 +416,138 @@ struct struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
     return ret;
 }
 
+//----------------------------------------------------------------------
+
+SV *_decode_array( pTHX_ decode_ctx* decstate ) {
+    SSize_t array_length;
+
+    AV *array;
+    SV *cur;
+
+    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+
+    switch (sizeparse.sizetype) {
+        //case tiny:
+        case small:
+            array_length = sizeparse.size.u8;
+            break;
+
+        case medium:
+            array_length = sizeparse.size.u16;
+            break;
+
+        case large:
+            array_length = sizeparse.size.u32;
+            break;
+
+        case huge:
+            array_length = sizeparse.size.u64;
+            break;
+
+        case indefinite:
+            array = newAV();
+
+            while (*(decstate->curbyte) != '\xff') {
+                _decode_check_for_overage( aTHX_ decstate, 1 );
+
+                cur = _decode( aTHX_ decstate );
+                av_push(array, cur);
+                //sv_2mortal(cur);
+            }
+
+            ++decstate->curbyte;
+    }
+
+    if (!array) {
+        SV **array_items;
+
+        array_items = calloc( array_length, sizeof(SV *) );
+        if (!array_items) {
+            croak("Out of memory!");
+        }
+
+        SSize_t i;
+        for (i=0; i<array_length; i++) {
+            cur = _decode( aTHX_ decstate );
+            array_items[i] = cur;
+        }
+
+        array = av_make(array_length, array_items);
+
+        free(array_items);
+    }
+
+    return newRV_noinc( (SV *) array);
+}
+
+//----------------------------------------------------------------------
+
+void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
+    SV *curkey = _decode( aTHX_ decstate );
+    SV *curval = _decode( aTHX_ decstate );
+
+    char *keystr = SvPOK(curkey) ? SvPVX(curkey) : SvPV_nolen(curkey);
+
+    hv_store(hash, keystr, SvCUR(curkey), curval, 0);
+    sv_2mortal(curkey);
+}
+
+SV *_decode_map( pTHX_ decode_ctx* decstate ) {
+    SSize_t keycount;
+
+    HV *hash;
+
+    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+
+    switch (sizeparse.sizetype) {
+        //case tiny:
+        case small:
+            keycount = sizeparse.size.u8;
+            break;
+
+        case medium:
+            keycount = sizeparse.size.u16;
+            break;
+
+        case large:
+            keycount = sizeparse.size.u32;
+            break;
+
+        case huge:
+            keycount = sizeparse.size.u64;
+            break;
+
+        case indefinite:
+            hash = newHV();
+
+            while (*(decstate->curbyte) != '\xff') {
+                _decode_to_hash( aTHX_ decstate, hash );
+            }
+
+            _decode_check_for_overage( aTHX_ decstate, 1 );
+            ++decstate->curbyte;
+    }
+
+    if (!hash) {
+        hash = newHV();
+
+        while (keycount > 0) {
+            _decode_to_hash( aTHX_ decstate, hash );
+            --keycount;
+        }
+    }
+
+    return newRV_noinc( (SV *) hash);
+}
+
+//----------------------------------------------------------------------
+
 SV *_decode( pTHX_ decode_ctx* decstate ) {
     SV *ret;
 
     _decode_check_for_overage( aTHX_ decstate, 1);
 
-    struct struct_sizeparse sizeparse;
+    struct_sizeparse sizeparse;
 
     switch ( *(decstate->curbyte) & 0xe0 ) {
         case TYPE_UINT:
@@ -480,10 +617,14 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     ret = newSVpvs("");
 
                     while (*(decstate->curbyte) != '\xff') {
+                        //TODO: Require the same major type.
+
                         SV *cur = _decode( aTHX_ decstate );
 
                         sv_catsv(ret, cur);
                     }
+
+                    _decode_check_for_overage( aTHX_ decstate, 1 );
 
                     ++decstate->curbyte;
                     break;
@@ -494,123 +635,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             break;
         case TYPE_ARRAY:
-            do {
-                SSize_t array_length;
-
-                AV *array;
-                SV *cur;
-
-                sizeparse = _parse_for_uint_len( aTHX_ decstate );
-                switch (sizeparse.sizetype) {
-                    //case tiny:
-                    case small:
-                        array_length = sizeparse.size.u8;
-                        break;
-
-                    case medium:
-                        array_length = sizeparse.size.u16;
-                        break;
-
-                    case large:
-                        array_length = sizeparse.size.u32;
-                        break;
-
-                    case huge:
-                        array_length = sizeparse.size.u64;
-                        break;
-
-                    case indefinite:
-                        array = newAV();
-
-                        while (*(decstate->curbyte) != '\xff') {
-                            cur = _decode( aTHX_ decstate );
-                            av_push(array, cur);
-                            //sv_2mortal(cur);
-                        }
-
-                        ++decstate->curbyte;
-                }
-
-                if (!array) {
-                    SV **array_items;
-
-                    array_items = calloc( array_length, sizeof(SV *) );
-                    if (!array_items) {
-                        croak("Out of memory!");
-                    }
-
-                    SSize_t i;
-                    for (i=0; i<array_length; i++) {
-                        cur = _decode( aTHX_ decstate );
-                        array_items[i] = cur;
-                    }
-
-                    array = av_make(array_length, array_items);
-
-                    free(array_items);
-                }
-
-                ret = newRV_noinc( (SV *) array);
-            } while(0);
+            ret = _decode_array( aTHX_ decstate );
 
             break;
         case TYPE_MAP:
-            do {
-                SSize_t keycount;
-
-                HV *hash;
-
-                sizeparse = _parse_for_uint_len( aTHX_ decstate );
-                switch (sizeparse.sizetype) {
-                    //case tiny:
-                    case small:
-                        keycount = sizeparse.size.u8;
-                        break;
-
-                    case medium:
-                        keycount = sizeparse.size.u16;
-                        break;
-
-                    case large:
-                        keycount = sizeparse.size.u32;
-                        break;
-
-                    case huge:
-                        keycount = sizeparse.size.u64;
-                        break;
-
-                    case indefinite:
-                        hash = newHV();
-
-                        while (*(decstate->curbyte) != '\xff') {
-                            SV *curkey = _decode( aTHX_ decstate );
-                            SV *curval = _decode( aTHX_ decstate );
-
-                            hv_store(hash, SvPVX(curkey), SvCUR(curkey), curval, 0);
-                            sv_2mortal(curkey);
-                            sv_2mortal(curval);
-                        }
-
-                        ++decstate->curbyte;
-                }
-
-                if (!hash) {
-                    hash = newHV();
-                    SSize_t i;
-                    for (i=0; i<keycount; i++) {
-                        SV *curkey = _decode( aTHX_ decstate );
-                        SV *curval = _decode( aTHX_ decstate );
-
-                        char *keystr = SvPOK(curkey) ? SvPVX(curkey) : SvPV_nolen(curkey);
-
-                        hv_store(hash, keystr, SvCUR(curkey), curval, 0);
-                        sv_2mortal(curkey);
-                        //sv_2mortal(curval);
-                    }
-                }
-
-                ret = newRV_noinc( (SV *) hash);
-            } while(0);
+            ret = _decode_map( aTHX_ decstate );
 
             break;
         case TYPE_TAG:
