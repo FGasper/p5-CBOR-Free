@@ -299,8 +299,31 @@ void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
     }
 }
 
+enum sizetype {
+    tiny = 0,
+    small = 1,
+    medium = 2,
+    large = 4,
+    huge = 8,
+    indefinite = 255,
+};
+
+union anyint {
+    uint8_t u8;
+    uint16_t u16;
+    uint32_t u32;
+    uint64_t u64;
+};
+
+struct lenparse {
+    enum sizetype lensize;
+    union anyint size;
+};
+
 // NB: We already checked that curbyte is safe to read!
-uint8_t _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
+struct lenparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
+    struct lenparse ret;
+
     switch (*(decstate->curbyte) & 0x1f) {  // 0x1f == 0b00011111
         case 0x18:
 
@@ -312,25 +335,50 @@ uint8_t _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            return 1;
+            ret.lensize = small;
+            ret.size.u8 = *decstate->curbyte;
+
+            ++decstate->curbyte;
+
+            break;
 
         case 0x19:
             _decode_check_for_overage( aTHX_ decstate, 3);
 
             ++decstate->curbyte;
-            return 2;
+
+            ret.lensize = medium;
+            ret.size.u16 = ntohs( *((uint16_t *) decstate->curbyte) );
+
+            decstate->curbyte += 2;
+
+            break;
 
         case 0x1a:
             _decode_check_for_overage( aTHX_ decstate, 5);
 
             ++decstate->curbyte;
-            return 4;
+
+            ret.lensize = large;
+            ret.size.u32 = ntohl( *((uint32_t *) decstate->curbyte) );
+
+            decstate->curbyte += 4;
+
+            break;
 
         case 0x1b:
             _decode_check_for_overage( aTHX_ decstate, 9);
 
             ++decstate->curbyte;
-            return 8;
+
+            ret.lensize = huge;
+
+            //TODO
+            croak("TODO: convert 64-bit network to host order");
+
+            decstate->curbyte += 8;
+
+            break;
 
         case 0x1c:
         case 0x1d:
@@ -340,11 +388,22 @@ uint8_t _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
         case 0x1f:
             ++decstate->curbyte;
-            return 255;
+
+            ret.lensize = indefinite;
+
+            break;
 
         default:
-            return 0;
+
+            ret.lensize = tiny;
+            ret.size.u8 = (uint8_t) (*(decstate->curbyte) & 0x1f);
+
+            decstate->curbyte++;
+
+            break;
     }
+
+    return ret;
 }
 
 SV *_decode( pTHX_ decode_ctx* decstate ) {
@@ -352,47 +411,31 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     _decode_check_for_overage( aTHX_ decstate, 1);
 
+    struct lenparse lendetails;
+
     switch ( *(decstate->curbyte) & 0xe0 ) {
         case TYPE_UINT:
-            switch (_parse_for_uint_len( aTHX_ decstate)) {
-                case 0:
-                case 1:
-                    ret = newSVuv( (uint8_t) *(decstate->curbyte) );
-
-                    ++decstate->curbyte;
+            lendetails = _parse_for_uint_len( aTHX_ decstate );
+            switch (lendetails.lensize) {
+                case tiny:
+                case small:
+                    ret = newSVuv( lendetails.size.u8 );
                     break;
 
-                case 2:
-                    do {
-                        uint16_t *num;
-                        num = (uint16_t *) decstate->curbyte;
-
-                        ret = newSVuv(ntohs(*num));
-                    } while (0);
-
-                    decstate->curbyte += 2;
+                case medium:
+                    ret = newSVuv( lendetails.size.u16 );
                     break;
 
-                case 4:
-                    do {
-                        uint32_t *num;
-                        num = (uint32_t *) decstate->curbyte;
-
-                        ret = newSVuv(ntohl(*num));
-                    } while (0);
-
-                    decstate->curbyte += 4;
+                case large:
+                    ret = newSVuv( lendetails.size.u32 );
                     break;
 
-                case 8:
-                    croak("Can’t do 64-bit yet!");      // TODO
+                case huge:
+                    ret = newSVuv( lendetails.size.u64 );
                     break;
 
-                case 0x1c:
-                case 0x1d:
-                case 0x1e:
-                case 0x1f:
-                    croak("Unrecognized uint byte!");   // TODO
+                case indefinite:
+                    croak("Invalid uint byte!");   // TODO
                     break;
 
             }
@@ -403,67 +446,48 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             break;
         case TYPE_BINARY:
         case TYPE_UTF8:
-            do {
-                switch (_parse_for_uint_len( aTHX_ decstate)) {
-                    case 0:
-                        do {
-                            uint8_t len = 0x1f & *(decstate->curbyte);
-                            ret = newSVpv( 1 + decstate->curbyte, len );
-                            decstate->curbyte += 1 + len;
-                        } while (0);
+            lendetails = _parse_for_uint_len( aTHX_ decstate );
 
-                        break;
+            switch (lendetails.lensize) {
+                case tiny:
+                case small:
+                    ret = newSVpv( decstate->curbyte, lendetails.size.u8 );
+                    decstate->curbyte += lendetails.size.u8;
 
-                    case 1:
-                        do {
-                            uint8_t len = *(decstate->curbyte);
-                            ret = newSVpv( 1 + decstate->curbyte, len );
+                    break;
 
-                            decstate->curbyte += 1 + len;
-                        } while (0);
+                case medium:
+                    ret = newSVpv( decstate->curbyte, lendetails.size.u16 );
+                    decstate->curbyte += lendetails.size.u16;
 
-                        break;
+                    break;
 
-                    case 2:
-                        do {
-                            uint16_t *len;
-                            len = (uint16_t *) decstate->curbyte;
+                case large:
+                    ret = newSVpv( decstate->curbyte, lendetails.size.u32 );
+                    decstate->curbyte += lendetails.size.u32;
 
-                            ret = newSVpv( 2 + decstate->curbyte, ntohs(*len));
+                    break;
 
-                            decstate->curbyte += 2 + *len;
-                        } while (0);
+                case huge:
+                    ret = newSVpv( decstate->curbyte, lendetails.size.u64 );
+                    decstate->curbyte += lendetails.size.u64;
+                    break;
 
-                        break;
+                case indefinite:
+                    ret = newSVpvs("");
 
-                    case 4:
-                        do {
-                            uint32_t *len;
-                            len = (uint32_t *) decstate->curbyte;
+                    while (*(decstate->curbyte) != '\xff') {
+                        SV *cur = _decode( aTHX_ decstate );
 
-                            ret = newSVpv( 4 + decstate->curbyte, ntohl(*len));
+                        sv_catsv(ret, cur);
+                    }
 
-                            decstate->curbyte += 4 + *len;
-                        } while (0);
+                    ++decstate->curbyte;
+                    break;
 
-                        break;
-
-                    case 8:
-                        croak("Can’t do 64-bit yet!");      // TODO
-                        break;
-
-                    case 0xff:
-                        ret = newSVpvs("");
-
-                        while (*(decstate->curbyte) != '\xff') {
-                            SV *cur = _decode( aTHX_ decstate );
-
-                            sv_catsv(ret, cur);
-                        }
-
-                        ++decstate->curbyte;
-                }
-            } while(0);
+                default:
+                    croak("Unknown string length descriptor!");
+            }
 
             break;
         case TYPE_ARRAY:
@@ -473,44 +497,26 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 AV *array;
                 SV *cur;
 
-                switch (_parse_for_uint_len( aTHX_ decstate)) {
-                    case 0:
-                        array_length = 0x1f & *(decstate->curbyte);
-                        ++decstate->curbyte;
-
+                lendetails = _parse_for_uint_len( aTHX_ decstate );
+                switch (lendetails.lensize) {
+                    case tiny:
+                    case small:
+                        array_length = lendetails.size.u8;
                         break;
 
-                    case 1:
-                        array_length = (SSize_t) *(decstate->curbyte);
-                        ++decstate->curbyte;
-
+                    case medium:
+                        array_length = lendetails.size.u16;
                         break;
 
-                    case 2:
-                        do {
-                            uint16_t *len = (uint16_t *) decstate->curbyte;
-                            array_length = ntohs(*len);
-
-                            decstate->curbyte += 2;
-                        } while (0);
-
+                    case large:
+                        array_length = lendetails.size.u32;
                         break;
 
-                    case 4:
-                        do {
-                            uint32_t *len = (uint32_t *) decstate->curbyte;
-                            array_length = ntohl(*len);
-
-                            decstate->curbyte += 4;
-                        } while (0);
-
+                    case huge:
+                        array_length = lendetails.size.u64;
                         break;
 
-                    case 8:
-                        croak("Can’t do 64-bit yet!");      // TODO
-                        break;
-
-                    case 0xff:
+                    case indefinite:
                         array = newAV();
 
                         while (*(decstate->curbyte) != '\xff') {
@@ -551,44 +557,26 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                 HV *hash;
 
-                switch (_parse_for_uint_len( aTHX_ decstate)) {
-                    case 0:
-                        keycount = 0x1f & *(decstate->curbyte);
-                        ++decstate->curbyte;
-
+                lendetails = _parse_for_uint_len( aTHX_ decstate );
+                switch (lendetails.lensize) {
+                    case tiny:
+                    case small:
+                        keycount = lendetails.size.u8;
                         break;
 
-                    case 1:
-                        keycount = (SSize_t) *(decstate->curbyte);
-                        ++decstate->curbyte;
-
+                    case medium:
+                        keycount = lendetails.size.u16;
                         break;
 
-                    case 2:
-                        do {
-                            uint16_t *len = (uint16_t *) decstate->curbyte;
-                            keycount = ntohs(*len);
-
-                            decstate->curbyte += 2;
-                        } while (0);
-
+                    case large:
+                        keycount = lendetails.size.u32;
                         break;
 
-                    case 4:
-                        do {
-                            uint32_t *len = (uint32_t *) decstate->curbyte;
-                            keycount = ntohl(*len);
-
-                            decstate->curbyte += 4;
-                        } while (0);
-
+                    case huge:
+                        keycount = lendetails.size.u64;
                         break;
 
-                    case 8:
-                        croak("Can’t do 64-bit yet!");      // TODO
-                        break;
-
-                    case 0xff:
+                    case indefinite:
                         hash = newHV();
 
                         while (*(decstate->curbyte) != '\xff') {
