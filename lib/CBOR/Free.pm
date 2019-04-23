@@ -33,8 +33,6 @@ upgrading.
 
 =over
 
-=item * Add 64-bit number support.
-
 =item * Make it faster. On some platforms (e.g., Linux) it appears to be
 faster than L<JSON::XS> but not quite as fast as L<CBOR::XS>; on others
 (e.g., macOS), it’s slower than both.

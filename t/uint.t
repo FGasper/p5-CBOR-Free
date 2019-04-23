@@ -23,6 +23,12 @@ for my $i ( 65536, 0xffffffff ) {
     _cmpbin( CBOR::Free::encode($i), pack('C N', 0x1a, $i), "encode $i" );
 }
 
+if (8 == length pack 'L!') {
+    for my $i ( 0x100000000, 0 + ~0 ) {
+        _cmpbin( CBOR::Free::encode($i), pack('C Q>', 0x1b, $i), "encode $i" );
+    }
+}
+
 sub _cmpbin {
     my ($got, $expect, $label) = @_;
 

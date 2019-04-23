@@ -107,6 +107,29 @@ void _croak_unrecognized(pTHX_ SV *value) {
     croak(NULL);
 }
 
+void _u16_to_buffer( UV num, char *buffer ) {
+    *buffer       = num >> 8;
+    *(1 + buffer) = num;
+}
+
+void _u32_to_buffer( UV num, char *buffer ) {
+    *buffer       = num >> 24;
+    *(1 + buffer) = num >> 16;
+    *(2 + buffer) = num >> 8;
+    *(3 + buffer) = num;
+}
+
+void _u64_to_buffer( UV num, char *buffer ) {
+    *buffer = num >> 56;
+    *(1 + buffer) = num >> 48;
+    *(2 + buffer) = num >> 40;
+    *(3 + buffer) = num >> 32;
+    *(4 + buffer) = num >> 24;
+    *(5 + buffer) = num >> 16;
+    *(6 + buffer) = num >> 8;
+    *(7 + buffer) = num;
+}
+
 SV *_init_length_buffer( pTHX_ UV num, const char type, SV *buffer ) {
     if ( num < 0x18 ) {
         char hdr[1] = { type + (char) num };
@@ -121,23 +144,23 @@ SV *_init_length_buffer( pTHX_ UV num, const char type, SV *buffer ) {
     else if ( num <= 0xffff ) {
         char hdr[3] = { type + 0x19 };
 
-        uint16_t native = htons(num);
-
-        memcpy( 1 + hdr, &native, 2 );
+        _u16_to_buffer( num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
     }
     else if ( num <= 0xffffffff ) {
         char hdr[5] = { type + 0x1a };
 
-        uint32_t native = htonl(num);
-
-        memcpy( 1 + hdr, &native, 4 );
+        _u32_to_buffer( num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
     }
     else {
-        // TODO: 64-bit
+        char hdr[9] = { type + 0x1b };
+
+        _u64_to_buffer( num, 1 + hdr );
+
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 9);
     }
 
     return buffer;
@@ -157,23 +180,23 @@ SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
     else if ( num >= -0x10000 ) {
         char hdr[3] = { TYPE_NEGINT + 0x19 };
 
-        uint16_t native = htons(-1 - num);
-
-        memcpy( 1 + hdr, &native, 2 );
+        _u16_to_buffer( -1 - num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
     }
     else if ( num >= -0x100000000 ) {
         char hdr[5] = { TYPE_NEGINT + 0x1a };
 
-        uint32_t native = htonl(-1 - num);
-
-        memcpy( 1 + hdr, &native, 4 );
+        _u32_to_buffer( -1 - num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
     }
     else {
-        // TODO: 64-bit
+        char hdr[5] = { TYPE_NEGINT + 0x1b };
+
+        _u64_to_buffer( -1 - num, 1 + hdr );
+
+        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 9);
     }
 
     return buffer;
@@ -202,7 +225,9 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
         else if (SvIOK(value)) {
             IV val = SvIVX(value);
 
-            if (val < 0) {
+            // In testing, Perl’s (0 + ~0) evaluated as < 0 here,
+            // but the SvUOK() check fixes that.
+            if (val < 0 && !SvUOK(value)) {
                 RETVAL = _init_length_buffer_negint( aTHX_ val, buffer );
             }
             else {
@@ -359,7 +384,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = medium;
-            ret.size.u16 = ntohs( *((uint16_t *) decstate->curbyte) );
+            _u16_to_buffer( *((uint16_t *) decstate->curbyte), &(ret.size.u16) );
 
             decstate->curbyte += 2;
 
@@ -371,7 +396,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = large;
-            ret.size.u32 = ntohl( *((uint32_t *) decstate->curbyte) );
+            _u32_to_buffer( *((uint32_t *) decstate->curbyte), &(ret.size.u32) );
 
             decstate->curbyte += 4;
 
@@ -383,9 +408,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = huge;
-
-            //TODO
-            croak("TODO: convert 64-bit network to host order");
+            _u64_to_buffer( *((uint64_t *) decstate->curbyte), &(ret.size.u64) );
 
             decstate->curbyte += 8;
 
