@@ -229,7 +229,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             IV tagnum = SvIV(*tag);
 
             RETVAL = _init_length_buffer( aTHX_ tagnum, TYPE_TAG, buffer );
-            sv_catsv(RETVAL, _encode( aTHX_ *(av_fetch(array, 1, 0)), buffer));
+            _encode( aTHX_ *(av_fetch(array, 1, 0)), RETVAL );
         }
 
         // TODO: Support TO_JSON() method?

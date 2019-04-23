@@ -24,7 +24,6 @@ upgrading.
 
 # TODO
 
-- Build a decoder. :)
 - Add 64-bit number support.
 - Make it faster. On some platforms (e.g., Linux) it appears to be
 faster than [JSON::XS](https://metacpan.org/pod/JSON::XS) but not quite as fast as [CBOR::XS](https://metacpan.org/pod/CBOR::XS); on others
@@ -40,4 +39,5 @@ This code is licensed under the same license as Perl itself.
 
 # SEE ALSO
 
-[CBOR::XS](https://metacpan.org/pod/CBOR::XS) exists but is GPL-licensed.
+[CBOR::XS](https://metacpan.org/pod/CBOR::XS) is an older, GPL-licensed CBOR module. It implements
+some behaviors around CBOR tagging that you might find useful.

@@ -12,6 +12,24 @@ use_ok('CBOR::Free');
 my @tests = (
     [ CBOR::Free::tag( 12, 12 ) => "\xcc\x0c" ],
     [ CBOR::Free::tag( 24, "\0\1\2" ) => "\xd8\x18\x43\0\1\2"],
+    [
+        [
+            24,
+            "\xff\xff",
+            CBOR::Free::tag( 12, 12 ),
+            CBOR::Free::tag( 12, [12] ),
+            $CBOR::Free::true,
+        ],
+        join(
+            q<>,
+            "\x85",
+            "\x18\x18",
+            "\x42\xff\xff",
+            "\xcc\x0c",
+            "\xcc\x81\x0c",
+            "\xf5",
+        ),
+    ],
 );
 
 for my $t (@tests) {
