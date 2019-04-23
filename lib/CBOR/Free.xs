@@ -299,8 +299,8 @@ void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
     }
 }
 
-enum sizetype {
-    tiny = 0,
+enum enum_sizetype {
+    //tiny = 0,
     small = 1,
     medium = 2,
     large = 4,
@@ -315,14 +315,14 @@ union anyint {
     uint64_t u64;
 };
 
-struct lenparse {
-    enum sizetype lensize;
+struct struct_sizeparse {
+    enum enum_sizetype sizetype;
     union anyint size;
 };
 
 // NB: We already checked that curbyte is safe to read!
-struct lenparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
-    struct lenparse ret;
+struct struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
+    struct struct_sizeparse ret;
 
     switch (*(decstate->curbyte) & 0x1f) {  // 0x1f == 0b00011111
         case 0x18:
@@ -335,7 +335,7 @@ struct lenparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            ret.lensize = small;
+            ret.sizetype = small;
             ret.size.u8 = *decstate->curbyte;
 
             ++decstate->curbyte;
@@ -347,7 +347,7 @@ struct lenparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            ret.lensize = medium;
+            ret.sizetype = medium;
             ret.size.u16 = ntohs( *((uint16_t *) decstate->curbyte) );
 
             decstate->curbyte += 2;
@@ -359,7 +359,7 @@ struct lenparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            ret.lensize = large;
+            ret.sizetype = large;
             ret.size.u32 = ntohl( *((uint32_t *) decstate->curbyte) );
 
             decstate->curbyte += 4;
@@ -371,7 +371,7 @@ struct lenparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            ret.lensize = huge;
+            ret.sizetype = huge;
 
             //TODO
             croak("TODO: convert 64-bit network to host order");
@@ -389,13 +389,12 @@ struct lenparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
         case 0x1f:
             ++decstate->curbyte;
 
-            ret.lensize = indefinite;
+            ret.sizetype = indefinite;
 
             break;
 
         default:
-
-            ret.lensize = tiny;
+            ret.sizetype = small;
             ret.size.u8 = (uint8_t) (*(decstate->curbyte) & 0x1f);
 
             decstate->curbyte++;
@@ -411,27 +410,27 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     _decode_check_for_overage( aTHX_ decstate, 1);
 
-    struct lenparse lendetails;
+    struct struct_sizeparse sizeparse;
 
     switch ( *(decstate->curbyte) & 0xe0 ) {
         case TYPE_UINT:
-            lendetails = _parse_for_uint_len( aTHX_ decstate );
-            switch (lendetails.lensize) {
-                case tiny:
+            sizeparse = _parse_for_uint_len( aTHX_ decstate );
+            switch (sizeparse.sizetype) {
+                //case tiny:
                 case small:
-                    ret = newSVuv( lendetails.size.u8 );
+                    ret = newSVuv( sizeparse.size.u8 );
                     break;
 
                 case medium:
-                    ret = newSVuv( lendetails.size.u16 );
+                    ret = newSVuv( sizeparse.size.u16 );
                     break;
 
                 case large:
-                    ret = newSVuv( lendetails.size.u32 );
+                    ret = newSVuv( sizeparse.size.u32 );
                     break;
 
                 case huge:
-                    ret = newSVuv( lendetails.size.u64 );
+                    ret = newSVuv( sizeparse.size.u64 );
                     break;
 
                 case indefinite:
@@ -446,31 +445,31 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             break;
         case TYPE_BINARY:
         case TYPE_UTF8:
-            lendetails = _parse_for_uint_len( aTHX_ decstate );
+            sizeparse = _parse_for_uint_len( aTHX_ decstate );
 
-            switch (lendetails.lensize) {
-                case tiny:
+            switch (sizeparse.sizetype) {
+                //case tiny:
                 case small:
-                    ret = newSVpv( decstate->curbyte, lendetails.size.u8 );
-                    decstate->curbyte += lendetails.size.u8;
+                    ret = newSVpv( decstate->curbyte, sizeparse.size.u8 );
+                    decstate->curbyte += sizeparse.size.u8;
 
                     break;
 
                 case medium:
-                    ret = newSVpv( decstate->curbyte, lendetails.size.u16 );
-                    decstate->curbyte += lendetails.size.u16;
+                    ret = newSVpv( decstate->curbyte, sizeparse.size.u16 );
+                    decstate->curbyte += sizeparse.size.u16;
 
                     break;
 
                 case large:
-                    ret = newSVpv( decstate->curbyte, lendetails.size.u32 );
-                    decstate->curbyte += lendetails.size.u32;
+                    ret = newSVpv( decstate->curbyte, sizeparse.size.u32 );
+                    decstate->curbyte += sizeparse.size.u32;
 
                     break;
 
                 case huge:
-                    ret = newSVpv( decstate->curbyte, lendetails.size.u64 );
-                    decstate->curbyte += lendetails.size.u64;
+                    ret = newSVpv( decstate->curbyte, sizeparse.size.u64 );
+                    decstate->curbyte += sizeparse.size.u64;
                     break;
 
                 case indefinite:
@@ -497,23 +496,23 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 AV *array;
                 SV *cur;
 
-                lendetails = _parse_for_uint_len( aTHX_ decstate );
-                switch (lendetails.lensize) {
-                    case tiny:
+                sizeparse = _parse_for_uint_len( aTHX_ decstate );
+                switch (sizeparse.sizetype) {
+                    //case tiny:
                     case small:
-                        array_length = lendetails.size.u8;
+                        array_length = sizeparse.size.u8;
                         break;
 
                     case medium:
-                        array_length = lendetails.size.u16;
+                        array_length = sizeparse.size.u16;
                         break;
 
                     case large:
-                        array_length = lendetails.size.u32;
+                        array_length = sizeparse.size.u32;
                         break;
 
                     case huge:
-                        array_length = lendetails.size.u64;
+                        array_length = sizeparse.size.u64;
                         break;
 
                     case indefinite:
@@ -557,23 +556,23 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                 HV *hash;
 
-                lendetails = _parse_for_uint_len( aTHX_ decstate );
-                switch (lendetails.lensize) {
-                    case tiny:
+                sizeparse = _parse_for_uint_len( aTHX_ decstate );
+                switch (sizeparse.sizetype) {
+                    //case tiny:
                     case small:
-                        keycount = lendetails.size.u8;
+                        keycount = sizeparse.size.u8;
                         break;
 
                     case medium:
-                        keycount = lendetails.size.u16;
+                        keycount = sizeparse.size.u16;
                         break;
 
                     case large:
-                        keycount = lendetails.size.u32;
+                        keycount = sizeparse.size.u32;
                         break;
 
                     case huge:
-                        keycount = lendetails.size.u64;
+                        keycount = sizeparse.size.u64;
                         break;
 
                     case indefinite:
