@@ -6,7 +6,6 @@
 
 #include "ppport.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 
 #include <arpa/inet.h>  // for byte order conversions
@@ -450,24 +449,28 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             switch (sizeparse.sizetype) {
                 //case tiny:
                 case small:
+                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u8);
                     ret = newSVpv( decstate->curbyte, sizeparse.size.u8 );
                     decstate->curbyte += sizeparse.size.u8;
 
                     break;
 
                 case medium:
+                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u16);
                     ret = newSVpv( decstate->curbyte, sizeparse.size.u16 );
                     decstate->curbyte += sizeparse.size.u16;
 
                     break;
 
                 case large:
+                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u32);
                     ret = newSVpv( decstate->curbyte, sizeparse.size.u32 );
                     decstate->curbyte += sizeparse.size.u32;
 
                     break;
 
                 case huge:
+                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u64);
                     ret = newSVpv( decstate->curbyte, sizeparse.size.u64 );
                     decstate->curbyte += sizeparse.size.u64;
                     break;
