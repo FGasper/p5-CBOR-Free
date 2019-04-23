@@ -40,7 +40,8 @@
         buffer = newSVpv( hdr, len ); \
     }
 
-bool is_big_endian = (htons(256) == (uint16_t) 256);
+// populated in XS BOOT code below.
+bool is_big_endian;
 
 void _croak_unrecognized(pTHX_ SV *value) {
     dSP;
@@ -642,6 +643,9 @@ PROTOTYPES: DISABLE
 BOOT:
     HV *stash = gv_stashpvn("CBOR::Free", 10, FALSE);
     newCONSTSUB(stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
+
+    unsigned short testshort = 1;
+    is_big_endian = !(bool) *((char *) &testshort);
 
 SV *
 fake_encode( SV * value )

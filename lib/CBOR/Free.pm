@@ -33,8 +33,6 @@ upgrading.
 
 =over
 
-=item * Build a decoder. :)
-
 =item * Add 64-bit number support.
 
 =item * Make it faster. On some platforms (e.g., Linux) it appears to be
@@ -53,7 +51,8 @@ This code is licensed under the same license as Perl itself.
 
 =head1 SEE ALSO
 
-L<CBOR::XS> exists but is GPL-licensed.
+L<CBOR::XS> is an older, GPL-licensed CBOR module. It implements
+some behaviors around CBOR tagging that you might find useful.
 
 =cut
 
