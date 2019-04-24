@@ -291,7 +291,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
         else if (SvPOK(value)) {
             STRLEN len = SvCUR(value);
 
-            char *val = SvPVX(value);
+            char *val = SvPV_nolen(value);
 
             bool encode_as_text = SvUTF8(value);
 
@@ -552,7 +552,7 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
     SV *curkey = _decode( aTHX_ decstate );
     SV *curval = _decode( aTHX_ decstate );
 
-    char *keystr = SvPOK(curkey) ? SvPVX(curkey) : SvPV_nolen(curkey);
+    char *keystr = SvPV_nolen(curkey);
 
     hv_store(hash, keystr, SvCUR(curkey), curval, 0);
     sv_2mortal(curkey);
@@ -902,7 +902,7 @@ decode( SV *cbor )
         decode_ctx decode_state = {
             cbor,
             SvCUR(cbor),
-            SvPVX(cbor),
+            SvPV_nolen(cbor),
             SvEND(cbor)
         };
 
