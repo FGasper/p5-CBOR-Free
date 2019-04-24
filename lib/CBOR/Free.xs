@@ -35,10 +35,10 @@
 
 #define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
     if (buffer) { \
-        sv_catpvn_flags( buffer, hdr, len, SV_CATBYTES ); \
+        sv_catpvn_flags( buffer, (char *) hdr, len, SV_CATBYTES ); \
     } \
     else { \
-        buffer = newSVpvn( hdr, len ); \
+        buffer = newSVpvn( (char *) hdr, len ); \
     }
 
 // populated in XS BOOT code below.
@@ -142,19 +142,19 @@ void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
 
 //----------------------------------------------------------------------
 
-void _u16_to_buffer( UV num, char *buffer ) {
+void _u16_to_buffer( UV num, unsigned char *buffer ) {
     *buffer       = num >> 8;
     *(1 + buffer) = num;
 }
 
-void _u32_to_buffer( UV num, char *buffer ) {
+void _u32_to_buffer( UV num, unsigned char *buffer ) {
     *buffer       = num >> 24;
     *(1 + buffer) = num >> 16;
     *(2 + buffer) = num >> 8;
     *(3 + buffer) = num;
 }
 
-void _u64_to_buffer( UV num, char *buffer ) {
+void _u64_to_buffer( UV num, unsigned char *buffer ) {
     *buffer = num >> 56;
     *(1 + buffer) = num >> 48;
     *(2 + buffer) = num >> 40;
@@ -165,33 +165,33 @@ void _u64_to_buffer( UV num, char *buffer ) {
     *(7 + buffer) = num;
 }
 
-SV *_init_length_buffer( pTHX_ UV num, const char type, SV *buffer ) {
+SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
     if ( num < 0x18 ) {
-        char hdr[1] = { type + (char) num };
+        unsigned char hdr[1] = { type + (unsigned char) num };
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
     }
     else if ( num <= 0xff ) {
-        char hdr[2] = { type + 0x18, (char) num };
+        unsigned char hdr[2] = { type + 0x18, (unsigned char) num };
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
     }
     else if ( num <= 0xffff ) {
-        char hdr[3] = { type + 0x19 };
+        unsigned char hdr[3] = { type + 0x19 };
 
         _u16_to_buffer( num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
     }
     else if ( num <= 0xffffffff ) {
-        char hdr[5] = { type + 0x1a };
+        unsigned char hdr[5] = { type + 0x1a };
 
         _u32_to_buffer( num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
     }
     else {
-        char hdr[9] = { type + 0x1b };
+        unsigned char hdr[9] = { type + 0x1b };
 
         _u64_to_buffer( num, 1 + hdr );
 
@@ -203,31 +203,31 @@ SV *_init_length_buffer( pTHX_ UV num, const char type, SV *buffer ) {
 
 SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
     if ( num > -0x19 ) {
-        char hdr[1] = { TYPE_NEGINT + (char) (-1 - num) };
+        unsigned char hdr[1] = { TYPE_NEGINT + (unsigned char) (-1 - num) };
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
     }
     else if ( num >= -0x100 ) {
-        char hdr[2] = { TYPE_NEGINT + 0x18, (char) (-1 - num) };
+        unsigned char hdr[2] = { TYPE_NEGINT + 0x18, (unsigned char) (-1 - num) };
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
     }
     else if ( num >= -0x10000 ) {
-        char hdr[3] = { TYPE_NEGINT + 0x19 };
+        unsigned char hdr[3] = { TYPE_NEGINT + 0x19 };
 
         _u16_to_buffer( -1 - num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
     }
     else if ( num >= -0x100000000 ) {
-        char hdr[5] = { TYPE_NEGINT + 0x1a };
+        unsigned char hdr[5] = { TYPE_NEGINT + 0x1a };
 
         _u32_to_buffer( -1 - num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
     }
     else {
-        char hdr[5] = { TYPE_NEGINT + 0x1b };
+        unsigned char hdr[5] = { TYPE_NEGINT + 0x1b };
 
         _u64_to_buffer( -1 - num, 1 + hdr );
 
@@ -419,7 +419,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = medium;
-            _u16_to_buffer( *((uint16_t *) decstate->curbyte), &(ret.size.u16) );
+            _u16_to_buffer( *((uint16_t *) decstate->curbyte), (unsigned char *) &(ret.size.u16) );
 
             decstate->curbyte += 2;
 
@@ -431,7 +431,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = large;
-            _u32_to_buffer( *((uint32_t *) decstate->curbyte), &(ret.size.u32) );
+            _u32_to_buffer( *((uint32_t *) decstate->curbyte), (unsigned char *) &(ret.size.u32) );
 
             decstate->curbyte += 4;
 
@@ -443,7 +443,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = huge;
-            _u64_to_buffer( *((uint64_t *) decstate->curbyte), &(ret.size.u64) );
+            _u64_to_buffer( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
 
             decstate->curbyte += 8;
 
@@ -826,7 +826,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 case CBOR_HALF_FLOAT:
                     _decode_check_for_overage( aTHX_ decstate, 3 );
 
-                    ret = newSVnv( decode_half_float( 1 + decstate->curbyte ) );
+                    ret = newSVnv( decode_half_float( (unsigned char *) (1 + decstate->curbyte) ) );
 
                     decstate->curbyte += 3;
                     break;
@@ -838,7 +838,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         ret = newSVnv( *( (float *) (1 + decstate->curbyte) ) );
                     }
                     else {
-                        ret = newSVnv( _decode_float_to_little_endian( 1 + decstate->curbyte ) );
+                        ret = newSVnv( _decode_float_to_little_endian( (unsigned char *) (1 + decstate->curbyte) ) );
                     }
 
                     decstate->curbyte += 5;
@@ -851,7 +851,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         ret = newSVnv( *( (double *) (1 + decstate->curbyte) ) );
                     }
                     else {
-                        ret = newSVnv( _decode_double_to_little_endian( 1 + decstate->curbyte ) );
+                        ret = newSVnv( _decode_double_to_little_endian( (unsigned char *) (1 + decstate->curbyte) ) );
                     }
 
                     decstate->curbyte += 9;
