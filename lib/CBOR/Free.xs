@@ -482,7 +482,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 SV *_decode_array( pTHX_ decode_ctx* decstate ) {
     SSize_t array_length;
 
-    AV *array;
+    AV *array = NULL;
     SV *cur;
 
     struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
@@ -523,17 +523,19 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
     }
 
     if (!array) {
-        SV **array_items;
+        SV **array_items = NULL;
 
-        array_items = calloc( array_length, sizeof(SV *) );
-        if (!array_items) {
-            croak("Out of memory!");
-        }
+        if (array_length) {
+            array_items = calloc( array_length, sizeof(SV *) );
+            if (!array_items) {
+                croak("Out of memory!");
+            }
 
-        SSize_t i;
-        for (i=0; i<array_length; i++) {
-            cur = _decode( aTHX_ decstate );
-            array_items[i] = cur;
+            SSize_t i;
+            for (i=0; i<array_length; i++) {
+                cur = _decode( aTHX_ decstate );
+                array_items[i] = cur;
+            }
         }
 
         array = av_make(array_length, array_items);
@@ -559,7 +561,7 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
 SV *_decode_map( pTHX_ decode_ctx* decstate ) {
     SSize_t keycount;
 
-    HV *hash;
+    HV *hash = NULL;
 
     struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
 
