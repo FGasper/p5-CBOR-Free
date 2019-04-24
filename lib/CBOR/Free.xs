@@ -35,7 +35,7 @@
 
 #define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
     if (buffer) { \
-        sv_catpvn_flags( buffer, (char *) hdr, len, SV_CATBYTES ); \
+        sv_catpvn( buffer, (char *) hdr, len ); \
     } \
     else { \
         buffer = newSVpvn( (char *) hdr, len ); \
@@ -313,7 +313,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 buffer
             );
 
-            sv_catpvn_flags( RETVAL, val, len, SV_CATBYTES );
+            sv_catpvn( RETVAL, val, len );
         }
     }
     else if (sv_isobject(value)) {
@@ -321,7 +321,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             char newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
 
             if (buffer) {
-                sv_catpvn_flags( buffer, &newbyte, 1, SV_CATBYTES );
+                sv_catpvn( buffer, &newbyte, 1 );
                 RETVAL = buffer;
             }
             else {
@@ -374,7 +374,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
                 // Store the key.
                 _init_length_buffer( aTHX_ key_length, TYPE_BINARY, RETVAL );
-                sv_catpvn_flags( RETVAL, key, key_length, SV_CATBYTES );
+                sv_catpvn( RETVAL, key, key_length );
 
                 _encode( aTHX_ cur, RETVAL );
             }
@@ -883,7 +883,7 @@ fake_encode( SV * value )
     CODE:
         RETVAL = newSVpvn("\127", 1);
 
-        sv_catpvn_flags( RETVAL, "abcdefghijklmnopqrstuvw", 23, SV_CATBYTES );
+        sv_catpvn( RETVAL, "abcdefghijklmnopqrstuvw", 23 );
     OUTPUT:
         RETVAL
 
