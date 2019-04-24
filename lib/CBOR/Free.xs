@@ -38,7 +38,7 @@
         sv_catpvn_flags( buffer, hdr, len, SV_CATBYTES ); \
     } \
     else { \
-        buffer = newSVpv( hdr, len ); \
+        buffer = newSVpvn( hdr, len ); \
     }
 
 // populated in XS BOOT code below.
@@ -231,7 +231,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
     if (!SvROK(value)) {
 
-        if (SVt_NULL == SvTYPE(value)) {
+        if (!SvOK(value)) {
             char null = CBOR_NULL;
             _INIT_LENGTH_SETUP_BUFFER(buffer, &null, 1);
 
@@ -305,7 +305,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
                 RETVAL = buffer;
             }
             else {
-                RETVAL = newSVpv(&newbyte, 1);
+                RETVAL = newSVpvn(&newbyte, 1);
             }
         }
         else if (sv_derived_from(value, TAGGED_CLASS)) {
@@ -665,19 +665,19 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             switch (sizeparse.sizetype) {
                 //case tiny:
                 case small:
-                    ret = newSViv( -sizeparse.size.u8 - 1 );
+                    ret = newSViv( -1 - sizeparse.size.u8 );
                     break;
 
                 case medium:
-                    ret = newSViv( -sizeparse.size.u16 - 1 );
+                    ret = newSViv( -1 - sizeparse.size.u16 );
                     break;
 
                 case large:
-                    ret = newSViv( -sizeparse.size.u32 - 1 );
+                    ret = newSViv( ( (int64_t) sizeparse.size.u32 ) * -1 - 1 );
                     break;
 
                 case huge:
-                    ret = newSViv( -sizeparse.size.u64 - 1 );
+                    ret = newSViv( ( (int64_t) sizeparse.size.u64 ) * -1 - 1 );
                     break;
 
                 case indefinite:
@@ -695,28 +695,28 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 //case tiny:
                 case small:
                     _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u8);
-                    ret = newSVpv( decstate->curbyte, sizeparse.size.u8 );
+                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u8 );
                     decstate->curbyte += sizeparse.size.u8;
 
                     break;
 
                 case medium:
                     _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u16);
-                    ret = newSVpv( decstate->curbyte, sizeparse.size.u16 );
+                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u16 );
                     decstate->curbyte += sizeparse.size.u16;
 
                     break;
 
                 case large:
                     _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u32);
-                    ret = newSVpv( decstate->curbyte, sizeparse.size.u32 );
+                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u32 );
                     decstate->curbyte += sizeparse.size.u32;
 
                     break;
 
                 case huge:
                     _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u64);
-                    ret = newSVpv( decstate->curbyte, sizeparse.size.u64 );
+                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u64 );
                     decstate->curbyte += sizeparse.size.u64;
                     break;
 
@@ -764,18 +764,18 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             switch ((uint8_t) *(decstate->curbyte)) {
                 case CBOR_FALSE:
                     ret = newSVsv( get_sv("CBOR::Free::false", 0) );
-                    decstate->curbyte += 1;
+                    ++decstate->curbyte;
                     break;
 
                 case CBOR_TRUE:
                     ret = newSVsv( get_sv("CBOR::Free::true", 0) );
-                    decstate->curbyte += 1;
+                    ++decstate->curbyte;
                     break;
 
                 case CBOR_NULL:
                 case CBOR_UNDEFINED:
-                    ret = &PL_sv_undef;
-                    decstate->curbyte += 1;
+                    ret = newSVsv( &PL_sv_undef );
+                    ++decstate->curbyte;
                     break;
 
                 case CBOR_HALF_FLOAT:
@@ -832,7 +832,7 @@ BOOT:
 SV *
 fake_encode( SV * value )
     CODE:
-        RETVAL = newSVpv("\127", 1);
+        RETVAL = newSVpvn("\127", 1);
 
         sv_catpvn_flags( RETVAL, "abcdefghijklmnopqrstuvw", 23, SV_CATBYTES );
     OUTPUT:

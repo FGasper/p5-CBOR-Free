@@ -10,9 +10,11 @@ lib/CBOR/Free.xs
 lib/CBOR/Free/Tagged.pm
 lib/CBOR/Free/X.pm
 lib/CBOR/Free/X/Base.pm
+lib/CBOR/Free/X/Incomplete.pm
 lib/CBOR/Free/X/Recursion.pm
 lib/CBOR/Free/X/Unrecognized.pm
 ppport.h
+t/against_cbor_xs.t
 t/array.t
 t/boolean.t
 t/dec_strings.t
