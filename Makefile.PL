@@ -42,6 +42,7 @@ WriteMakefile1(
         'X::Tiny'   => 0,
         'Text::Control' => 0,
         'Types::Serialiser' => 0,
+        'XSLoader' => 0.24,
     },
 
     BUILD_REQUIRES => {
