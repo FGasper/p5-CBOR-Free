@@ -18,6 +18,7 @@ t/boolean.t
 t/dec_strings.t
 t/decode.t
 t/errors.t
+t/examples.t
 t/float.t
 t/hash.t
 t/negint.t

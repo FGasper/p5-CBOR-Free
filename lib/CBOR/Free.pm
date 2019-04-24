@@ -13,7 +13,9 @@ CBOR::Free - Fast CBOR for everyone
 
     $cbor = CBOR::Free::encode( $scalar_or_ar_or_hr );
 
-    # There’s no decoder yet … sorry.
+    $thing = CBOR::Free::decode( $cbor )
+
+    my $tagged = CBOR::Free::tag( 1, '2019-01-02T00:01:02Z' );
 
 =head1 DESCRIPTION
 
@@ -28,6 +30,8 @@ This distribution is an experimental effort.
 Note that this distribution’s interface can still change. If you decide
 to use CBOR::Free in your project, please always check the changelog before
 upgrading.
+
+=head1 FUNCTIONS
 
 =head1 TODO
 
@@ -78,13 +82,19 @@ sub tag {
 }
 
 sub _die_recursion {
-    die CBOR::Free::X->create('Recursion', sprintf("Refuse to encode() more than %d times at once!", _MAX_RECURSION()))
+    die CBOR::Free::X->create('Recursion', _MAX_RECURSION());
 }
 
 sub _die_unrecognized {
     my ($alien) = @_;
 
-    die CBOR::Free::X->create('Unrecognized', sprintf("Cannot encode to CBOR: $alien"));
+    die CBOR::Free::X->create('Unrecognized', $alien);
+}
+
+sub _die_incomplete {
+    my ($lack) = @_;
+
+    die CBOR::Free::X->create('Incomplete', $lack);
 }
 
 1;

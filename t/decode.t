@@ -37,6 +37,7 @@ my @tests = (
     [ "\xa0" => {} ],
     [ "\xa1\x41a\x42bc" => { a => 'bc' } ],
     [ "\xbf\xff" => {} ],
+    [ "\xa1\x0c\x00" => { 12 => 0 } ],
 );
 
 for my $t (@tests) {

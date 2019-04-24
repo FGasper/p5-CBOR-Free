@@ -7,9 +7,8 @@
 #include "ppport.h"
 
 #include <stdlib.h>
-
-#include <arpa/inet.h>  // for byte order conversions
 #include <string.h>
+#include <math.h>
 
 #define TYPE_UINT   0
 #define TYPE_NEGINT 0x20
@@ -20,12 +19,14 @@
 #define TYPE_TAG    0xc0
 #define TYPE_OTHER  0xe0
 
+#define CBOR_HALF_FLOAT 0xf9
+#define CBOR_FLOAT      0xfa
+#define CBOR_DOUBLE     0xfb
+
 #define CBOR_FALSE      0xf4
 #define CBOR_TRUE       0xf5
 #define CBOR_NULL       0xf6
 #define CBOR_UNDEFINED  0xf7
-
-#define CBOR_DOUBLE 0xfb
 
 #define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
 #define TAGGED_CLASS    "CBOR::Free::Tagged"
@@ -52,12 +53,6 @@ typedef struct {
     char* curbyte;
     char* end;
 } decode_ctx;
-
-void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
-    if ((len + decstate->curbyte) > decstate->end) {
-        croak("Excess!!!");
-    }
-}
 
 enum enum_sizetype {
     //tiny = 0,
@@ -88,7 +83,7 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-void _croak_unrecognized(pTHX_ SV *value) {
+void __croak_fn_arg( pTHX_ const char *fn, SV *value ) {
     dSP;
 
     ENTER;
@@ -96,16 +91,36 @@ void _croak_unrecognized(pTHX_ SV *value) {
 
     PUSHMARK(SP);
     EXTEND(SP, 2);
-    PUSHs( sv_2mortal(value) );
+
+    //PUSHs( sv_2mortal(value) );
+    PUSHs(value);
+
     PUTBACK;
 
-    call_pv("CBOR::Free::_die_unrecognized", G_EVAL);
+    call_pv(fn, G_EVAL);
 
     FREETMPS;
     LEAVE;
 
     croak(NULL);
 }
+
+void _croak_unrecognized(pTHX_ SV *value) {
+    __croak_fn_arg( aTHX_ "CBOR::Free::_die_unrecognized", value );
+}
+
+void _croak_incomplete( pTHX_ STRLEN lack ) {
+    __croak_fn_arg( aTHX_ "CBOR::Free::_die_incomplete", newSVuv(lack) );
+}
+
+void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
+    if ((len + decstate->curbyte) > decstate->end) {
+        STRLEN lack = (len + decstate->curbyte) - decstate->end;
+        _croak_incomplete( aTHX_ lack);
+    }
+}
+
+//----------------------------------------------------------------------
 
 void _u16_to_buffer( UV num, char *buffer ) {
     *buffer       = num >> 8;
@@ -471,12 +486,13 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
             array = newAV();
 
             while (*(decstate->curbyte) != '\xff') {
-                _decode_check_for_overage( aTHX_ decstate, 1 );
 
                 cur = _decode( aTHX_ decstate );
                 av_push(array, cur);
                 //sv_2mortal(cur);
             }
+
+            _decode_check_for_overage( aTHX_ decstate, 1 );
 
             ++decstate->curbyte;
     }
@@ -548,6 +564,7 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
             }
 
             _decode_check_for_overage( aTHX_ decstate, 1 );
+
             ++decstate->curbyte;
     }
 
@@ -565,6 +582,46 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
 
 //----------------------------------------------------------------------
 
+// Taken from RFC 7049:
+double decode_half_float(unsigned char *halfp) {
+    int half = (halfp[0] << 8) + halfp[1];
+    int exp = (half >> 10) & 0x1f;
+    int mant = half & 0x3ff;
+    double val;
+    if (exp == 0) val = ldexp(mant, -24);
+    else if (exp != 31) val = ldexp(mant + 1024, exp - 25);
+    else val = mant == 0 ? INFINITY : NAN;
+    return half & 0x8000 ? -val : val;
+}
+
+float _decode_float_to_little_endian( unsigned char *ptr ) {
+    uint32_t host_uint = (*ptr << 24) + (*(ptr + 1) << 16) + (*(ptr + 2) << 8) + *(ptr + 3);
+
+    return( *( (float *) &host_uint ) );
+}
+
+double _decode_double_to_little_endian( unsigned char *ptr ) {
+    // It doesn’t work to do these additions in one fell swoop;
+    // the resulting host_uint ends up being all zeros.
+
+    uint64_t host_uint = (*ptr << 24) + (*(ptr + 1) << 16) + (*(ptr + 2) << 8) + *(ptr + 3);
+
+    host_uint <<= 32;
+
+    // It doesn’t work to add these to host_uint all together.
+    // In testing, when I started with (little-endian) bytes
+    // 00.00.00.00.99.99.f1.3f then tried to add the following
+    // directly, the leftmost 0x99 byte became 0x98. (wtf?!?)
+    // For some reason, creating a separate number here solves that.
+    uint32_t lower = (*(ptr + 4) << 24) + (*(ptr + 5) << 16) + (*(ptr + 6) << 8) + *(ptr + 7);
+
+    host_uint += lower;
+
+    return( *( (double *) &host_uint ) );
+}
+
+//----------------------------------------------------------------------
+
 SV *_decode( pTHX_ decode_ctx* decstate ) {
     SV *ret;
 
@@ -572,7 +629,9 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     struct_sizeparse sizeparse;
 
-    switch ( *(decstate->curbyte) & 0xe0 ) {
+    unsigned char major_type = *(decstate->curbyte) & 0xe0;
+
+    switch (major_type) {
         case TYPE_UINT:
             sizeparse = _parse_for_uint_len( aTHX_ decstate );
             switch (sizeparse.sizetype) {
@@ -601,7 +660,32 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             break;
         case TYPE_NEGINT:
-            croak("decode negint TODO");
+            sizeparse = _parse_for_uint_len( aTHX_ decstate );
+
+            switch (sizeparse.sizetype) {
+                //case tiny:
+                case small:
+                    ret = newSViv( -sizeparse.size.u8 - 1 );
+                    break;
+
+                case medium:
+                    ret = newSViv( -sizeparse.size.u16 - 1 );
+                    break;
+
+                case large:
+                    ret = newSViv( -sizeparse.size.u32 - 1 );
+                    break;
+
+                case huge:
+                    ret = newSViv( -sizeparse.size.u64 - 1 );
+                    break;
+
+                case indefinite:
+                    croak("Invalid negint byte!");   // TODO
+                    break;
+
+            }
+
             break;
         case TYPE_BINARY:
         case TYPE_UTF8:
@@ -650,11 +734,14 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     _decode_check_for_overage( aTHX_ decstate, 1 );
 
                     ++decstate->curbyte;
+
                     break;
 
                 default:
                     croak("Unknown string length descriptor!");
             }
+
+            if (TYPE_UTF8 == major_type) SvUTF8_on(ret);
 
             break;
         case TYPE_ARRAY:
@@ -666,20 +753,63 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             break;
         case TYPE_TAG:
+
+            // For now, just throw this tag value away.
+            _parse_for_uint_len( aTHX_ decstate );
+
+            ret = _decode( aTHX_ decstate );
+
             break;
         case TYPE_OTHER:
             switch ((uint8_t) *(decstate->curbyte)) {
                 case CBOR_FALSE:
-                    ret = get_sv("CBOR::Free::false", 0);
+                    ret = newSVsv( get_sv("CBOR::Free::false", 0) );
+                    decstate->curbyte += 1;
                     break;
 
                 case CBOR_TRUE:
-                    ret = get_sv("CBOR::Free::true", 0);
+                    ret = newSVsv( get_sv("CBOR::Free::true", 0) );
+                    decstate->curbyte += 1;
                     break;
 
                 case CBOR_NULL:
                 case CBOR_UNDEFINED:
                     ret = &PL_sv_undef;
+                    decstate->curbyte += 1;
+                    break;
+
+                case CBOR_HALF_FLOAT:
+                    _decode_check_for_overage( aTHX_ decstate, 3 );
+
+                    ret = newSVnv( decode_half_float( 1 + decstate->curbyte ) );
+
+                    decstate->curbyte += 3;
+                    break;
+
+                case CBOR_FLOAT:
+                    _decode_check_for_overage( aTHX_ decstate, 5 );
+
+                    if (is_big_endian) {
+                        ret = newSVnv( *( (float *) (1 + decstate->curbyte) ) );
+                    }
+                    else {
+                        ret = newSVnv( _decode_float_to_little_endian( 1 + decstate->curbyte ) );
+                    }
+
+                    decstate->curbyte += 5;
+                    break;
+
+                case CBOR_DOUBLE:
+                    _decode_check_for_overage( aTHX_ decstate, 9 );
+
+                    if (is_big_endian) {
+                        ret = newSVnv( *( (double *) (1 + decstate->curbyte) ) );
+                    }
+                    else {
+                        ret = newSVnv( _decode_double_to_little_endian( 1 + decstate->curbyte ) );
+                    }
+
+                    decstate->curbyte += 9;
             }
     }
 

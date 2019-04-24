@@ -51,6 +51,7 @@ WriteMakefile1(
         'Data::Dumper'    => 0,
         'Test::Exception' => 0,
         'Test::More'      => 0,
+        'Test::FailWarnings' => 0,
     },
 
     SIGN => 1,
