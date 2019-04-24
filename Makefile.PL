@@ -41,6 +41,7 @@ WriteMakefile1(
         'parent'    => 0,
         'X::Tiny'   => 0,
         'Text::Control' => 0,
+        'Types::Serialiser' => 0,
     },
 
     BUILD_REQUIRES => {

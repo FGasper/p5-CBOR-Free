@@ -59,6 +59,12 @@ Tags an item for encoding so that its CBOR encoding will preserve the
 tag number. (Include $obj, not $DATA, in the data structure that
 C<encode()> receives.)
 
+=head1 BOOLEANS
+
+C<CBOR::Free::true()>, C<CBOR::Free::false()>,
+C<$CBOR::Free::true>, and C<$CBOR::Free::false> are defined as
+convenience aliases for the equivalent L<Types::Serialiser> values.
+
 =head1 ERROR HANDLING
 
 Most errors are represented via instances of subclasses of

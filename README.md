@@ -52,6 +52,12 @@ Tags an item for encoding so that its CBOR encoding will preserve the
 tag number. (Include $obj, not $DATA, in the data structure that
 `encode()` receives.)
 
+# BOOLEANS
+
+`CBOR::Free::true()`, `CBOR::Free::false()`,
+`$CBOR::Free::true`, and `$CBOR::Free::false` are defined as
+convenience aliases for the equivalent [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) values.
+
 # ERROR HANDLING
 
 Most errors are represented via instances of subclasses of
