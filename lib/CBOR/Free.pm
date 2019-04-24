@@ -33,6 +33,37 @@ upgrading.
 
 =head1 FUNCTIONS
 
+=head2 $cbor = encode( $DATA )
+
+Encodes a data structure or non-reference scalar to CBOR.
+The encoder recognizes and encodes integers, floats, binary and UTF-8
+strings, array and hash references, L<CBOR::Free::Tagged> instances,
+L<Types::Serialiser> booleans, and undef (encoded as null).
+
+The encoder currently does not handle any other blessed references.
+
+An error is thrown on excess recursion.
+
+=head2 $data = decode( $CBOR )
+
+Decodes a data structure from CBOR. Errors are thrown to indicate
+invalid CBOR. A warning is thrown if $CBOR is longer than is needed
+for $data.
+
+Note that invalid UTF-8 in a string marked as UTF-8 is considered
+an error.
+
+=head2 $obj = tag( $NUMBER, $DATA )
+
+Tags an item for encoding so that its CBOR encoding will preserve the
+tag number. (Include $obj, not $DATA, in the data structure that
+C<encode()> receives.)
+
+=head1 ERROR HANDLING
+
+Most errors are represented via instances of subclasses of
+L<CBOR::Free::X>.
+
 =head1 TODO
 
 =over
@@ -82,19 +113,23 @@ sub tag {
 }
 
 sub _die_recursion {
-    die CBOR::Free::X->create('Recursion', _MAX_RECURSION());
+    die CBOR::Free::X->create( 'Recursion', _MAX_RECURSION());
 }
 
-sub _die_unrecognized {
-    my ($alien) = @_;
+sub _die {
+    my ($subclass, @args) = @_;
 
-    die CBOR::Free::X->create('Unrecognized', $alien);
+    die CBOR::Free::X->create($subclass, @args);
 }
 
-sub _die_incomplete {
-    my ($lack) = @_;
+# Without the initial 0 value, our XS code warns about
+# “Use of uninitialized value in subroutine entry”.
+# There surely is a better way to suppress this warning,
+# but what’s here works. (TODO)
+our $_LEFTOVER_COUNT = 0;
 
-    die CBOR::Free::X->create('Incomplete', $lack);
+sub _warn_decode_leftover {
+    warn "CBOR buffer contained $_LEFTOVER_COUNT excess bytes";
 }
 
 1;

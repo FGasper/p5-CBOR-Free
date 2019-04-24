@@ -40,6 +40,7 @@ WriteMakefile1(
     PREREQ_PM    => {
         'parent'    => 0,
         'X::Tiny'   => 0,
+        'Text::Control' => 0,
     },
 
     BUILD_REQUIRES => {

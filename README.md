@@ -26,6 +26,37 @@ upgrading.
 
 # FUNCTIONS
 
+## $cbor = encode( $DATA )
+
+Encodes a data structure or non-reference scalar to CBOR.
+The encoder recognizes and encodes integers, floats, binary and UTF-8
+strings, array and hash references, [CBOR::Free::Tagged](https://metacpan.org/pod/CBOR::Free::Tagged) instances,
+[Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) booleans, and undef (encoded as null).
+
+The encoder currently does not handle any other blessed references.
+
+An error is thrown on excess recursion.
+
+## $data = decode( $CBOR )
+
+Decodes a data structure from CBOR. Errors are thrown to indicate
+invalid CBOR. A warning is thrown if $CBOR is longer than is needed
+for $data.
+
+Note that invalid UTF-8 in a string marked as UTF-8 is considered
+an error.
+
+## $obj = tag( $NUMBER, $DATA )
+
+Tags an item for encoding so that its CBOR encoding will preserve the
+tag number. (Include $obj, not $DATA, in the data structure that
+`encode()` receives.)
+
+# ERROR HANDLING
+
+Most errors are represented via instances of subclasses of
+[CBOR::Free::X](https://metacpan.org/pod/CBOR::Free::X).
+
 # TODO
 
 - Make it faster. On some platforms (e.g., Linux) it appears to be

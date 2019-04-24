@@ -83,7 +83,7 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-void __croak_fn_arg( pTHX_ const char *fn, SV *value ) {
+void __croak_fn_args( pTHX_ const char argslen, SV **args ) {
     dSP;
 
     ENTER;
@@ -92,12 +92,14 @@ void __croak_fn_arg( pTHX_ const char *fn, SV *value ) {
     PUSHMARK(SP);
     EXTEND(SP, 2);
 
-    //PUSHs( sv_2mortal(value) );
-    PUSHs(value);
+    unsigned char a;
+    for (a=0; a<argslen; a++) {
+        PUSHs(args[a]);
+    }
 
     PUTBACK;
 
-    call_pv(fn, G_EVAL);
+    call_pv("CBOR::Free::_die", G_EVAL);
 
     FREETMPS;
     LEAVE;
@@ -106,11 +108,29 @@ void __croak_fn_arg( pTHX_ const char *fn, SV *value ) {
 }
 
 void _croak_unrecognized(pTHX_ SV *value) {
-    __croak_fn_arg( aTHX_ "CBOR::Free::_die_unrecognized", value );
+    SV *args[2] = { newSVpvs("Unrecognized"), value };
+
+    __croak_fn_args( aTHX_ 2, args );
 }
 
 void _croak_incomplete( pTHX_ STRLEN lack ) {
-    __croak_fn_arg( aTHX_ "CBOR::Free::_die_incomplete", newSVuv(lack) );
+    SV *args[2] = { newSVpvs("Incomplete"), newSVuv(lack) };
+
+    __croak_fn_args( aTHX_ 2, args );
+}
+
+void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
+    const unsigned char ord = (unsigned char) *(decstate->curbyte);
+    STRLEN offset = decstate->curbyte - SvPV_nolen(decstate->cbor);
+
+    SV *args[3] = { newSVpvs("InvalidControl"), newSVuv(ord), newSVuv(offset) };
+
+    __croak_fn_args( aTHX_ 3, args );
+}
+
+void _croak_invalid_utf8( pTHX_ SV *string ) {
+    SV *args[2] = { newSVpvs("InvalidUTF8"), string };
+    __croak_fn_args( aTHX_ 2, args );
 }
 
 void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
@@ -432,11 +452,14 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
         case 0x1c:
         case 0x1d:
         case 0x1e:
-            croak("Unrecognized uint byte!");   // TODO
+            _croak_invalid_control( aTHX_ decstate );
             break;
 
         case 0x1f:
-            ++decstate->curbyte;
+            // ++decstate->curbyte;
+            // NOTE: We do NOT increment the pointer here
+            // because callers need to distinguish for themselves
+            // whether indefinite is a valid case.
 
             ret.sizetype = indefinite;
 
@@ -483,6 +506,8 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
             break;
 
         case indefinite:
+            ++decstate->curbyte;
+
             array = newAV();
 
             while (*(decstate->curbyte) != '\xff') {
@@ -557,6 +582,8 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
             break;
 
         case indefinite:
+            ++decstate->curbyte;
+
             hash = newHV();
 
             while (*(decstate->curbyte) != '\xff') {
@@ -653,7 +680,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case indefinite:
-                    croak("Invalid uint byte!");   // TODO
+                    _croak_invalid_control( aTHX_ decstate );
                     break;
 
             }
@@ -681,7 +708,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case indefinite:
-                    croak("Invalid negint byte!");   // TODO
+                    _croak_invalid_control( aTHX_ decstate );
                     break;
 
             }
@@ -721,6 +748,8 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case indefinite:
+                    ++decstate->curbyte;
+
                     ret = newSVpvs("");
 
                     while (*(decstate->curbyte) != '\xff') {
@@ -738,10 +767,21 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 default:
+
+                    // This shouldn’t happen, but just in case.
                     croak("Unknown string length descriptor!");
             }
 
-            if (TYPE_UTF8 == major_type) SvUTF8_on(ret);
+            // XXX: “perldoc perlapi” says this function is experimental.
+            // Its use here is a calculated risk; the alternatives are
+            // to invoke utf8::decode() via call_pv(), which is ugly,
+            // or just to assume the UTF-8 is valid, which is wrong.
+            //
+            if (TYPE_UTF8 == major_type) {
+                if ( !sv_utf8_decode(ret) ) {
+                    _croak_invalid_utf8( aTHX_ ret );
+                }
+            }
 
             break;
         case TYPE_ARRAY:
@@ -755,7 +795,10 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
         case TYPE_TAG:
 
             // For now, just throw this tag value away.
-            _parse_for_uint_len( aTHX_ decstate );
+            sizeparse = _parse_for_uint_len( aTHX_ decstate );
+            if (sizeparse.sizetype == indefinite) {
+                _croak_invalid_control( aTHX_ decstate );
+            }
 
             ret = _decode( aTHX_ decstate );
 
@@ -810,6 +853,10 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     }
 
                     decstate->curbyte += 9;
+                    break;
+
+                default:
+                    _croak_invalid_control( aTHX_ decstate );
             }
     }
 
@@ -858,6 +905,20 @@ decode( SV *cbor )
         };
 
         RETVAL = _decode( aTHX_ &decode_state );
-        //sv_2mortal((SV*)RETVAL);
+
+        if (decode_state.curbyte != decode_state.end) {
+            STRLEN bytes_count = decode_state.end - decode_state.curbyte;
+
+            SV *leftover_count = (SV *) get_sv("CBOR::Free::_LEFTOVER_COUNT", 0);
+
+            // TODO: Figure out how to “vivify” leftover_count when it’s
+            // undef without getting a warning.
+
+            SvUV(leftover_count);
+            SvUV_set(leftover_count, bytes_count);
+
+            call_pv("CBOR::Free::_warn_decode_leftover", 0);
+        }
+
     OUTPUT:
         RETVAL

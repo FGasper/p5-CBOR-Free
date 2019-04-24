@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Test::More;
+use Test::Deep;
 use Test::Exception;
 use Test::FailWarnings;
 
@@ -37,6 +38,85 @@ throws_ok(
     'CBOR::Free::X::Unrecognized',
     'unrecognized object triggers expected error',
 );
+
+like( "$@", qr<Weird>, '… and the item itself is mentioned in the message' );
+
+my @invalids = (
+    0x1c .. 0x1f,
+
+    0x3c .. 0x3f,
+
+    0x5c .. 0x5e,
+
+    0x7c .. 0x7e,
+
+    0x9c .. 0x9e,
+
+    0xbc .. 0xbe,
+
+    0xdc .. 0xdf,
+
+    0xe0 .. 0xef,
+
+    0xf0 .. 0xf3,
+    0xf8,
+    0xfc .. 0xff,
+);
+
+for my $value (@invalids) {
+    my $hex = sprintf '%v.02x', chr($value);
+
+    throws_ok(
+        sub { CBOR::Free::decode( "\x86\0\0\0\0\0" . chr($value) ) },
+        'CBOR::Free::X::InvalidControl',
+        "Invalid control byte: $hex",
+    );
+
+    my $err = $@;
+
+    cmp_deeply(
+        $err->get_message(),
+        all(
+            re( qr<$hex> ),
+            re( qr<6> ),
+        ),
+        '… and hex of byte value and offset appear in error message',
+    );
+}
+
+#----------------------------------------------------------------------
+
+throws_ok(
+    sub { CBOR::Free::decode("\x66abc\xff\xff\xff") },
+    'CBOR::Free::X::InvalidUTF8',
+    'Expected error on invalid UTF-8',
+);
+
+my $utf8err = $@;
+
+cmp_deeply(
+    $utf8err,
+    re( qr<“abc\\xff\\xff\\xff”> ),
+    '… and the invalid UTF-8 is shown with high bytes in hex',
+);
+
+#----------------------------------------------------------------------
+
+{
+    my @w;
+    local $SIG{'__WARN__'} = sub { push @w, @_ };
+
+    CBOR::Free::decode("\0\0\0\0\0\0\0\0");
+
+    cmp_deeply(
+        \@w,
+        [ all(
+            re( qr<CBOR> ),
+            re( qr<7> ),
+        ) ],
+        'warning about excess bytes after decode',
+    ) or diag explain \@w;
+}
 
 #----------------------------------------------------------------------
 
