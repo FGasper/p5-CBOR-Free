@@ -243,7 +243,11 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
     ++encode_recurse;
     if (encode_recurse > MAX_ENCODE_RECURSE) {
         encode_recurse = 0;
-        call_pv("CBOR::Free::_die_recursion", G_EVAL);
+
+        // call_pv() killed the process in Win32; this seems to fix that.
+        static char * words[] = { NULL };
+        call_argv("CBOR::Free::_die_recursion", G_EVAL|G_DISCARD, words);
+
         croak(NULL);
     }
 
