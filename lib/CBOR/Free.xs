@@ -247,7 +247,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
         croak(NULL);
     }
 
-    SV *RETVAL;
+    SV *RETVAL = NULL;
 
     if (!SvROK(value)) {
 
@@ -288,7 +288,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
             RETVAL = buffer;
         }
-        else if (SvPOK(value)) {
+        else {
             STRLEN len = SvCUR(value);
 
             char *val = SvPV_nolen(value);
@@ -559,9 +559,9 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
 }
 
 SV *_decode_map( pTHX_ decode_ctx* decstate ) {
-    SSize_t keycount;
+    SSize_t keycount = 0;
 
-    HV *hash = NULL;
+    HV *hash = newHV();
 
     struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
 
@@ -586,8 +586,6 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
         case indefinite:
             ++decstate->curbyte;
 
-            hash = newHV();
-
             while (*(decstate->curbyte) != '\xff') {
                 _decode_to_hash( aTHX_ decstate, hash );
             }
@@ -597,9 +595,7 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
     }
 
-    if (!hash) {
-        hash = newHV();
-
+    if (keycount) {
         while (keycount > 0) {
             _decode_to_hash( aTHX_ decstate, hash );
             --keycount;
@@ -652,7 +648,7 @@ double _decode_double_to_little_endian( unsigned char *ptr ) {
 //----------------------------------------------------------------------
 
 SV *_decode( pTHX_ decode_ctx* decstate ) {
-    SV *ret;
+    SV *ret = NULL;
 
     _decode_check_for_overage( aTHX_ decstate, 1);
 
@@ -681,7 +677,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     ret = newSVuv( sizeparse.size.u64 );
                     break;
 
-                case indefinite:
+                default:
                     _croak_invalid_control( aTHX_ decstate );
                     break;
 
@@ -709,7 +705,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     ret = newSViv( ( (int64_t) sizeparse.size.u64 ) * -1 - 1 );
                     break;
 
-                case indefinite:
+                default:
                     _croak_invalid_control( aTHX_ decstate );
                     break;
 
@@ -860,6 +856,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 default:
                     _croak_invalid_control( aTHX_ decstate );
             }
+
+            break;
+
+        default:
+            croak("Unknown type!");
     }
 
     return ret;
