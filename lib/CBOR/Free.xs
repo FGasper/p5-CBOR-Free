@@ -86,7 +86,8 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 //----------------------------------------------------------------------
 
 char * _uint_to_str(U32 num) {
-    char *numstr = malloc(24);
+    char *numstr;
+    Newx( numstr, 24, char );
     snprintf(numstr, 24, "%u", num);
 
     return numstr;
@@ -111,7 +112,7 @@ void _croak_incomplete( pTHX_ STRLEN lack ) {
 
     call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
 
-    free(lackstr);
+    Safefree(lackstr);
 
     croak(NULL);
 }
@@ -127,8 +128,8 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
 
     call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
 
-    free(ordstr);
-    free(offsetstr);
+    Safefree(ordstr);
+    Safefree(offsetstr);
 
     croak(NULL);
 }
@@ -924,7 +925,7 @@ decode( SV *cbor )
 
             call_argv("CBOR::Free::_warn_decode_leftover", G_DISCARD, words);
 
-            free(numstr);
+            Safefree(numstr);
         }
 
     OUTPUT:
