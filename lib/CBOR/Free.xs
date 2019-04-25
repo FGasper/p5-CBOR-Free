@@ -7,6 +7,7 @@
 #include "ppport.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -84,54 +85,59 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-void __croak_fn_args( pTHX_ const char argslen, SV **args ) {
-    dSP;
+char * _uint_to_str(U32 num) {
+    char *numstr = malloc(24);
+    snprintf(numstr, 24, "%u", num);
 
-    ENTER;
-    SAVETMPS;
+    return numstr;
+}
 
-    PUSHMARK(SP);
-    EXTEND(SP, 2);
-
-    unsigned char a;
-    for (a=0; a<argslen; a++) {
-        PUSHs(args[a]);
-    }
-
-    PUTBACK;
-
-    call_pv("CBOR::Free::_die", G_EVAL);
-
-    FREETMPS;
-    LEAVE;
-
+void _die( pTHX_ I32 flags, char **argv ) {
+    call_argv( "CBOR::Free::_die", G_EVAL | flags, argv );
     croak(NULL);
 }
 
 void _croak_unrecognized(pTHX_ SV *value) {
-    SV *args[2] = { newSVpvs("Unrecognized"), value };
+    char * words[3] = { "Unrecognized", NULL, NULL };
+    words[1] = SvPV_nolen(value);
 
-    __croak_fn_args( aTHX_ 2, args );
+    _die( aTHX_ G_DISCARD, words );
 }
 
 void _croak_incomplete( pTHX_ STRLEN lack ) {
-    SV *args[2] = { newSVpvs("Incomplete"), newSVuv(lack) };
+    char *lackstr = _uint_to_str(lack);
 
-    __croak_fn_args( aTHX_ 2, args );
+    char * words[3] = { "Incomplete", lackstr, NULL };
+
+    call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
+
+    free(lackstr);
+
+    croak(NULL);
 }
 
 void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     const unsigned char ord = (unsigned char) *(decstate->curbyte);
     STRLEN offset = decstate->curbyte - SvPV_nolen(decstate->cbor);
 
-    SV *args[3] = { newSVpvs("InvalidControl"), newSVuv(ord), newSVuv(offset) };
+    char *ordstr = _uint_to_str(ord);
+    char *offsetstr = _uint_to_str(offset);
 
-    __croak_fn_args( aTHX_ 3, args );
+    char * words[4] = { "InvalidControl", ordstr, offsetstr, NULL };
+
+    call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
+
+    free(ordstr);
+    free(offsetstr);
+
+    croak(NULL);
 }
 
-void _croak_invalid_utf8( pTHX_ SV *string ) {
-    SV *args[2] = { newSVpvs("InvalidUTF8"), string };
-    __croak_fn_args( aTHX_ 2, args );
+void _croak_invalid_utf8( pTHX_ char *string ) {
+    static char * words[3] = { "InvalidUTF8", NULL, NULL };
+    words[1] = string;
+
+    _die( aTHX_ G_DISCARD, words);
 }
 
 void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
@@ -778,7 +784,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             //
             if (TYPE_UTF8 == major_type) {
                 if ( !sv_utf8_decode(ret) ) {
-                    _croak_invalid_utf8( aTHX_ ret );
+                    _croak_invalid_utf8( aTHX_ SvPV_nolen(ret) );
                 }
             }
 
@@ -897,7 +903,6 @@ encode( SV * value )
     OUTPUT:
         RETVAL
 
-
 SV *
 decode( SV *cbor )
     CODE:
@@ -913,8 +918,7 @@ decode( SV *cbor )
         if (decode_state.curbyte != decode_state.end) {
             STRLEN bytes_count = decode_state.end - decode_state.curbyte;
 
-            char *numstr = malloc(16);
-            snprintf(numstr, 16, "%lu", bytes_count);
+            char *numstr = _uint_to_str(bytes_count);
 
             char * words[2] = { numstr, NULL };
 
