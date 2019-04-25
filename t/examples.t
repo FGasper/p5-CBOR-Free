@@ -139,8 +139,11 @@ for my $t (@decode) {
         sprintf('Decode %s', $t->[1])
     ) or diag explain $decoded;
 
+    my $encoded = CBOR::Free::encode( $t->[0] );
+    diag ( sprintf( "Encoded: %v.02x", $encoded ) );
+
     is_deeply(
-        scalar( CBOR::Free::decode( CBOR::Free::encode( $t->[0] ) ) ),
+        scalar( CBOR::Free::decode( $encoded ) ),
         $t->[0],
         sprintf("Round-trip: $t->[1]"),
     );
