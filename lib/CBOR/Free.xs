@@ -636,7 +636,7 @@ unsigned char *in = ptr;
 fprintf(stderr, "# float in: %02x.%02x.%02x.%02x\n", *in, *(in + 1), *(in + 2), *(in + 3));
 
 unsigned char *out = &host_uint;
-fprintf(stderr, "# float out: %02x.%02x.%02x.%02x", *out, *(out + 1), *(out + 2), *(out + 3));
+fprintf(stderr, "# float out: %02x.%02x.%02x.%02x\n", *out, *(out + 1), *(out + 2), *(out + 3));
 
     float ret = *( (float *) &host_uint );
 
