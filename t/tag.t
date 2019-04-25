@@ -4,10 +4,11 @@ use strict;
 use warnings;
 
 use Test::More;
+use Test::FailWarnings;
 
 use Data::Dumper;
 
-use_ok('CBOR::Free');
+use CBOR::Free;
 
 my @tests = (
     [ CBOR::Free::tag( 12, 12 ) => "\xcc\x0c" ],

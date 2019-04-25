@@ -111,6 +111,7 @@ BEGIN {
     XSLoader::load();
 }
 
+our ($true, $false);
 *true = *Types::Serialiser::true;
 *false = *Types::Serialiser::false;
 

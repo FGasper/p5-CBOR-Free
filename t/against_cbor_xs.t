@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 
 use Test::More;
+use Test::FailWarnings;
 
 use Data::Dumper;
 

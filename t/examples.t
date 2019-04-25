@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use Test::More;
+use Test::FailWarnings;
 
 use Types::Serialiser ();
 
