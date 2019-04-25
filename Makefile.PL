@@ -55,6 +55,7 @@ WriteMakefile1(
         'Test::Exception' => 0,
         'Test::More'      => 1.302162,
         'Test::FailWarnings' => 0,
+        'Test::Deep'      => 0,
     },
 
     # SIGN => 1,
