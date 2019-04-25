@@ -41,6 +41,16 @@ throws_ok(
 
 like( "$@", qr<Weird>, '… and the item itself is mentioned in the message' );
 
+my $stdout = \*STDOUT;
+
+throws_ok(
+    sub { diag sprintf('%v.02x', CBOR::Free::encode([$stdout])) },
+    'CBOR::Free::X::Unrecognized',
+    'file handle triggers “Unrecognized” error',
+);
+
+#----------------------------------------------------------------------
+
 my @invalids = (
     0x1c .. 0x1f,
 

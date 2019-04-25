@@ -53,7 +53,7 @@ WriteMakefile1(
         'autodie'         => 0,
         'Data::Dumper'    => 0,
         'Test::Exception' => 0,
-        'Test::More'      => 0,
+        'Test::More'      => 1.302162,
         'Test::FailWarnings' => 0,
     },
 
