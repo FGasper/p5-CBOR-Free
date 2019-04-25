@@ -293,7 +293,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
             char *val = SvPV_nolen(value);
 
-            bool encode_as_text = SvUTF8(value);
+            bool encode_as_text = !!SvUTF8(value);
 
             /*
             if (!encode_as_text) {
