@@ -42,7 +42,23 @@ L<Types::Serialiser> booleans, and undef (encoded as null).
 
 The encoder currently does not handle any other blessed references.
 
-An error is thrown on excess recursion.
+Notes on mapping Perl to CBOR:
+
+=over
+
+=item The internal state of a defined Perl scalar (e.g., whether it’s an
+integer, float, binary string, or UTF-8 string) determines its CBOR
+encoding.
+
+=item L<Types::Serialiser> booleans are encoded as CBOR booleans.
+Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
+undefined.)
+
+=item Instances of L<CBOR::Free::Tagged> are encoded as tagged values.
+
+=back
+
+An error is thrown on excess recursion or an unrecognized object.
 
 =head2 $data = decode( $CBOR )
 
@@ -50,8 +66,22 @@ Decodes a data structure from CBOR. Errors are thrown to indicate
 invalid CBOR. A warning is thrown if $CBOR is longer than is needed
 for $data.
 
-Note that invalid UTF-8 in a string marked as UTF-8 is considered
-an error.
+Notes on mapping CBOR to Perl:
+
+=over
+
+=item * CBOR UTF-8 strings become Perl UTF-8 strings. CBOR binary strings
+become Perl binary strings. (This may become configurable later.)
+
+Note that invalid UTF-8 in a CBOR UTF-8 string is considered
+invalid input and will thus prompt a thrown exception.
+
+=item * CBOR booleans become the corresponding L<Types::Serialiser> values.
+Both CBOR null and undefined become Perl undef.
+
+=item * Tags are IGNORED for now. (This may become configurable later.)
+
+=back
 
 =head2 $obj = tag( $NUMBER, $DATA )
 
@@ -73,6 +103,8 @@ L<CBOR::Free::X>.
 =head1 TODO
 
 =over
+
+=item * Add canonical encode().
 
 =item * Make it faster. On some platforms (e.g., Linux) it appears to be
 faster than L<JSON::XS> but not quite as fast as L<CBOR::XS>; on others
@@ -107,7 +139,7 @@ use CBOR::Free::Tagged;
 our ($VERSION);
 
 BEGIN {
-    $VERSION = '0.01';
+    $VERSION = '0.01_01';
     XSLoader::load();
 }
 

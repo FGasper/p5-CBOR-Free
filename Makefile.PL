@@ -53,11 +53,11 @@ WriteMakefile1(
         'autodie'         => 0,
         'Data::Dumper'    => 0,
         'Test::Exception' => 0,
-        'Test::More'      => 0,
+        'Test::More'      => 1.302162,
         'Test::FailWarnings' => 0,
     },
 
-    SIGN => 1,
+    # SIGN => 1,
 );
 
 sub WriteMakefile1 {  #Compatibility code for old versions of EU::MM. Written by Alexandr Ciornii, version 2. Added by eumm-upgrade.
