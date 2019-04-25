@@ -6,6 +6,7 @@
 
 #include "ppport.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -912,15 +913,14 @@ decode( SV *cbor )
         if (decode_state.curbyte != decode_state.end) {
             STRLEN bytes_count = decode_state.end - decode_state.curbyte;
 
-            SV *leftover_count = (SV *) get_sv("CBOR::Free::_LEFTOVER_COUNT", 0);
+            char *numstr = malloc(16);
+            snprintf(numstr, 16, "%lu", bytes_count);
 
-            // TODO: Figure out how to “vivify” leftover_count when it’s
-            // undef without getting a warning.
+            char * words[2] = { numstr, NULL };
 
-            SvUV(leftover_count);
-            SvUV_set(leftover_count, bytes_count);
+            call_argv("CBOR::Free::_warn_decode_leftover", G_DISCARD, words);
 
-            call_pv("CBOR::Free::_warn_decode_leftover", 0);
+            free(numstr);
         }
 
     OUTPUT:

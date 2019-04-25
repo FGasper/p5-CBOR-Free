@@ -129,14 +129,10 @@ sub _die {
     die CBOR::Free::X->create($subclass, @args);
 }
 
-# Without the initial 0 value, our XS code warns about
-# “Use of uninitialized value in subroutine entry”.
-# There surely is a better way to suppress this warning,
-# but what’s here works. (TODO)
-our $_LEFTOVER_COUNT = 0;
-
 sub _warn_decode_leftover {
-    warn "CBOR buffer contained $_LEFTOVER_COUNT excess bytes";
+    my ($count) = @_;
+
+    warn "CBOR buffer contained $count excess bytes";
 }
 
 1;
