@@ -627,7 +627,7 @@ double decode_half_float(unsigned char *halfp) {
     return half & 0x8000 ? -val : val;
 }
 
-float _decode_float_to_host_order( void *ptr ) {
+float _decode_float_to_host_order( pTHX_ void *ptr ) {
     uint32_t host_uint;
 
     _u32_to_buffer( *( (uint32_t *) ptr ), (unsigned char *) &host_uint );
@@ -643,7 +643,7 @@ fprintf(stderr, "# float out: %02x.%02x.%02x.%02x\n", *out, *(out + 1), *(out + 
     return ret;
 }
 
-double _decode_double_to_host_order( void *ptr ) {
+double _decode_double_to_host_order( pTHX_ void *ptr ) {
     uint64_t host_uint;
 
     _u64_to_buffer( *( (uint64_t *) ptr ), (unsigned char *) &host_uint );
@@ -845,7 +845,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         ret = newSVnv( *( (float *) (1 + decstate->curbyte) ) );
                     }
                     else {
-                        ret = newSVnv( _decode_float_to_host_order( 1 + decstate->curbyte ) );
+                        ret = newSVnv( _decode_float_to_host_order( aTHX_ 1 + decstate->curbyte ) );
                     }
 
                     decstate->curbyte += 5;
@@ -858,7 +858,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         ret = newSVnv( *( (double *) (1 + decstate->curbyte) ) );
                     }
                     else {
-                        ret = newSVnv( _decode_double_to_host_order( 1 + decstate->curbyte ) );
+                        ret = newSVnv( _decode_double_to_host_order( aTHX_ 1 + decstate->curbyte ) );
                     }
 
                     decstate->curbyte += 9;
