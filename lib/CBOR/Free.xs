@@ -483,7 +483,7 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
     SSize_t array_length;
 
     AV *array = NULL;
-    SV *cur;
+    SV *cur = NULL;
 
     struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
 
@@ -523,24 +523,20 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
     }
 
     if (!array) {
-        SV **array_items = NULL;
+        array = newAV();
 
         if (array_length) {
-            array_items = calloc( array_length, sizeof(SV *) );
-            if (!array_items) {
-                croak("Out of memory!");
-            }
+            av_fill(array, array_length - 1);
 
             SSize_t i;
             for (i=0; i<array_length; i++) {
                 cur = _decode( aTHX_ decstate );
-                array_items[i] = cur;
+
+                if (!av_store(array, i, cur)) {
+                    croak("Failed to store item in array!");
+                }
             }
         }
-
-        array = av_make(array_length, array_items);
-
-        free(array_items);
     }
 
     return newRV_noinc( (SV *) array);
