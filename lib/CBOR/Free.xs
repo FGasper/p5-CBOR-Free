@@ -627,28 +627,18 @@ double decode_half_float(unsigned char *halfp) {
     return half & 0x8000 ? -val : val;
 }
 
-float _decode_float_to_little_endian( unsigned char *ptr ) {
-    uint32_t host_uint = (*ptr << 24) + (*(ptr + 1) << 16) + (*(ptr + 2) << 8) + *(ptr + 3);
+float _decode_float_to_host_order( void *ptr ) {
+    uint32_t host_uint;
+
+    _u32_to_buffer( *( (uint32_t *) ptr ), (unsigned char *) &host_uint );
 
     return( *( (float *) &host_uint ) );
 }
 
-double _decode_double_to_little_endian( unsigned char *ptr ) {
-    // It doesn’t work to do these additions in one fell swoop;
-    // the resulting host_uint ends up being all zeros.
+double _decode_double_to_host_order( void *ptr ) {
+    uint64_t host_uint;
 
-    uint64_t host_uint = (*ptr << 24) + (*(ptr + 1) << 16) + (*(ptr + 2) << 8) + *(ptr + 3);
-
-    host_uint <<= 32;
-
-    // It doesn’t work to add these to host_uint all together.
-    // In testing, when I started with (little-endian) bytes
-    // 00.00.00.00.99.99.f1.3f then tried to add the following
-    // directly, the leftmost 0x99 byte became 0x98. (wtf?!?)
-    // For some reason, creating a separate number here solves that.
-    uint32_t lower = (*(ptr + 4) << 24) + (*(ptr + 5) << 16) + (*(ptr + 6) << 8) + *(ptr + 7);
-
-    host_uint += lower;
+    _u64_to_buffer( *( (uint64_t *) ptr ), (unsigned char *) &host_uint );
 
     return( *( (double *) &host_uint ) );
 }
@@ -842,7 +832,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         ret = newSVnv( *( (float *) (1 + decstate->curbyte) ) );
                     }
                     else {
-                        ret = newSVnv( _decode_float_to_little_endian( (unsigned char *) (1 + decstate->curbyte) ) );
+                        ret = newSVnv( _decode_float_to_host_order( 1 + decstate->curbyte ) );
                     }
 
                     decstate->curbyte += 5;
@@ -855,7 +845,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         ret = newSVnv( *( (double *) (1 + decstate->curbyte) ) );
                     }
                     else {
-                        ret = newSVnv( _decode_double_to_little_endian( (unsigned char *) (1 + decstate->curbyte) ) );
+                        ret = newSVnv( _decode_double_to_host_order( 1 + decstate->curbyte ) );
                     }
 
                     decstate->curbyte += 9;
