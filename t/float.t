@@ -32,6 +32,28 @@ for my $i ( @nums ) {
     }
 }
 
+{
+    my @ints = map { int( rand() * (2**17) - (2**16) ) } 1 .. 20;
+    for my $int (@ints) {
+        my $cbor = pack('C f>', 0xfa, $int);
+
+        is( CBOR::Free::decode($cbor), $int, "decode int as float: $int" );
+
+        $cbor = pack('C d>', 0xfb, $int);
+
+        is( CBOR::Free::decode($cbor), $int, "decode int as double: $int" );
+    }
+}
+
+{
+    my @ints = map { int( rand() * (2**33) - (2**32) ) } 1 .. 20;
+    for my $int (@ints) {
+        my $cbor = pack('C d>', 0xfb, $int);
+
+        is( CBOR::Free::decode($cbor), $int, "decode int as double: $int" );
+    }
+}
+
 sub _cmpbin {
     my ($got, $expect, $label) = @_;
 

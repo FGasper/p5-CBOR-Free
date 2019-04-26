@@ -92,6 +92,9 @@ my @decode = (
     [ -10 => '29' ],
     [ -100 => '3863' ],
     [ -1000 => '3903e7' ],
+
+    # These appear to decode with no rounding errors
+    # on long-double Perls:
     [ 1.5 => 'f93e00' ],
     [ 100000 => 'fa47c35000' ],
 );
