@@ -214,37 +214,41 @@ SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
     return buffer;
 }
 
-SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
-    if ( num > -0x19 ) {
-        unsigned char hdr[1] = { TYPE_NEGINT + (unsigned char) (-1 - num) };
+SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
+    if ( -num <= 0x18 ) {
+        unsigned char hdr[1] = { TYPE_NEGINT + (unsigned char) -num - 1 };
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
     }
-    else if ( num >= -0x100 ) {
-        unsigned char hdr[2] = { TYPE_NEGINT_SMALL, (unsigned char) (-1 - num) };
-
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
-    }
-    else if ( num >= -0x10000 ) {
-        unsigned char hdr[3] = { TYPE_NEGINT_MEDIUM };
-
-        _u16_to_buffer( -1 - num, 1 + hdr );
-
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
-    }
-    else if ( num >= -0x100000000 ) {
-        unsigned char hdr[5] = { TYPE_NEGINT_LARGE };
-
-        _u32_to_buffer( -1 - num, 1 + hdr );
-
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
-    }
     else {
-        unsigned char hdr[9] = { TYPE_NEGINT_HUGE };
+        num = -num - 1;
 
-        _u64_to_buffer( -1 - num, 1 + hdr );
+        if ( num <= 0xff ) {
+            unsigned char hdr[2] = { TYPE_NEGINT_SMALL, (unsigned char) num };
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 9);
+            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
+        }
+        else if ( num <= 0xffff ) {
+            unsigned char hdr[3] = { TYPE_NEGINT_MEDIUM };
+
+            _u16_to_buffer( num, 1 + hdr );
+
+            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
+        }
+        else if ( num <= 0xffffffff ) {
+            unsigned char hdr[5] = { TYPE_NEGINT_LARGE };
+
+            _u32_to_buffer( num, 1 + hdr );
+
+            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
+        }
+        else {
+            unsigned char hdr[9] = { TYPE_NEGINT_HUGE };
+
+            _u64_to_buffer( num, 1 + hdr );
+
+            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 9);
+        }
     }
 
     return buffer;
