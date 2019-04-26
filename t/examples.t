@@ -8,6 +8,10 @@ use warnings;
 use Test::More;
 use Test::FailWarnings;
 
+use Config;
+
+my $long_double_yn = $Config::Config{'uselongdouble'};
+
 use Types::Serialiser ();
 
 use CBOR::Free;
@@ -91,17 +95,26 @@ my @decode = (
     [ 1.1 => 'fb3ff199999999999a' ],
     [ 1.5 => 'f93e00' ],
     [ 100000 => 'fa47c35000' ],
-    ( $is_64bit ? [ -4.1 => 'fbc010666666666666' ] : () ),
-    [ _pre_522_lc('Inf') => 'fa7f800000' ],
-    [ _pre_522_lc('NaN') => 'fa7fc00000' ],
-    [ _pre_522_lc('-Inf') => 'faff800000' ],
-    ($is_64bit ?
-        (
+);
+
+if (!$long_double_yn) {
+    push @decode, (
+        [ _pre_522_lc('Inf') => 'fa7f800000' ],
+        [ _pre_522_lc('NaN') => 'fa7fc00000' ],
+        [ _pre_522_lc('-Inf') => 'faff800000' ],
+    );
+
+    if ($is_64bit) {
+        push @decode, (
+           [ -4.1 => 'fbc010666666666666' ],
             [ _pre_522_lc('Inf') => 'fb7ff0000000000000' ],
             [ _pre_522_lc('NaN') => 'fb7ff8000000000000' ],
             [ _pre_522_lc('-Inf') => 'fbfff0000000000000' ],
-        ) : ()
-    ),
+        );
+    }
+}
+
+push @decode, (
     [ '2013-03-21T20:04:00Z' => 'c074323031332d30332d32315432303a30343a30305a' ],
     [ 1363896240 => 'c11a514b67b0' ],
     [ 1363896240.5 => 'c1fb41d452d9ec200000' ],
