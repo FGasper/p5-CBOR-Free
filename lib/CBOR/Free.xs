@@ -288,16 +288,9 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             }
         }
         else if (SvNOK(value)) {
-            SV *packto = newSV(0);
-sv_dump(packto);
-            const char *pat = "d";
-            packlist( packto, pat, 1 + pat, &value, &value );
-            double packstr = SvNV(packto);
-printf("sizeof double: %lu\n", sizeof(packstr));
-//printf("Perl pack: %02x.%02x.%02x.%02x.%02x.%02x.%02x.%02x\n", packstr[0], packstr[1], packstr[2], packstr[3], packstr[4], packstr[5], packstr[6], packstr[7]);
 
-            // All Perl floats are stored as doubles … apparently?
-            NV val = SvNV(value);
+            // Typecast to a double to accommodate long-double perls.
+            double val = (double) SvNV(value);
 
             char *valptr = (char *) &val;
 
@@ -853,12 +846,16 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 case CBOR_FLOAT:
                     _decode_check_for_overage( aTHX_ decstate, 5 );
 
+                    float decoded_flt;
+
                     if (is_big_endian) {
-                        ret = newSVnv( *( (float *) (1 + decstate->curbyte) ) );
+                        decoded_flt = *( (float *) (1 + decstate->curbyte) ) );
                     }
                     else {
-                        ret = newSVnv( _decode_float_to_host_order( aTHX_ 1 + decstate->curbyte ) );
+                        decoded_flt = _decode_float_to_host_order( aTHX_ 1 + decstate->curbyte );
                     }
+
+                    ret = newSVnv( (NV) decoded_flt );
 
                     decstate->curbyte += 5;
                     break;
@@ -866,12 +863,16 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 case CBOR_DOUBLE:
                     _decode_check_for_overage( aTHX_ decstate, 9 );
 
+                    double decoded_dbl;
+
                     if (is_big_endian) {
-                        ret = newSVnv( *( (double *) (1 + decstate->curbyte) ) );
+                        decoded_dbl = *( (double *) (1 + decstate->curbyte) );
                     }
                     else {
-                        ret = newSVnv( _decode_double_to_host_order( aTHX_ 1 + decstate->curbyte ) );
+                        decoded_dbl = _decode_double_to_host_order( aTHX_ 1 + decstate->curbyte );
                     }
+
+                    ret = newSVnv( (NV) decoded_dbl );
 
                     decstate->curbyte += 9;
                     break;
