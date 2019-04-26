@@ -15,7 +15,7 @@ my @nums = (
 );
 
 # Ensure that we have something that encodes to a double cleanly.
-$_ = unpack( 'd', pack('d', $_) ) for @nums;
+#$_ = unpack( 'd', pack('d', $_) ) for @nums;
 
 for my $i ( @nums ) {
     my $encoded = CBOR::Free::encode($i);
