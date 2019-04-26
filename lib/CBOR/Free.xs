@@ -637,12 +637,6 @@ float _decode_float_to_host_order( pTHX_ void *ptr ) {
 
     _u32_to_buffer( *( (uint32_t *) ptr ), (unsigned char *) &host_uint );
 
-unsigned char *in = ptr;
-fprintf(stderr, "# float in: %02x.%02x.%02x.%02x\n", *in, *(in + 1), *(in + 2), *(in + 3));
-
-unsigned char *out = &host_uint;
-fprintf(stderr, "# float out: %02x.%02x.%02x.%02x\n", *out, *(out + 1), *(out + 2), *(out + 3));
-
     float ret = *( (float *) &host_uint );
 
     return ret;
@@ -652,11 +646,6 @@ double _decode_double_to_host_order( pTHX_ void *ptr ) {
     uint64_t host_uint;
 
     _u64_to_buffer( *( (uint64_t *) ptr ), (unsigned char *) &host_uint );
-unsigned char *in = ptr;
-fprintf(stderr, "# double in: %02x.%02x.%02x.%02x.%02x.%02x.%02x.%02x\n", *in, *(in + 1), *(in + 2), *(in + 3), *(in + 4), *(in + 5), *(in + 6), *(in + 7));
-
-unsigned char *out = &host_uint;
-fprintf(stderr, "# double out: %02x.%02x.%02x.%02x.%02x.%02x.%02x.%02x\n", *out, *(out + 1), *(out + 2), *(out + 3), *(out + 4), *(out + 5), *(out + 6), *(out + 7));
 
     return( *( (double *) &host_uint ) );
 }
@@ -849,7 +838,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     float decoded_flt;
 
                     if (is_big_endian) {
-                        decoded_flt = *( (float *) (1 + decstate->curbyte) ) );
+                        decoded_flt = *( (float *) (1 + decstate->curbyte) );
                     }
                     else {
                         decoded_flt = _decode_float_to_host_order( aTHX_ 1 + decstate->curbyte );

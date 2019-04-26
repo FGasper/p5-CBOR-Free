@@ -140,7 +140,6 @@ for my $t (@decode) {
     ) or diag explain $decoded;
 
     my $encoded = CBOR::Free::encode( $t->[0] );
-    diag ( sprintf( "Encoded: %v.02x", $encoded ) );
 
     is_deeply(
         scalar( CBOR::Free::decode( $encoded ) ),
