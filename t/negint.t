@@ -24,6 +24,10 @@ for my $i ( -65537, -0xffffffff - 1 ) {
     _cmpbin( CBOR::Free::encode($i), pack('C N', 0x3a, -1 - $i), "encode $i" );
 }
 
+for my $i ( -0xffffffff - 2 ) {
+    _cmpbin( CBOR::Free::encode($i), pack('C q>', 0x3b, -1 - $i), "encode $i" );
+}
+
 sub _cmpbin {
     my ($got, $expect, $label) = @_;
 

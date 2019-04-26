@@ -21,6 +21,11 @@
 #define TYPE_TAG    0xc0
 #define TYPE_OTHER  0xe0
 
+#define TYPE_NEGINT_SMALL  (0x18 + 0x20)
+#define TYPE_NEGINT_MEDIUM (0x19 + 0x20)
+#define TYPE_NEGINT_LARGE  (0x1a + 0x20)
+#define TYPE_NEGINT_HUGE   (0x1b + 0x20)
+
 #define CBOR_HALF_FLOAT 0xf9
 #define CBOR_FLOAT      0xfa
 #define CBOR_DOUBLE     0xfb
@@ -151,26 +156,26 @@ void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
 //----------------------------------------------------------------------
 
 void _u16_to_buffer( UV num, unsigned char *buffer ) {
-    *buffer       = num >> 8;
-    *(1 + buffer) = num;
+    buffer[0]       = num >> 8;
+    buffer[1] = num;
 }
 
 void _u32_to_buffer( UV num, unsigned char *buffer ) {
-    *buffer       = num >> 24;
-    *(1 + buffer) = num >> 16;
-    *(2 + buffer) = num >> 8;
-    *(3 + buffer) = num;
+    buffer[0]       = num >> 24;
+    buffer[1] = num >> 16;
+    buffer[2] = num >> 8;
+    buffer[3] = num;
 }
 
 void _u64_to_buffer( UV num, unsigned char *buffer ) {
-    *buffer = num >> 56;
-    *(1 + buffer) = num >> 48;
-    *(2 + buffer) = num >> 40;
-    *(3 + buffer) = num >> 32;
-    *(4 + buffer) = num >> 24;
-    *(5 + buffer) = num >> 16;
-    *(6 + buffer) = num >> 8;
-    *(7 + buffer) = num;
+    buffer[0] = num >> 56;
+    buffer[1] = num >> 48;
+    buffer[2] = num >> 40;
+    buffer[3] = num >> 32;
+    buffer[4] = num >> 24;
+    buffer[5] = num >> 16;
+    buffer[6] = num >> 8;
+    buffer[7] = num;
 }
 
 SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
@@ -216,26 +221,26 @@ SV *_init_length_buffer_negint( pTHX_ UV num, SV *buffer ) {
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
     }
     else if ( num >= -0x100 ) {
-        unsigned char hdr[2] = { TYPE_NEGINT + 0x18, (unsigned char) (-1 - num) };
+        unsigned char hdr[2] = { TYPE_NEGINT_SMALL, (unsigned char) (-1 - num) };
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
     }
     else if ( num >= -0x10000 ) {
-        unsigned char hdr[3] = { TYPE_NEGINT + 0x19 };
+        unsigned char hdr[3] = { TYPE_NEGINT_MEDIUM };
 
         _u16_to_buffer( -1 - num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
     }
     else if ( num >= -0x100000000 ) {
-        unsigned char hdr[5] = { TYPE_NEGINT + 0x1a };
+        unsigned char hdr[5] = { TYPE_NEGINT_LARGE };
 
         _u32_to_buffer( -1 - num, 1 + hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
     }
     else {
-        unsigned char hdr[5] = { TYPE_NEGINT + 0x1b };
+        unsigned char hdr[9] = { TYPE_NEGINT_HUGE };
 
         _u64_to_buffer( -1 - num, 1 + hdr );
 
@@ -283,6 +288,13 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             }
         }
         else if (SvNOK(value)) {
+            SV *packto = newSV(0);
+sv_dump(packto);
+            const char *pat = "d";
+            packlist( packto, pat, 1 + pat, &value, &value );
+            double packstr = SvNV(packto);
+printf("sizeof double: %lu\n", sizeof(packstr));
+//printf("Perl pack: %02x.%02x.%02x.%02x.%02x.%02x.%02x.%02x\n", packstr[0], packstr[1], packstr[2], packstr[3], packstr[4], packstr[5], packstr[6], packstr[7]);
 
             // All Perl floats are stored as doubles … apparently?
             NV val = SvNV(value);
