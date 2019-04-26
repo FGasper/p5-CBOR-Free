@@ -33,6 +33,8 @@ my @examples = (
             [ 1000000000000 => '1b000000e8d4a51000' ],
             [ 1000000000000 => '1b000000e8d4a51000' ],
             [ 18446744073709551615 => '1bffffffffffffffff' ],
+
+            # Perl can’t represent negatives that are this big.
             #[ -18446744073709551616 => '3bffffffffffffffff' ],
         ) : ()
     ),
