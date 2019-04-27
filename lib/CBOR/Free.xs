@@ -215,13 +215,14 @@ SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
 }
 
 SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
-    if ( -num <= 0x18 ) {
+    if ( (UV) -num <= 0x18 ) {
         unsigned char hdr[1] = { TYPE_NEGINT + (unsigned char) -num - 1 };
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
     }
     else {
-        num = -num - 1;
+        num++;
+        num = -num;
 
         if ( num <= 0xff ) {
             unsigned char hdr[2] = { TYPE_NEGINT_SMALL, (unsigned char) num };
