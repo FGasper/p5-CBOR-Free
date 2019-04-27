@@ -20,14 +20,14 @@ for my $i ( -257, -65536 ) {
     _cmpbin( CBOR::Free::encode($i), pack('C n', 0x39, -1 - $i), "encode $i" );
 }
 
-for my $i ( -65537, -0xffffffff ) {
+for my $i ( -65537, -0xffffffff - 1 ) {
     _cmpbin( CBOR::Free::encode($i), pack('C N', 0x3a, -1 - $i), "encode $i" );
 }
 
 SKIP: {
-    skip 'No 64-bit support!', 3 if !eval { pack 'q' };
+    skip 'No 64-bit support!', 2 if !eval { pack 'q' };
 
-    for my $i ( -0xffffffff - 1, -0xffffffff - 2, -9223372036854775808 ) {
+    for my $i ( -0xffffffff - 2, -9223372036854775808 ) {
         _cmpbin( CBOR::Free::encode($i), pack('C q>', 0x3b, -1 - $i), "encode $i" );
     }
 }
