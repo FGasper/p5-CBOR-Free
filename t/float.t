@@ -5,6 +5,7 @@ use warnings;
 
 use Test::More;
 use Test::FailWarnings;
+use Test::Deep;
 
 use Config;
 
@@ -21,15 +22,12 @@ for my $i ( @nums ) {
 
     _cmpbin( $encoded, pack('C d>', 0xfb, $i), "encode $i" );
 
-  SKIP: {
-        skip 'Long-double perls introduce rounding errors when decoding CBOR floats.', 1 if $Config{'uselongdouble'};
-
-        is(
-            CBOR::Free::decode($encoded),
-            $i,
-            "… and it round-trips",
-        );
-    }
+    # NB: Long-double perls introduce rounding errors when decoding CBOR floats.
+    cmp_deeply(
+        CBOR::Free::decode($encoded),
+        $Config{'uselongdouble'} ? num($i, 0.0001) : $i,
+        "… and it round-trips",
+    );
 }
 
 {
