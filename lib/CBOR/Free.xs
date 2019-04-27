@@ -949,14 +949,14 @@ fake_encode( SV * value )
 SV *
 _c_encode( SV * value )
     CODE:
-        RETVAL = _encode(aTHX_ value, NULL, false);
+        RETVAL = _encode(aTHX_ value, NULL, 0);
     OUTPUT:
         RETVAL
 
 SV *
 _c_encode_canonical( SV * value )
     CODE:
-        RETVAL = _encode(aTHX_ value, NULL, true);
+        RETVAL = _encode(aTHX_ value, NULL, 1);
     OUTPUT:
         RETVAL
 
