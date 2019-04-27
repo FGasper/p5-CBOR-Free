@@ -1,5 +1,8 @@
 Revision history for Perl module CBOR::Free
 
+0.03
+- Fix segfault when true/false are encoded as CBOR map keys.
+
 0.02 27 Apr 2019
 - Fix older Perls that don’t define true/false booleans in C.
 - Use memcmp rather than bcmp.

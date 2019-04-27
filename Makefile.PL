@@ -51,6 +51,7 @@ WriteMakefile1(
 
     TEST_REQUIRES => {
         'autodie'         => 0,
+        'FindBin' => 0,
         'Data::Dumper'    => 0,
         'Test::Exception' => 0,
         'Test::More'      => 1.302162,

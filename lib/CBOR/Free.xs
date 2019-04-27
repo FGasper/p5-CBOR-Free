@@ -609,9 +609,12 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
     SV *curkey = _decode( aTHX_ decstate );
     SV *curval = _decode( aTHX_ decstate );
 
-    char *keystr = SvPV_nolen(curkey);
+    // This is going to be a hash key, so it can’t usefully be
+    // anything but a string/PV.
+    STRLEN keylen;
+    char *keystr = SvPV_force(curkey, keylen);
 
-    hv_store(hash, keystr, SvCUR(curkey), curval, 0);
+    hv_store(hash, keystr, keylen, curval, 0);
     sv_2mortal(curkey);
 }
 
