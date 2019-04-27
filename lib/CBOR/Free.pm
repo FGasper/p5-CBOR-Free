@@ -33,7 +33,7 @@ upgrading.
 
 =head1 FUNCTIONS
 
-=head2 $cbor = encode( $DATA )
+=head2 $cbor = encode( $DATA, %OPTS )
 
 Encodes a data structure or non-reference scalar to CBOR.
 The encoder recognizes and encodes integers, floats, binary and UTF-8
@@ -41,6 +41,15 @@ strings, array and hash references, L<CBOR::Free::Tagged> instances,
 L<Types::Serialiser> booleans, and undef (encoded as null).
 
 The encoder currently does not handle any other blessed references.
+
+%OPTS may be:
+
+=over
+
+=item * C<canonical> - A boolean that makes the function output
+CBOR in L<canonical form|https://tools.ietf.org/html/rfc7049#section-3.9>.
+
+=back
 
 Notes on mapping Perl to CBOR:
 
@@ -95,22 +104,19 @@ C<CBOR::Free::true()>, C<CBOR::Free::false()>,
 C<$CBOR::Free::true>, and C<$CBOR::Free::false> are defined as
 convenience aliases for the equivalent L<Types::Serialiser> values.
 
+=head1 FRACTIONAL (FLOATING-POINT) NUMBERS
+
+Floating-point numbers are encoded in CBOR as IEEE 754 half-, single-,
+or double-precision. If your Perl is compiled to use “long double”
+floating-point numbers, you may see rounding errors when converting
+to/from CBOR. If that’s a problem for you, append an empty string to
+your floating-point numbers, which will cause CBOR to encode
+them as strings.
+
 =head1 ERROR HANDLING
 
 Most errors are represented via instances of subclasses of
 L<CBOR::Free::X>.
-
-=head1 TODO
-
-=over
-
-=item * Add canonical encode().
-
-=item * Make it faster. On some platforms (e.g., Linux) it appears to be
-faster than L<JSON::XS> but not quite as fast as L<CBOR::XS>; on others
-(e.g., macOS), it’s slower than both.
-
-=back
 
 =head1 AUTHOR
 
@@ -122,8 +128,13 @@ This code is licensed under the same license as Perl itself.
 
 =head1 SEE ALSO
 
-L<CBOR::XS> is an older, GPL-licensed CBOR module. It implements
+L<CBOR::XS> is an older CBOR module on CPAN. It implements
 some behaviors around CBOR tagging that you might find useful.
+Its maintainer has L<abandoned support for Perl versions from 5.22
+onward|http://blog.schmorp.de/2015-06-06-stableperl-faq.html>, though,
+and its GPL license limits its usefulness in
+commercial L<perlcc|https://metacpan.org/pod/distribution/B-C/script/perlcc.PL>
+applications.
 
 =cut
 
@@ -146,6 +157,12 @@ BEGIN {
 our ($true, $false);
 *true = *Types::Serialiser::true;
 *false = *Types::Serialiser::false;
+
+sub encode {
+    my %opts = @_[ 1 .. $#_ ];
+
+    return $opts{'canonical'} ? _c_encode_canonical($_[0]) : _c_encode($_[0]);
+}
 
 sub tag {
     return CBOR::Free::Tagged->new(@_);

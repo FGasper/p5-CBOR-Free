@@ -20,7 +20,10 @@ SKIP: {
         q<>,
         0,
         1,
-        ( $is_long_double ? 1.1 : () ),
+
+        # Not all long-double Perls break here, but some do.
+        ( $is_long_double ? () : 1.1 ),
+
         -1,
         -24,
         -25,

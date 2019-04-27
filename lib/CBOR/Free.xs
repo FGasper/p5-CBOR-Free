@@ -178,6 +178,17 @@ void _u64_to_buffer( UV num, unsigned char *buffer ) {
     buffer[7] = num;
 }
 
+//----------------------------------------------------------------------
+
+// NOTE: Contrary to what we’d ordinarily expect, for canonical CBOR
+// keys are only byte-sorted if their lengths are identical. Thus,
+// “z” sorts EARLIER than “aa”. (cf. section 3.9 of the RFC)
+I32 sortstring( pTHX_ SV *a, SV *b ) {
+    return (SvCUR(a) < SvCUR(b)) ? -1 : (SvCUR(a) > SvCUR(b)) ? 1 : bcmp( SvPV_nolen(a), SvPV_nolen(b), SvCUR(a) );
+}
+
+//----------------------------------------------------------------------
+
 SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
     if ( num < 0x18 ) {
         unsigned char hdr[1] = { type + (unsigned char) num };
@@ -257,7 +268,7 @@ SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
 
 uint8_t encode_recurse = 0;
 
-SV *_encode( pTHX_ SV *value, SV *buffer ) {
+SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
     ++encode_recurse;
     if (encode_recurse > MAX_ENCODE_RECURSE) {
         encode_recurse = 0;
@@ -356,7 +367,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             IV tagnum = SvIV(*tag);
 
             RETVAL = _init_length_buffer( aTHX_ tagnum, TYPE_TAG, buffer );
-            _encode( aTHX_ *(av_fetch(array, 1, 0)), RETVAL );
+            _encode( aTHX_ *(av_fetch(array, 1, 0)), RETVAL, encode_canonical_yn );
         }
 
         // TODO: Support TO_JSON() method?
@@ -378,7 +389,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
             SV **cur;
             for (i=0; i<len; i++) {
                 cur = av_fetch(array, i, 0);
-                _encode( aTHX_ *cur, RETVAL );
+                _encode( aTHX_ *cur, RETVAL, encode_canonical_yn );
             }
         }
         else if (SVt_PVHV == SvTYPE(SvRV(value))) {
@@ -392,13 +403,41 @@ SV *_encode( pTHX_ SV *value, SV *buffer ) {
 
             RETVAL = _init_length_buffer( aTHX_ keyscount, TYPE_MAP, buffer );
 
-            while ((cur = hv_iternextsv(hash, &key, &key_length))) {
+            if (encode_canonical_yn) {
+                SV *keys[keyscount];
 
-                // Store the key.
-                _init_length_buffer( aTHX_ key_length, TYPE_BINARY, RETVAL );
-                sv_catpvn( RETVAL, key, key_length );
+                I32 curkey = 0;
 
-                _encode( aTHX_ cur, RETVAL );
+                while (hv_iternextsv(hash, &key, &key_length)) {
+                    keys[curkey] = newSVpvn(key, key_length);
+                    ++curkey;
+                }
+
+                sortsv(keys, keyscount, sortstring);
+
+                for (curkey=0; curkey < keyscount; ++curkey) {
+                    cur = keys[curkey];
+                    key = SvPV_nolen(cur);
+                    key_length = SvCUR(cur);
+
+                    // Store the key.
+                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, RETVAL );
+                    sv_catpvn( RETVAL, key, key_length );
+
+                    cur = *( hv_fetch(hash, key, key_length, 0) );
+
+                    _encode( aTHX_ cur, RETVAL, encode_canonical_yn );
+                }
+            }
+            else {
+                while ((cur = hv_iternextsv(hash, &key, &key_length))) {
+
+                    // Store the key.
+                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, RETVAL );
+                    sv_catpvn( RETVAL, key, key_length );
+
+                    _encode( aTHX_ cur, RETVAL, encode_canonical_yn );
+                }
             }
         }
         else {
@@ -908,9 +947,16 @@ fake_encode( SV * value )
 
 
 SV *
-encode( SV * value )
+_c_encode( SV * value )
     CODE:
-        RETVAL = _encode(aTHX_ value, NULL);
+        RETVAL = _encode(aTHX_ value, NULL, false);
+    OUTPUT:
+        RETVAL
+
+SV *
+_c_encode_canonical( SV * value )
+    CODE:
+        RETVAL = _encode(aTHX_ value, NULL, true);
     OUTPUT:
         RETVAL
 
