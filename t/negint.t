@@ -20,7 +20,8 @@ for my $i ( -257, -65536 ) {
     _cmpbin( CBOR::Free::encode($i), pack('C n', 0x39, -1 - $i), "encode $i" );
 }
 
-for my $i ( -65537 ) {
+# -0x80000000 is the minimum negative integer on 32-bit systems.
+for my $i ( -65537, -0x80000000 ) {
     _cmpbin( CBOR::Free::encode($i), pack('C N', 0x3a, -1 - $i), "encode $i" );
 }
 
