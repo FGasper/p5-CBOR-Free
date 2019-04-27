@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <math.h>
 
 #define TYPE_UINT   0
@@ -185,7 +184,7 @@ void _u64_to_buffer( UV num, unsigned char *buffer ) {
 // keys are only byte-sorted if their lengths are identical. Thus,
 // “z” sorts EARLIER than “aa”. (cf. section 3.9 of the RFC)
 I32 sortstring( pTHX_ SV *a, SV *b ) {
-    return (SvCUR(a) < SvCUR(b)) ? -1 : (SvCUR(a) > SvCUR(b)) ? 1 : bcmp( SvPV_nolen(a), SvPV_nolen(b), SvCUR(a) );
+    return (SvCUR(a) < SvCUR(b)) ? -1 : (SvCUR(a) > SvCUR(b)) ? 1 : memcmp( SvPV_nolen(a), SvPV_nolen(b), SvCUR(a) );
 }
 
 //----------------------------------------------------------------------
