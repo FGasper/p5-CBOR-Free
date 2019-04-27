@@ -18,15 +18,13 @@ attached”.
 
 # STATUS
 
-This distribution is an experimental effort.
-
-Note that this distribution’s interface can still change. If you decide
-to use CBOR::Free in your project, please always check the changelog before
-upgrading.
+This distribution is an experimental effort. Its interface is still
+subject to change. If you decide to use CBOR::Free in your project,
+please always check the changelog before upgrading.
 
 # FUNCTIONS
 
-## $cbor = encode( $DATA )
+## $cbor = encode( $DATA, %OPTS )
 
 Encodes a data structure or non-reference scalar to CBOR.
 The encoder recognizes and encodes integers, floats, binary and UTF-8
@@ -34,6 +32,11 @@ strings, array and hash references, [CBOR::Free::Tagged](https://metacpan.org/po
 [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) booleans, and undef (encoded as null).
 
 The encoder currently does not handle any other blessed references.
+
+%OPTS may be:
+
+- `canonical` - A boolean that makes the function output
+CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
 
 Notes on mapping Perl to CBOR:
 
@@ -77,17 +80,19 @@ tag number. (Include $obj, not $DATA, in the data structure that
 `$CBOR::Free::true`, and `$CBOR::Free::false` are defined as
 convenience aliases for the equivalent [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) values.
 
+# FRACTIONAL (FLOATING-POINT) NUMBERS
+
+Floating-point numbers are encoded in CBOR as IEEE 754 half-, single-,
+or double-precision. If your Perl is compiled to use “long double”
+floating-point numbers, you may see rounding errors when converting
+to/from CBOR. If that’s a problem for you, append an empty string to
+your floating-point numbers, which will cause CBOR to encode
+them as strings.
+
 # ERROR HANDLING
 
 Most errors are represented via instances of subclasses of
 [CBOR::Free::X](https://metacpan.org/pod/CBOR::Free::X).
-
-# TODO
-
-- Add canonical encode().
-- Make it faster. On some platforms (e.g., Linux) it appears to be
-faster than [JSON::XS](https://metacpan.org/pod/JSON::XS) but not quite as fast as [CBOR::XS](https://metacpan.org/pod/CBOR::XS); on others
-(e.g., macOS), it’s slower than both.
 
 # AUTHOR
 
@@ -99,5 +104,10 @@ This code is licensed under the same license as Perl itself.
 
 # SEE ALSO
 
-[CBOR::XS](https://metacpan.org/pod/CBOR::XS) is an older, GPL-licensed CBOR module. It implements
+[CBOR::XS](https://metacpan.org/pod/CBOR::XS) is an older CBOR module on CPAN. It implements
 some behaviors around CBOR tagging that you might find useful.
+Its maintainer has [abandoned support for Perl versions from 5.22
+onward](http://blog.schmorp.de/2015-06-06-stableperl-faq.html), though,
+and its GPL license limits its usefulness in
+commercial [perlcc](https://metacpan.org/pod/distribution/B-C/script/perlcc.PL)
+applications.

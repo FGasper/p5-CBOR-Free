@@ -25,11 +25,9 @@ attached”.
 
 =head1 STATUS
 
-This distribution is an experimental effort.
-
-Note that this distribution’s interface can still change. If you decide
-to use CBOR::Free in your project, please always check the changelog before
-upgrading.
+This distribution is an experimental effort. Its interface is still
+subject to change. If you decide to use CBOR::Free in your project,
+please always check the changelog before upgrading.
 
 =head1 FUNCTIONS
 
@@ -150,7 +148,7 @@ use CBOR::Free::Tagged;
 our ($VERSION);
 
 BEGIN {
-    $VERSION = '0.01_09';
+    $VERSION = '0.01';
     XSLoader::load();
 }
 
@@ -167,6 +165,8 @@ sub encode {
 sub tag {
     return CBOR::Free::Tagged->new(@_);
 }
+
+#----------------------------------------------------------------------
 
 sub _die_recursion {
     die CBOR::Free::X->create( 'Recursion', _MAX_RECURSION());
