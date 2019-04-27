@@ -25,6 +25,8 @@ t/decode.t
 t/errors.t
 t/examples.t
 t/float.t
+t/fuzzed.t
+t/fuzzed/a
 t/hash.t
 t/negint.t
 t/string.t
