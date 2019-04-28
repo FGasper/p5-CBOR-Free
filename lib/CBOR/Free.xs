@@ -21,10 +21,10 @@
 #define TYPE_TAG    0xc0
 #define TYPE_OTHER  0xe0
 
-#define TYPE_NEGINT_SMALL  (0x18 + 0x20)
-#define TYPE_NEGINT_MEDIUM (0x19 + 0x20)
-#define TYPE_NEGINT_LARGE  (0x1a + 0x20)
-#define TYPE_NEGINT_HUGE   (0x1b + 0x20)
+#define TYPE_NEGINT_SMALL  (0x18 + TYPE_NEGINT)
+#define TYPE_NEGINT_MEDIUM (0x19 + TYPE_NEGINT)
+#define TYPE_NEGINT_LARGE  (0x1a + TYPE_NEGINT)
+#define TYPE_NEGINT_HUGE   (0x1b + TYPE_NEGINT)
 
 #define CBOR_HALF_FLOAT 0xf9
 #define CBOR_FLOAT      0xfa
@@ -48,12 +48,9 @@
         buffer = newSVpvn( (char *) hdr, len ); \
     }
 
-#if UINTPTR_MAX >= 0xffffffffffffffff
-#define CBOR_FREE_HAS_64BIT   1
-#endif
-
 // populated in XS BOOT code below.
 bool is_big_endian;
+bool perl_is_64bit;
 
 //----------------------------------------------------------------------
 // Definitions
@@ -525,18 +522,17 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-#ifdef CBOR_FREE_HAS_64BIT
-            ret.sizetype = huge;
-            _u64_to_buffer( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
-#else
-            if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
+            if (perl_is_64bit) {
+                ret.sizetype = huge;
+                _u64_to_buffer( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
+            }
+            else if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
                 ret.sizetype = large;
                 _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
             }
             else {
                 _croak_cannot_decode_64bit( aTHX_ decstate->curbyte, decstate->curbyte - decstate->start );
             }
-#endif
 
             decstate->curbyte += 8;
 
@@ -711,7 +707,7 @@ double decode_half_float(unsigned char *halfp) {
     return half & 0x8000 ? -val : val;
 }
 
-float _decode_float_to_host_order( pTHX_ void *ptr ) {
+float _decode_float_to_host_order( pTHX_ unsigned char *ptr ) {
     unsigned char host_bytes[] = { ptr[3], ptr[2], ptr[1], ptr[0] };
 
     return *( (float *) &host_bytes );
@@ -964,6 +960,7 @@ BOOT:
 
     unsigned short testshort = 1;
     is_big_endian = !(bool) *((char *) &testshort);
+    perl_is_64bit = sizeof(UV) >= 8;
 
 SV *
 fake_encode( SV * value )

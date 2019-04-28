@@ -268,7 +268,7 @@ my @incompletes = (
     [ "\xdbzzzzz" => 'huge tag (incomplete number)', 3 ],
     [ "\xdbzzzzzz" => 'huge tag (incomplete number)', 2 ],
     [ "\xdbzzzzzzz" => 'huge tag (incomplete number)', 1 ],
-    [ "\xdbzzzzzzzz" => 'huge tag (missing tagged)', 1 ],
+    (eval { pack 'q' } ? [ "\xdbzzzzzzzz" => 'huge tag (missing tagged)', 1 ] : () ),
 
     #----------------------------------------------------------------------
 
