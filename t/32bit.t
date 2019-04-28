@@ -16,7 +16,6 @@ my @tests = (
     [ 65535 => "\x1a\0\0\xff\xff" ],
     [ 65535 => "\x1b\0\0\0\0\0\0\xff\xff" ],
     [ 0xffffffff => "\x1b\0\0\0\0\xff\xff\xff\xff" ],
-    [ -1 - 0xffffffff => "\x3b\xff\xff\xff\xff\x80\0\0\0" ],
 );
 
 for my $t (@tests) {
@@ -32,7 +31,7 @@ for my $t (@tests) {
 #----------------------------------------------------------------------
 
 SKIP: {
-    #skip 'These tests are only for sub-32-bit machines.' if eval { pack 'q' };
+    skip 'These tests are only for sub-32-bit machines.' if eval { pack 'q' };
 
     throws_ok(
         sub { diag explain( CBOR::Free::decode("\x82\x4aHello, yo!\x1b\0\0\0\1\0\0\0\0") ) },
