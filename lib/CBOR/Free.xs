@@ -48,6 +48,10 @@
         buffer = newSVpvn( (char *) hdr, len ); \
     }
 
+#if UINTPTR_MAX >= 0xffffffffffffffff
+#define CBOR_FREE_HAS_64BIT   1
+#endif
+
 // populated in XS BOOT code below.
 bool is_big_endian;
 
@@ -55,7 +59,7 @@ bool is_big_endian;
 // Definitions
 
 typedef struct {
-    SV* cbor;
+    char* start;
     STRLEN size;
     char* curbyte;
     char* end;
@@ -124,7 +128,7 @@ void _croak_incomplete( pTHX_ STRLEN lack ) {
 
 void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     const unsigned char ord = (unsigned char) *(decstate->curbyte);
-    STRLEN offset = decstate->curbyte - SvPV_nolen(decstate->cbor);
+    STRLEN offset = decstate->curbyte - decstate->start;
 
     char *ordstr = _uint_to_str(ord);
     char *offsetstr = _uint_to_str(offset);
@@ -144,6 +148,22 @@ void _croak_invalid_utf8( pTHX_ char *string ) {
     words[1] = string;
 
     _die( aTHX_ G_DISCARD, words);
+}
+
+void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN offset ) {
+    unsigned char numhex[20];
+    numhex[19] = NULL;
+
+    snprintf( numhex, 20, "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
+
+    char offsetstr[20];
+    snprintf( offsetstr, 20, "%lu", offset );
+
+    static char * words[3] = { "CannotDecode64Bit", NULL, NULL, NULL };
+    words[1] = (char *) numhex;
+    words[2] = offsetstr;
+
+    _die( aTHX_ G_DISCARD, words );
 }
 
 void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
@@ -503,8 +523,18 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
+#ifdef CBOR_FREE_HAS_64BIT
             ret.sizetype = huge;
             _u64_to_buffer( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
+#else
+            if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
+                ret.sizetype = large;
+                _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
+            }
+            else {
+                _croak_cannot_decode_64bit( aTHX_ decstate->curbyte, decstate->curbyte - decstate->start );
+            }
+#endif
 
             decstate->curbyte += 8;
 
@@ -966,11 +996,16 @@ _c_encode_canonical( SV * value )
 SV *
 decode( SV *cbor )
     CODE:
+        char *cborstr;
+        STRLEN cborlen;
+
+        cborstr = SvPV(cbor, cborlen);
+
         decode_ctx decode_state = {
-            cbor,
-            SvCUR(cbor),
-            SvPV_nolen(cbor),
-            SvEND(cbor)
+            cborstr,
+            cborlen,
+            cborstr,
+            cborstr + cborlen,
         };
 
         RETVAL = _decode( aTHX_ &decode_state );
