@@ -34,6 +34,23 @@ if ( (0xffffffff << 1) < 0xffffffff ) {
         -2147483648,
         '32-bit Perl: decode biggest allowed negative',
     );
+
+    throws_ok(
+        sub { diag explain( CBOR::Free::decode("\x3a\x80\0\0\0") ) },
+        'CBOR::Free::X::NegativeIntTooLow',
+        '32-bit Perl: out-of-bounds negative int is rejected as expected',
+    );
+
+    my $err = $@->get_message();
+
+    cmp_deeply(
+        $err,
+        all(
+            re( qr<2147483649> ),
+            re( qr<1> ),
+        ),
+        '… and the error looks as we expect',
+    );
 }
 
 SKIP: {

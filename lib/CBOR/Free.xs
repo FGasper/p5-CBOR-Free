@@ -165,7 +165,7 @@ void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN off
 
 void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
     char absstr[40];
-    snprintf(absstr, 40, "%llu", abs);
+    snprintf(absstr, 40, sizeof(abs) == 4 ? "%lu" : "%llu", abs);
 
     char offsetstr[20];
     snprintf( offsetstr, 20, "%lu", offset );
@@ -787,7 +787,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                 case large:
                     if (sizeparse.size.u32 >= 0x80000000U) {
-                        _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u64, decstate->curbyte - decstate->start - 4 );
+                        _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u32, decstate->curbyte - decstate->start - 4 );
                     }
 
                     ret = newSViv( ( (int64_t) sizeparse.size.u32 ) * -1 - 1 );
