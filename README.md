@@ -89,6 +89,20 @@ to/from CBOR. If that’s a problem for you, append an empty string to
 your floating-point numbers, which will cause CBOR to encode
 them as strings.
 
+# INTEGER LIMITS
+
+CBOR handles up to 64-bit unsigned and signed integers. Most Perls
+nowadays can handle this just fine, but if yours can’t then you’ll
+get an exception whenever trying to parse an integer that can’t be
+represented with 32 bits. This means:
+
+- Anything greater than 0xffff\_ffff (4,294,967,295)
+- Anything less than -0x8000\_0000 (2,147,483,648)
+
+Note that even 64-bit Perls can’t parse negatives that are less than
+\-0x8000\_0000\_0000\_0000 (-9,223,372,036,854,775,808); these also prompt an
+exception since Perl can’t handle them.
+
 # ERROR HANDLING
 
 Most errors are represented via instances of subclasses of

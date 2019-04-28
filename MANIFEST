@@ -15,6 +15,7 @@ lib/CBOR/Free/X/CannotDecode64Bit.pm
 lib/CBOR/Free/X/Incomplete.pm
 lib/CBOR/Free/X/InvalidControl.pm
 lib/CBOR/Free/X/InvalidUTF8.pm
+lib/CBOR/Free/X/NegativeIntTooLow.pm
 lib/CBOR/Free/X/Recursion.pm
 lib/CBOR/Free/X/Unrecognized.pm
 ppport.h
