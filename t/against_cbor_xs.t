@@ -96,7 +96,7 @@ SKIP: {
             $decoded,
             $item,
             "we decode what CBOR::XS encoded ($item_q)",
-        );
+        ) or diag explain sprintf("CBOR: %v.02x", $cbor);
 
         $cbor = CBOR::Free::encode($item) or die "failed to encode($item)?";
         $decoded = CBOR::XS::decode_cbor($cbor);
@@ -105,7 +105,7 @@ SKIP: {
             $decoded,
             $item,
             sprintf( "CBOR::XS decodes what we encoded (%d bytes)", length $cbor),
-        ) or diag sprintf('%v.02x', $cbor);
+        ) or diag sprintf('CBOR: %v.02x', $cbor);
     }
 }
 

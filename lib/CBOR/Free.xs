@@ -152,14 +152,14 @@ void _croak_invalid_utf8( pTHX_ char *string ) {
 
 void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN offset ) {
     unsigned char numhex[20];
-    numhex[19] = NULL;
+    numhex[19] = 0;
 
     snprintf( numhex, 20, "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
 
     char offsetstr[20];
     snprintf( offsetstr, 20, "%lu", offset );
 
-    static char * words[3] = { "CannotDecode64Bit", NULL, NULL, NULL };
+    static char * words[] = { "CannotDecode64Bit", NULL, NULL, NULL };
     words[1] = (char *) numhex;
     words[2] = offsetstr;
 
@@ -174,6 +174,8 @@ void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
 }
 
 //----------------------------------------------------------------------
+
+// These encode num as big-endian into buffer.
 
 void _u16_to_buffer( UV num, unsigned char *buffer ) {
     buffer[0]       = num >> 8;
@@ -710,21 +712,15 @@ double decode_half_float(unsigned char *halfp) {
 }
 
 float _decode_float_to_host_order( pTHX_ void *ptr ) {
-    uint32_t host_uint;
+    unsigned char host_bytes[] = { ptr[3], ptr[2], ptr[1], ptr[0] };
 
-    _u32_to_buffer( *( (uint32_t *) ptr ), (unsigned char *) &host_uint );
-
-    float ret = *( (float *) &host_uint );
-
-    return ret;
+    return *( (float *) &host_bytes );
 }
 
-double _decode_double_to_host_order( pTHX_ void *ptr ) {
-    uint64_t host_uint;
+double _decode_double_to_host_order( pTHX_ unsigned char *ptr ) {
+    unsigned char host_bytes[] = { ptr[7], ptr[6], ptr[5], ptr[4], ptr[3], ptr[2], ptr[1], ptr[0] };
 
-    _u64_to_buffer( *( (uint64_t *) ptr ), (unsigned char *) &host_uint );
-
-    return( *( (double *) &host_uint ) );
+    return( *( (double *) host_bytes ) );
 }
 
 //----------------------------------------------------------------------
