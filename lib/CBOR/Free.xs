@@ -918,7 +918,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             switch ((uint8_t) *(decstate->curbyte)) {
                 case CBOR_FALSE:
                     if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "false", decstate->curbyte);
+                        _croak_invalid_map_key( aTHX_ "false", decstate->curbyte- decstate->start );
                     }
 
                     ret = newSVsv( get_sv("CBOR::Free::false", 0) );
@@ -927,7 +927,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                 case CBOR_TRUE:
                     if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "true", decstate->curbyte);
+                        _croak_invalid_map_key( aTHX_ "true", decstate->curbyte - decstate->start );
                     }
 
                     ret = newSVsv( get_sv("CBOR::Free::true", 0) );
@@ -936,12 +936,12 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                 case CBOR_NULL:
                     if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "null", decstate->curbyte);
+                        _croak_invalid_map_key( aTHX_ "null", decstate->curbyte - decstate->start );
                     }
 
                 case CBOR_UNDEFINED:
                     if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "undefined", decstate->curbyte);
+                        _croak_invalid_map_key( aTHX_ "undefined", decstate->curbyte - decstate->start );
                     }
 
                     ret = newSVsv( &PL_sv_undef );
