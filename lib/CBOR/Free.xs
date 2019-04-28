@@ -49,7 +49,7 @@
     }
 
 #if UINTPTR_MAX >= 0xffffffffffffffff
-#define CBOR_FREE_HAS_64BIT   1
+//#define CBOR_FREE_HAS_64BIT   1
 #endif
 
 // populated in XS BOOT code below.
@@ -150,7 +150,7 @@ void _croak_invalid_utf8( pTHX_ char *string ) {
     _die( aTHX_ G_DISCARD, words);
 }
 
-void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN offset ) {
+void _croak_cannot_decode_64bit( pTHX_ bool is_signed, const unsigned char *u64bytes, STRLEN offset ) {
     unsigned char numhex[20];
     numhex[19] = NULL;
 
@@ -159,7 +159,9 @@ void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN off
     char offsetstr[20];
     snprintf( offsetstr, 20, "%lu", offset );
 
-    static char * words[3] = { "CannotDecode64Bit", NULL, NULL, NULL };
+    static char * words[] = { NULL, NULL, NULL, NULL };
+
+    words[0] = is_signed ? "CannotDecode64BitSigned" : "CannotDecode64BitUnsigned";
     words[1] = (char *) numhex;
     words[2] = offsetstr;
 
@@ -521,19 +523,34 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
         case 0x1b:
             _decode_check_for_overage( aTHX_ decstate, 9);
 
+#ifdef CBOR_FREE_HAS_64BIT
             ++decstate->curbyte;
 
-#ifdef CBOR_FREE_HAS_64BIT
             ret.sizetype = huge;
             _u64_to_buffer( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
 #else
-            if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
-                ret.sizetype = large;
-                _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
+printf("%02x\n", decstate->curbyte[0] & 0xe0);
+            if ( (decstate->curbyte[0] & 0xe0) == TYPE_NEGINT ) {
+printf("%02x\n", (unsigned char) decstate->curbyte[1]);
+printf("%02x\n", (unsigned char) decstate->curbyte[2]);
+printf("%02x\n", (unsigned char) decstate->curbyte[3]);
+printf("%02x\n", (unsigned char) decstate->curbyte[4]);
+                if ((unsigned char) decstate->curbyte[1] != 0xff || (unsigned char) decstate->curbyte[2] != 0xff || (unsigned char) decstate->curbyte[3] != 0xff || (unsigned char) decstate->curbyte[4] != 0xff) {
+                    ++decstate->curbyte;
+
+                    _croak_cannot_decode_64bit( aTHX_ 1, decstate->curbyte, decstate->curbyte - decstate->start );
+                }
             }
-            else {
-                _croak_cannot_decode_64bit( aTHX_ decstate->curbyte, decstate->curbyte - decstate->start );
+            else if (decstate->curbyte[1] || decstate->curbyte[2] || decstate->curbyte[3] || decstate->curbyte[4]) {
+                ++decstate->curbyte;
+
+                _croak_cannot_decode_64bit( aTHX_ 0, decstate->curbyte, decstate->curbyte - decstate->start );
             }
+
+            ++decstate->curbyte;
+
+            ret.sizetype = large;
+            _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
 #endif
 
             decstate->curbyte += 8;
