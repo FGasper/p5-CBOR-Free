@@ -5,6 +5,8 @@ use warnings;
 
 use Test::More;
 use Test::FailWarnings;
+use Test::Exception;
+use Test::Deep;
 
 use_ok('CBOR::Free');
 
@@ -35,6 +37,23 @@ SKIP: {
     for my $i ( -0xffffffff - 2, -9223372036854775808 ) {
         _cmpbin( CBOR::Free::encode($i), pack('C q>', 0x3b, -1 - $i), "encode $i" );
     }
+
+    throws_ok(
+        sub { diag explain( CBOR::Free::decode("\x3b\x80\0\0\0\0\0\0\0") ) },
+        'CBOR::Free::X::NegativeIntTooLow',
+        'out-of-bounds negative int is rejected as expected',
+    );
+
+    my $err = $@->get_message();
+
+    cmp_deeply(
+        $err,
+        all(
+            re( qr<9223372036854775809> ),
+            re( qr<1> ),
+        ),
+        '… and the error looks as we expect',
+    );
 }
 
 sub _cmpbin {

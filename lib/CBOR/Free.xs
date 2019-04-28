@@ -148,7 +148,7 @@ void _croak_invalid_utf8( pTHX_ char *string ) {
 }
 
 void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN offset ) {
-    unsigned char numhex[20];
+    char numhex[20];
     numhex[19] = 0;
 
     snprintf( numhex, 20, "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
@@ -158,6 +158,20 @@ void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN off
 
     static char * words[] = { "CannotDecode64Bit", NULL, NULL, NULL };
     words[1] = (char *) numhex;
+    words[2] = offsetstr;
+
+    _die( aTHX_ G_DISCARD, words );
+}
+
+void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
+    char absstr[40];
+    snprintf(absstr, 40, "%llu", abs);
+
+    char offsetstr[20];
+    snprintf( offsetstr, 20, "%lu", offset );
+
+    static char * words[] = { "NegativeIntTooLow", NULL, NULL, NULL };
+    words[1] = absstr;
     words[2] = offsetstr;
 
     _die( aTHX_ G_DISCARD, words );
@@ -772,10 +786,18 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case large:
+                    if (sizeparse.size.u32 >= 0x80000000U) {
+                        _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u64, decstate->curbyte - decstate->start - 4 );
+                    }
+
                     ret = newSViv( ( (int64_t) sizeparse.size.u32 ) * -1 - 1 );
                     break;
 
                 case huge:
+                    if (sizeparse.size.u64 >= 0x8000000000000000U) {
+                        _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u64, decstate->curbyte - decstate->start - 8 );
+                    }
+
                     ret = newSViv( ( (int64_t) sizeparse.size.u64 ) * -1 - 1 );
                     break;
 
