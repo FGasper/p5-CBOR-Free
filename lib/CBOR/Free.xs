@@ -545,7 +545,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
                 _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
             }
             else {
-                _croak_cannot_decode_64bit( aTHX_ decstate->curbyte, decstate->curbyte - decstate->start );
+                _croak_cannot_decode_64bit( aTHX_ (const unsigned char *) decstate->curbyte, decstate->curbyte - decstate->start );
             }
 
             decstate->curbyte += 8;
@@ -786,7 +786,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case large:
-                    if (sizeparse.size.u32 >= 0x80000000U) {
+                    if (!perl_is_64bit && sizeparse.size.u32 >= 0x80000000U) {
                         _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u32, decstate->curbyte - decstate->start - 4 );
                     }
 
@@ -932,7 +932,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_flt = *( (float *) (1 + decstate->curbyte) );
                     }
                     else {
-                        decoded_flt = _decode_float_to_host_order( aTHX_ 1 + decstate->curbyte );
+                        decoded_flt = _decode_float_to_host_order( aTHX_ (unsigned char *) (1 + decstate->curbyte) );
                     }
 
                     ret = newSVnv( (NV) decoded_flt );
@@ -949,7 +949,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_dbl = *( (double *) (1 + decstate->curbyte) );
                     }
                     else {
-                        decoded_dbl = _decode_double_to_host_order( aTHX_ 1 + decstate->curbyte );
+                        decoded_dbl = _decode_double_to_host_order( aTHX_ (unsigned char *) (1 + decstate->curbyte) );
                     }
 
                     ret = newSVnv( (NV) decoded_dbl );

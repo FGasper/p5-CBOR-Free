@@ -57,11 +57,15 @@ SKIP: {
     skip 'No 64-bit support!', 2 if !eval { pack 'q' };
 
     for my $i ( -0xffffffff, -0xffffffff - 1 ) {
-        _cmpbin( CBOR::Free::encode($i), pack('C N', 0x3a, -1 - $i), "encode $i" );
+        my $cbor = CBOR::Free::encode($i);
+        _cmpbin( $cbor, pack('C N', 0x3a, -1 - $i), "encode $i" );
+        is( CBOR::Free::decode($cbor), $i, '… and it round-trips' );
     }
 
     for my $i ( -0xffffffff - 2, -9223372036854775808 ) {
-        _cmpbin( CBOR::Free::encode($i), pack('C q>', 0x3b, -1 - $i), "encode $i" );
+        my $cbor = CBOR::Free::encode($i);
+        _cmpbin( $cbor, pack('C q>', 0x3b, -1 - $i), "encode $i" );
+        is( CBOR::Free::decode($cbor), $i, '… and it round-trips' );
     }
 
     throws_ok(
