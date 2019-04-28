@@ -16,6 +16,7 @@ my @tests = (
     [ 65535 => "\x1a\0\0\xff\xff" ],
     [ 65535 => "\x1b\0\0\0\0\0\0\xff\xff" ],
     [ 0xffffffff => "\x1b\0\0\0\0\xff\xff\xff\xff" ],
+    [ -2147483648 => "\x3b\0\0\0\0\x7f\xff\xff\xff" ],
 );
 
 for my $t (@tests) {
