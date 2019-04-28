@@ -27,6 +27,15 @@ for my $i ( -65537, -0x80000000 ) {
     _cmpbin( CBOR::Free::encode($i), pack('C N', 0x3a, -1 - $i), "encode $i" );
 }
 
+# Do this on non-64-bit perls only:
+if ( (0xffffffff << 1) < 0xffffffff ) {
+    is(
+        CBOR::Free::decode("\x3a\x7f\xff\xff\xff"),
+        -2147483648,
+        '32-bit Perl: decode biggest allowed negative',
+    );
+}
+
 SKIP: {
     skip 'No 64-bit support!', 2 if !eval { pack 'q' };
 
