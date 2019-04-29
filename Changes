@@ -1,6 +1,6 @@
 Revision history for Perl module CBOR::Free
 
-0.04
+0.04 28 Apr 2019
 - Make decoder reject true, false, null, and undefined as map keys.
 
 0.03 28 Apr 2019
