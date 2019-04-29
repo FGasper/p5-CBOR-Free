@@ -22,6 +22,7 @@ install:
   - sh: export PATH=/home/appveyor/perl5/bin:$PATH
   - perl -v
   - cpan App::cpanminus
+  - cpanm ExtUtils::MakeMaker
   - cpanm --installdeps .
 
 build_script:
