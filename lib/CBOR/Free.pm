@@ -53,15 +53,15 @@ Notes on mapping Perl to CBOR:
 
 =over
 
-=item The internal state of a defined Perl scalar (e.g., whether it’s an
+=item * The internal state of a defined Perl scalar (e.g., whether it’s an
 integer, float, binary string, or UTF-8 string) determines its CBOR
 encoding.
 
-=item L<Types::Serialiser> booleans are encoded as CBOR booleans.
+=item * L<Types::Serialiser> booleans are encoded as CBOR booleans.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
 
-=item Instances of L<CBOR::Free::Tagged> are encoded as tagged values.
+=item * Instances of L<CBOR::Free::Tagged> are encoded as tagged values.
 
 =back
 
