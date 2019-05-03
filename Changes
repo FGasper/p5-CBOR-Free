@@ -1,6 +1,6 @@
 Revision history for Perl module CBOR::Free
 
-0.05
+0.05 2 May 2019
 - POD touch-ups.
 - Remove heap allocation logic to avoid potential memory leaks.
 
