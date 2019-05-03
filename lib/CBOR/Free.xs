@@ -50,6 +50,7 @@
     }
 
 // populated in XS BOOT code below.
+// TODO: Handle these in the preprocessor.
 bool is_big_endian;
 bool perl_is_64bit;
 
@@ -184,6 +185,7 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 //----------------------------------------------------------------------
 
 // These encode num as big-endian into buffer.
+// Importantly, on big-endian systems this is just a memcpy.
 
 #define _U16_TO_BUFFER( num, buffer ) \
     *(buffer)       = num >> 8; \
@@ -221,6 +223,7 @@ I32 sortstring( pTHX_ SV *a, SV *b ) {
 
 unsigned char encode_hdr[9];
 
+// TODO? This could be a macro … it’d just be kind of unwieldy as such.
 SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
     if ( num < 0x18 ) {
         encode_hdr[0] = type + (unsigned char) num;
@@ -721,28 +724,25 @@ union {
     double as_double;
 } float_bytes;
 
-float _decode_float_to_host_order( unsigned char *ptr ) {
-    float_bytes.bytes[0] = ptr[3];
-    float_bytes.bytes[1] = ptr[2];
-    float_bytes.bytes[2] = ptr[1];
-    float_bytes.bytes[3] = ptr[0];
-
-    return float_bytes.as_float;
-}
-
-double _decode_double_to_host_order( pTHX_ unsigned char *ptr ) {
-    float_bytes.bytes[0] = ptr[7];
-    float_bytes.bytes[1] = ptr[6];
-    float_bytes.bytes[2] = ptr[5];
-    float_bytes.bytes[3] = ptr[4];
-    float_bytes.bytes[4] = ptr[3];
-    float_bytes.bytes[5] = ptr[2];
-    float_bytes.bytes[6] = ptr[1];
-    float_bytes.bytes[7] = ptr[0];
+#define _DECODE_FLOAT_TO_LE( ptr, target ) \
+    float_bytes.bytes[0] = *( 3 + ptr ); \
+    float_bytes.bytes[1] = *( 2 + ptr ); \
+    float_bytes.bytes[2] = *( 1 + ptr ); \
+    float_bytes.bytes[3] = *(ptr); \
+    target = float_bytes.as_float;
 
 
-    return float_bytes.as_double;
-}
+#define _DECODE_DOUBLE_TO_LE( ptr, target ) \
+    float_bytes.bytes[0] = *( 7 + ptr ); \
+    float_bytes.bytes[1] = *( 6 + ptr ); \
+    float_bytes.bytes[2] = *( 5 + ptr ); \
+    float_bytes.bytes[3] = *( 4 + ptr ); \
+    float_bytes.bytes[4] = *( 3 + ptr ); \
+    float_bytes.bytes[5] = *( 2 + ptr ); \
+    float_bytes.bytes[6] = *( 1 + ptr ); \
+    float_bytes.bytes[7] = *(ptr); \
+    target = float_bytes.as_double;
+
 
 //----------------------------------------------------------------------
 
@@ -959,7 +959,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_flt = *( (float *) (1 + decstate->curbyte) );
                     }
                     else {
-                        decoded_flt = _decode_float_to_host_order( (unsigned char *) (1 + decstate->curbyte) );
+                        _DECODE_FLOAT_TO_LE( (unsigned char *) (1 + decstate->curbyte), decoded_flt );
                     }
 
                     ret = newSVnv( (NV) decoded_flt );
@@ -976,7 +976,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_dbl = *( (double *) (1 + decstate->curbyte) );
                     }
                     else {
-                        decoded_dbl = _decode_double_to_host_order( aTHX_ (unsigned char *) (1 + decstate->curbyte) );
+                        _DECODE_DOUBLE_TO_LE( (unsigned char *) (1 + decstate->curbyte), decoded_dbl );
                     }
 
                     ret = newSVnv( (NV) decoded_dbl );
