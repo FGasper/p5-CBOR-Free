@@ -93,14 +93,6 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-char * _uint_to_str(U32 num) {
-    char *numstr;
-    Newx( numstr, 24, char );
-    snprintf(numstr, 24, "%u", num);
-
-    return numstr;
-}
-
 void _void_uint_to_str(STRLEN num, char *numstr, const char strlen) {
     snprintf(numstr, strlen, "%lu", num);
 }
@@ -111,8 +103,7 @@ void _die( pTHX_ I32 flags, char **argv ) {
 }
 
 void _croak_unrecognized(pTHX_ SV *value) {
-    char * words[3] = { "Unrecognized", NULL, NULL };
-    words[1] = SvPV_nolen(value);
+    char * words[3] = { "Unrecognized", SvPV_nolen(value), NULL };
 
     _die( aTHX_ G_DISCARD, words );
 }
@@ -123,9 +114,7 @@ void _croak_incomplete( pTHX_ STRLEN lack ) {
 
     char * words[3] = { "Incomplete", lackstr, NULL };
 
-    call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
-
-    croak(NULL);
+    _die( aTHX_ G_DISCARD, words );
 }
 
 void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
@@ -138,28 +127,24 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     _void_uint_to_str(ord, ordstr, 24);
     _void_uint_to_str(offset, offsetstr, 24);
 
-    char * words[4] = { "InvalidControl", ordstr, offsetstr, NULL };
+    char * words[] = { "InvalidControl", ordstr, offsetstr, NULL };
 
-    call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
-
-    croak(NULL);
+    _die( aTHX_ G_DISCARD, words );
 }
 
 void _croak_invalid_utf8( pTHX_ char *string ) {
-    static char * words[3] = { "InvalidUTF8", NULL, NULL };
-    words[1] = string;
+    char * words[3] = { "InvalidUTF8", string, NULL };
 
     _die( aTHX_ G_DISCARD, words);
 }
 
 void _croak_invalid_map_key( pTHX_ const char *key, STRLEN offset ) {
-    static char * words[4] = { "InvalidMapKey", NULL, NULL, NULL };
 
-    words[1] = key;
 
     char offsetstr[20];
     snprintf( offsetstr, 20, "%lu", offset );
-    words[2] = offsetstr;
+
+    char * words[] = { "InvalidMapKey", (char *) key, offsetstr, NULL };
 
     _die( aTHX_ G_DISCARD, words);
 }
@@ -173,9 +158,7 @@ void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN off
     char offsetstr[20];
     snprintf( offsetstr, 20, "%lu", offset );
 
-    static char * words[] = { "CannotDecode64Bit", NULL, NULL, NULL };
-    words[1] = (char *) numhex;
-    words[2] = offsetstr;
+    char * words[] = { "CannotDecode64Bit", numhex, offsetstr, NULL };
 
     _die( aTHX_ G_DISCARD, words );
 }
@@ -187,9 +170,7 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
     char offsetstr[20];
     snprintf( offsetstr, 20, "%lu", offset );
 
-    static char * words[] = { "NegativeIntTooLow", NULL, NULL, NULL };
-    words[1] = absstr;
-    words[2] = offsetstr;
+    char * words[] = { "NegativeIntTooLow", absstr, offsetstr, NULL };
 
     _die( aTHX_ G_DISCARD, words );
 }
