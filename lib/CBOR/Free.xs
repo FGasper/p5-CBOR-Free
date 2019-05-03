@@ -94,7 +94,7 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 //----------------------------------------------------------------------
 
 void _void_uint_to_str(STRLEN num, char *numstr, const char strlen) {
-    snprintf(numstr, strlen, "%lu", num);
+    my_snprintf(numstr, strlen, "%lu", num);
 }
 
 void _die( pTHX_ I32 flags, char **argv ) {
@@ -142,7 +142,7 @@ void _croak_invalid_map_key( pTHX_ const char *key, STRLEN offset ) {
 
 
     char offsetstr[20];
-    snprintf( offsetstr, 20, "%lu", offset );
+    my_snprintf( offsetstr, 20, "%lu", offset );
 
     char * words[] = { "InvalidMapKey", (char *) key, offsetstr, NULL };
 
@@ -153,10 +153,10 @@ void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN off
     char numhex[20];
     numhex[19] = 0;
 
-    snprintf( numhex, 20, "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
+    my_snprintf( numhex, 20, "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
 
     char offsetstr[20];
-    snprintf( offsetstr, 20, "%lu", offset );
+    my_snprintf( offsetstr, 20, "%lu", offset );
 
     char * words[] = { "CannotDecode64Bit", numhex, offsetstr, NULL };
 
@@ -165,10 +165,10 @@ void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN off
 
 void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
     char absstr[40];
-    snprintf(absstr, 40, sizeof(abs) == 4 ? "%lu" : "%llu", abs);
+    my_snprintf(absstr, 40, sizeof(abs) == 4 ? "%lu" : "%llu", abs);
 
     char offsetstr[20];
-    snprintf( offsetstr, 20, "%lu", offset );
+    my_snprintf( offsetstr, 20, "%lu", offset );
 
     char * words[] = { "NegativeIntTooLow", absstr, offsetstr, NULL };
 
