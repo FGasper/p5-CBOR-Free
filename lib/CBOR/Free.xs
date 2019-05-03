@@ -175,12 +175,11 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
     _die( aTHX_ G_DISCARD, words );
 }
 
-void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
-    if ((len + decstate->curbyte) > decstate->end) {
-        STRLEN lack = (len + decstate->curbyte) - decstate->end;
-        _croak_incomplete( aTHX_ lack);
+#define _DECODE_CHECK_FOR_OVERAGE( decstate, len) \
+    if ((len + decstate->curbyte) > decstate->end) { \
+        _croak_incomplete( aTHX_ (len + decstate->curbyte) - decstate->end ); \
     }
-}
+
 
 //----------------------------------------------------------------------
 
@@ -488,11 +487,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
     switch (*(decstate->curbyte) & 0x1f) {  // 0x1f == 0b00011111
         case 0x18:
 
-            //num = 2 * (num - 0x17)
-            //_decode_check_for_overage( aTHX_ decstate, 1 + num);
-            //return num
-
-            _decode_check_for_overage( aTHX_ decstate, 2);
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 2);
 
             ++decstate->curbyte;
 
@@ -504,7 +499,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             break;
 
         case 0x19:
-            _decode_check_for_overage( aTHX_ decstate, 3);
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 3);
 
             ++decstate->curbyte;
 
@@ -516,7 +511,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             break;
 
         case 0x1a:
-            _decode_check_for_overage( aTHX_ decstate, 5);
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 5);
 
             ++decstate->curbyte;
 
@@ -528,7 +523,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             break;
 
         case 0x1b:
-            _decode_check_for_overage( aTHX_ decstate, 9);
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 9);
 
             ++decstate->curbyte;
 
@@ -616,7 +611,7 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
                 //sv_2mortal(cur);
             }
 
-            _decode_check_for_overage( aTHX_ decstate, 1 );
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
 
             ++decstate->curbyte;
     }
@@ -691,7 +686,7 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
                 _decode_to_hash( aTHX_ decstate, hash );
             }
 
-            _decode_check_for_overage( aTHX_ decstate, 1 );
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
 
             ++decstate->curbyte;
     }
@@ -737,7 +732,7 @@ double _decode_double_to_host_order( pTHX_ unsigned char *ptr ) {
 SV *_decode( pTHX_ decode_ctx* decstate ) {
     SV *ret = NULL;
 
-    _decode_check_for_overage( aTHX_ decstate, 1);
+    _DECODE_CHECK_FOR_OVERAGE( decstate, 1);
 
     struct_sizeparse sizeparse;
 
@@ -814,28 +809,28 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             switch (sizeparse.sizetype) {
                 //case tiny:
                 case small:
-                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u8);
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u8);
                     ret = newSVpvn( decstate->curbyte, sizeparse.size.u8 );
                     decstate->curbyte += sizeparse.size.u8;
 
                     break;
 
                 case medium:
-                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u16);
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u16);
                     ret = newSVpvn( decstate->curbyte, sizeparse.size.u16 );
                     decstate->curbyte += sizeparse.size.u16;
 
                     break;
 
                 case large:
-                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u32);
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u32);
                     ret = newSVpvn( decstate->curbyte, sizeparse.size.u32 );
                     decstate->curbyte += sizeparse.size.u32;
 
                     break;
 
                 case huge:
-                    _decode_check_for_overage( aTHX_ decstate, sizeparse.size.u64);
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u64);
                     ret = newSVpvn( decstate->curbyte, sizeparse.size.u64 );
                     decstate->curbyte += sizeparse.size.u64;
                     break;
@@ -853,7 +848,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         sv_catsv(ret, cur);
                     }
 
-                    _decode_check_for_overage( aTHX_ decstate, 1 );
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
 
                     ++decstate->curbyte;
 
@@ -931,7 +926,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case CBOR_HALF_FLOAT:
-                    _decode_check_for_overage( aTHX_ decstate, 3 );
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, 3 );
 
                     ret = newSVnv( decode_half_float( (unsigned char *) (1 + decstate->curbyte) ) );
 
@@ -939,7 +934,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case CBOR_FLOAT:
-                    _decode_check_for_overage( aTHX_ decstate, 5 );
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, 5 );
 
                     float decoded_flt;
 
@@ -956,7 +951,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case CBOR_DOUBLE:
-                    _decode_check_for_overage( aTHX_ decstate, 9 );
+                    _DECODE_CHECK_FOR_OVERAGE( decstate, 9 );
 
                     double decoded_dbl;
 
