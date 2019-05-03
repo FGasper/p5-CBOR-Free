@@ -220,37 +220,40 @@ I32 sortstring( pTHX_ SV *a, SV *b ) {
 
 //----------------------------------------------------------------------
 
+unsigned char encode_hdr[9];
+
 SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
     if ( num < 0x18 ) {
-        unsigned char hdr[1] = { type + (unsigned char) num };
+        encode_hdr[0] = type + (unsigned char) num;
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
+        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 1);
     }
     else if ( num <= 0xff ) {
-        unsigned char hdr[2] = { type + 0x18, (unsigned char) num };
+        encode_hdr[0] = type + 0x18;
+        encode_hdr[1] = (unsigned char) num;
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
+        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 2);
     }
     else if ( num <= 0xffff ) {
-        unsigned char hdr[3] = { type + 0x19 };
+        encode_hdr[0] = type + 0x19;
 
-        _u16_to_buffer( num, 1 + hdr );
+        _u16_to_buffer( num, 1 + encode_hdr );
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
+        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
     }
     else if ( num <= 0xffffffff ) {
-        unsigned char hdr[5] = { type + 0x1a };
+        encode_hdr[0] = type + 0x1a;
 
-        _u32_to_buffer( num, 1 + hdr );
+        _u32_to_buffer( num, 1 + encode_hdr );
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
+        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
     }
     else {
-        unsigned char hdr[9] = { type + 0x1b };
+        encode_hdr[0] = type + 0x1b;
 
-        _u64_to_buffer( num, 1 + hdr );
+        _u64_to_buffer( num, 1 + encode_hdr );
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 9);
+        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
     }
 
     return buffer;
@@ -258,39 +261,40 @@ SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
 
 SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
     if ( (UV) -num <= 0x18 ) {
-        unsigned char hdr[1] = { TYPE_NEGINT + (unsigned char) -num - 1 };
+        encode_hdr[0] = TYPE_NEGINT + (unsigned char) -num - 1;
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 1);
+        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 1);
     }
     else {
         num++;
         num = -num;
 
         if ( num <= 0xff ) {
-            unsigned char hdr[2] = { TYPE_NEGINT_SMALL, (unsigned char) num };
+            encode_hdr[0] = TYPE_NEGINT_SMALL;
+            encode_hdr[1] = (unsigned char) num;
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 2);
+            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 2);
         }
         else if ( num <= 0xffff ) {
-            unsigned char hdr[3] = { TYPE_NEGINT_MEDIUM };
+            encode_hdr[0] = TYPE_NEGINT_MEDIUM;
 
-            _u16_to_buffer( num, 1 + hdr );
+            _u16_to_buffer( num, 1 + encode_hdr );
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 3);
+            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
         }
         else if ( num <= 0xffffffff ) {
-            unsigned char hdr[5] = { TYPE_NEGINT_LARGE };
+            encode_hdr[0] = TYPE_NEGINT_LARGE;
 
-            _u32_to_buffer( num, 1 + hdr );
+            _u32_to_buffer( num, 1 + encode_hdr );
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 5);
+            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
         }
         else {
-            unsigned char hdr[9] = { TYPE_NEGINT_HUGE };
+            encode_hdr[0] = TYPE_NEGINT_HUGE;
 
-            _u64_to_buffer( num, 1 + hdr );
+            _u64_to_buffer( num, 1 + encode_hdr );
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, 9);
+            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
         }
     }
 
@@ -384,13 +388,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
         if (sv_derived_from(value, BOOLEAN_CLASS)) {
             char newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
 
-            if (buffer) {
-                sv_catpvn( buffer, &newbyte, 1 );
-                RETVAL = buffer;
-            }
-            else {
-                RETVAL = newSVpvn(&newbyte, 1);
-            }
+            _INIT_LENGTH_SETUP_BUFFER( RETVAL = buffer, &newbyte, 1 );
         }
         else if (sv_derived_from(value, TAGGED_CLASS)) {
             AV *array = (AV *)SvRV(value);
