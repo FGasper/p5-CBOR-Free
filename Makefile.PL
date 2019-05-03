@@ -32,6 +32,7 @@ WriteMakefile1(
 
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 7.12,
+        'Devel::PPPort' => 0,
     },
 
     # Because of X::Tiny
@@ -43,10 +44,6 @@ WriteMakefile1(
         'Text::Control' => 0,
         'Types::Serialiser' => 0,
         'XSLoader' => 0.24,
-    },
-
-    BUILD_REQUIRES => {
-        'Devel::PPPort' => 0,
     },
 
     TEST_REQUIRES => {
