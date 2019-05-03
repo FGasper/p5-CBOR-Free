@@ -2,6 +2,7 @@ Revision history for Perl module CBOR::Free
 
 0.06
 - Relax Test::More version requirement a bit.
+- Add a few more tests.
 
 0.05 2 May 2019
 - POD touch-ups.
