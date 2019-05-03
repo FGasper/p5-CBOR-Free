@@ -1002,16 +1002,6 @@ BOOT:
     perl_is_64bit = sizeof(UV) >= 8;
 
 SV *
-fake_encode( SV * value )
-    CODE:
-        RETVAL = newSVpvn("\127", 1);
-
-        sv_catpvn( RETVAL, "abcdefghijklmnopqrstuvw", 23 );
-    OUTPUT:
-        RETVAL
-
-
-SV *
 _c_encode( SV * value )
     CODE:
         RETVAL = _encode(aTHX_ value, NULL, false);

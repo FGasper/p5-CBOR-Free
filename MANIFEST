@@ -6,7 +6,6 @@ LICENSE
 MANIFEST
 Makefile.PL
 README.md
-benchmark.pl
 lib/CBOR/Free.pm
 lib/CBOR/Free.xs
 lib/CBOR/Free/Tagged.pm
