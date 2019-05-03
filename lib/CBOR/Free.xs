@@ -715,16 +715,33 @@ double decode_half_float(unsigned char *halfp) {
     return half & 0x8000 ? -val : val;
 }
 
-float _decode_float_to_host_order( pTHX_ unsigned char *ptr ) {
-    unsigned char host_bytes[] = { ptr[3], ptr[2], ptr[1], ptr[0] };
+union {
+    unsigned char bytes[8];
+    float as_float;
+    double as_double;
+} float_bytes;
 
-    return *( (float *) &host_bytes );
+float _decode_float_to_host_order( unsigned char *ptr ) {
+    float_bytes.bytes[0] = ptr[3];
+    float_bytes.bytes[1] = ptr[2];
+    float_bytes.bytes[2] = ptr[1];
+    float_bytes.bytes[3] = ptr[0];
+
+    return float_bytes.as_float;
 }
 
 double _decode_double_to_host_order( pTHX_ unsigned char *ptr ) {
-    unsigned char host_bytes[] = { ptr[7], ptr[6], ptr[5], ptr[4], ptr[3], ptr[2], ptr[1], ptr[0] };
+    float_bytes.bytes[0] = ptr[7];
+    float_bytes.bytes[1] = ptr[6];
+    float_bytes.bytes[2] = ptr[5];
+    float_bytes.bytes[3] = ptr[4];
+    float_bytes.bytes[4] = ptr[3];
+    float_bytes.bytes[5] = ptr[2];
+    float_bytes.bytes[6] = ptr[1];
+    float_bytes.bytes[7] = ptr[0];
 
-    return( *( (double *) host_bytes ) );
+
+    return float_bytes.as_double;
 }
 
 //----------------------------------------------------------------------
@@ -942,7 +959,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_flt = *( (float *) (1 + decstate->curbyte) );
                     }
                     else {
-                        decoded_flt = _decode_float_to_host_order( aTHX_ (unsigned char *) (1 + decstate->curbyte) );
+                        decoded_flt = _decode_float_to_host_order( (unsigned char *) (1 + decstate->curbyte) );
                     }
 
                     ret = newSVnv( (NV) decoded_flt );
