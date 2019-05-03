@@ -1,5 +1,9 @@
 Revision history for Perl module CBOR::Free
 
+0.05
+- No user-facing changes.
+- Remove heap allocation logic to avoid potential memory leaks.
+
 0.04 28 Apr 2019
 - Make decoder reject true, false, null, and undefined as map keys.
 
