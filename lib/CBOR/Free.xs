@@ -186,28 +186,28 @@ void _decode_check_for_overage( pTHX_ decode_ctx* decstate, STRLEN len) {
 
 // These encode num as big-endian into buffer.
 
-void _u16_to_buffer( UV num, unsigned char *buffer ) {
-    buffer[0]       = num >> 8;
-    buffer[1] = num;
-}
+#define _U16_TO_BUFFER( num, buffer ) \
+    *(buffer)       = num >> 8; \
+    *( 1 + buffer ) = num;
 
-void _u32_to_buffer( UV num, unsigned char *buffer ) {
-    buffer[0]       = num >> 24;
-    buffer[1] = num >> 16;
-    buffer[2] = num >> 8;
-    buffer[3] = num;
-}
 
-void _u64_to_buffer( UV num, unsigned char *buffer ) {
-    buffer[0] = num >> 56;
-    buffer[1] = num >> 48;
-    buffer[2] = num >> 40;
-    buffer[3] = num >> 32;
-    buffer[4] = num >> 24;
-    buffer[5] = num >> 16;
-    buffer[6] = num >> 8;
-    buffer[7] = num;
-}
+#define _U32_TO_BUFFER( num, buffer ) \
+    *(buffer)       = num >> 24; \
+    *( 1 + buffer ) = num >> 16; \
+    *( 2 + buffer ) = num >> 8; \
+    *( 3 + buffer ) = num;
+
+
+#define _U64_TO_BUFFER( num, buffer ) \
+    *(buffer)       = num >> 56; \
+    *( 1 + buffer ) = num >> 48; \
+    *( 2 + buffer ) = num >> 40; \
+    *( 3 + buffer ) = num >> 32; \
+    *( 4 + buffer ) = num >> 24; \
+    *( 5 + buffer ) = num >> 16; \
+    *( 6 + buffer ) = num >> 8; \
+    *( 7 + buffer ) = num;
+
 
 //----------------------------------------------------------------------
 
@@ -237,21 +237,21 @@ SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
     else if ( num <= 0xffff ) {
         encode_hdr[0] = type + 0x19;
 
-        _u16_to_buffer( num, 1 + encode_hdr );
+        _U16_TO_BUFFER( num, 1 + encode_hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
     }
     else if ( num <= 0xffffffff ) {
         encode_hdr[0] = type + 0x1a;
 
-        _u32_to_buffer( num, 1 + encode_hdr );
+        _U32_TO_BUFFER( num, 1 + encode_hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
     }
     else {
         encode_hdr[0] = type + 0x1b;
 
-        _u64_to_buffer( num, 1 + encode_hdr );
+        _U64_TO_BUFFER( num, 1 + encode_hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
     }
@@ -278,21 +278,21 @@ SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
         else if ( num <= 0xffff ) {
             encode_hdr[0] = TYPE_NEGINT_MEDIUM;
 
-            _u16_to_buffer( num, 1 + encode_hdr );
+            _U16_TO_BUFFER( num, 1 + encode_hdr );
 
             _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
         }
         else if ( num <= 0xffffffff ) {
             encode_hdr[0] = TYPE_NEGINT_LARGE;
 
-            _u32_to_buffer( num, 1 + encode_hdr );
+            _U32_TO_BUFFER( num, 1 + encode_hdr );
 
             _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
         }
         else {
             encode_hdr[0] = TYPE_NEGINT_HUGE;
 
-            _u64_to_buffer( num, 1 + encode_hdr );
+            _U64_TO_BUFFER( num, 1 + encode_hdr );
 
             _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
         }
@@ -509,7 +509,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = medium;
-            _u16_to_buffer( *((uint16_t *) decstate->curbyte), (unsigned char *) &(ret.size.u16) );
+            _U16_TO_BUFFER( *((uint16_t *) decstate->curbyte), (unsigned char *) &(ret.size.u16) );
 
             decstate->curbyte += 2;
 
@@ -521,7 +521,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = large;
-            _u32_to_buffer( *((uint32_t *) decstate->curbyte), (unsigned char *) &(ret.size.u32) );
+            _U32_TO_BUFFER( *((uint32_t *) decstate->curbyte), (unsigned char *) &(ret.size.u32) );
 
             decstate->curbyte += 4;
 
@@ -534,11 +534,11 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             if (perl_is_64bit) {
                 ret.sizetype = huge;
-                _u64_to_buffer( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
+                _U64_TO_BUFFER( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
             }
             else if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
                 ret.sizetype = large;
-                _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
+                _U32_TO_BUFFER( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
             }
             else {
                 _croak_cannot_decode_64bit( aTHX_ (const unsigned char *) decstate->curbyte, decstate->curbyte - decstate->start );
