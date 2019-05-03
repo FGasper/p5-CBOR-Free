@@ -101,6 +101,10 @@ char * _uint_to_str(U32 num) {
     return numstr;
 }
 
+void _void_uint_to_str(STRLEN num, char *numstr, const char strlen) {
+    snprintf(numstr, strlen, "%lu", num);
+}
+
 void _die( pTHX_ I32 flags, char **argv ) {
     call_argv( "CBOR::Free::_die", G_EVAL | flags, argv );
     croak(NULL);
@@ -114,13 +118,12 @@ void _croak_unrecognized(pTHX_ SV *value) {
 }
 
 void _croak_incomplete( pTHX_ STRLEN lack ) {
-    char *lackstr = _uint_to_str(lack);
+    char lackstr[24];
+    _void_uint_to_str( lack, lackstr, 24 );
 
     char * words[3] = { "Incomplete", lackstr, NULL };
 
     call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
-
-    Safefree(lackstr);
 
     croak(NULL);
 }
@@ -129,15 +132,15 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     const unsigned char ord = (unsigned char) *(decstate->curbyte);
     STRLEN offset = decstate->curbyte - decstate->start;
 
-    char *ordstr = _uint_to_str(ord);
-    char *offsetstr = _uint_to_str(offset);
+    char ordstr[24];
+    char offsetstr[24];
+
+    _void_uint_to_str(ord, ordstr, 24);
+    _void_uint_to_str(offset, offsetstr, 24);
 
     char * words[4] = { "InvalidControl", ordstr, offsetstr, NULL };
 
     call_argv( "CBOR::Free::_die", G_EVAL | G_DISCARD, words );
-
-    Safefree(ordstr);
-    Safefree(offsetstr);
 
     croak(NULL);
 }
@@ -1062,13 +1065,12 @@ decode( SV *cbor )
         if (decode_state.curbyte != decode_state.end) {
             STRLEN bytes_count = decode_state.end - decode_state.curbyte;
 
-            char *numstr = _uint_to_str(bytes_count);
+            char numstr[24];
+            _void_uint_to_str(bytes_count, numstr, 24);
 
             char * words[2] = { numstr, NULL };
 
             call_argv("CBOR::Free::_warn_decode_leftover", G_DISCARD, words);
-
-            Safefree(numstr);
         }
 
     OUTPUT:
