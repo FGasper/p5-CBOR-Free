@@ -119,7 +119,7 @@ void _croak_incomplete( pTHX_ STRLEN lack ) {
 }
 
 void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
-    const unsigned char ord = (unsigned char) *(decstate->curbyte);
+    const uint8_t ord = (uint8_t) *(decstate->curbyte);
     STRLEN offset = decstate->curbyte - decstate->start;
 
     char ordstr[24];
@@ -150,7 +150,7 @@ void _croak_invalid_map_key( pTHX_ const char *key, STRLEN offset ) {
     _die( aTHX_ G_DISCARD, words);
 }
 
-void _croak_cannot_decode_64bit( pTHX_ const unsigned char *u64bytes, STRLEN offset ) {
+void _croak_cannot_decode_64bit( pTHX_ const uint8_t *u64bytes, STRLEN offset ) {
     char numhex[20];
     numhex[19] = 0;
 
@@ -221,18 +221,18 @@ I32 sortstring( pTHX_ SV *a, SV *b ) {
 
 //----------------------------------------------------------------------
 
-unsigned char encode_hdr[9];
+uint8_t encode_hdr[9];
 
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
-SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
+SV *_init_length_buffer( pTHX_ UV num, const uint8_t type, SV *buffer ) {
     if ( num < 0x18 ) {
-        encode_hdr[0] = type + (unsigned char) num;
+        encode_hdr[0] = type + (uint8_t) num;
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 1);
     }
     else if ( num <= 0xff ) {
         encode_hdr[0] = type + 0x18;
-        encode_hdr[1] = (unsigned char) num;
+        encode_hdr[1] = (uint8_t) num;
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 2);
     }
@@ -263,7 +263,7 @@ SV *_init_length_buffer( pTHX_ UV num, const unsigned char type, SV *buffer ) {
 
 SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
     if ( (UV) -num <= 0x18 ) {
-        encode_hdr[0] = TYPE_NEGINT + (unsigned char) -num - 1;
+        encode_hdr[0] = TYPE_NEGINT + (uint8_t) -num - 1;
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 1);
     }
@@ -273,7 +273,7 @@ SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
 
         if ( num <= 0xff ) {
             encode_hdr[0] = TYPE_NEGINT_SMALL;
-            encode_hdr[1] = (unsigned char) num;
+            encode_hdr[1] = (uint8_t) num;
 
             _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 2);
         }
@@ -507,7 +507,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = medium;
-            _U16_TO_BUFFER( *((uint16_t *) decstate->curbyte), (unsigned char *) &(ret.size.u16) );
+            _U16_TO_BUFFER( *((uint16_t *) decstate->curbyte), (uint8_t *) &(ret.size.u16) );
 
             decstate->curbyte += 2;
 
@@ -519,7 +519,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = large;
-            _U32_TO_BUFFER( *((uint32_t *) decstate->curbyte), (unsigned char *) &(ret.size.u32) );
+            _U32_TO_BUFFER( *((uint32_t *) decstate->curbyte), (uint8_t *) &(ret.size.u32) );
 
             decstate->curbyte += 4;
 
@@ -532,14 +532,14 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             if (perl_is_64bit) {
                 ret.sizetype = huge;
-                _U64_TO_BUFFER( *((uint64_t *) decstate->curbyte), (unsigned char *) &(ret.size.u64) );
+                _U64_TO_BUFFER( *((uint64_t *) decstate->curbyte), (uint8_t *) &(ret.size.u64) );
             }
             else if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
                 ret.sizetype = large;
-                _U32_TO_BUFFER( *((uint32_t *) (4 + decstate->curbyte)), (unsigned char *) &(ret.size.u32) );
+                _U32_TO_BUFFER( *((uint32_t *) (4 + decstate->curbyte)), (uint8_t *) &(ret.size.u32) );
             }
             else {
-                _croak_cannot_decode_64bit( aTHX_ (const unsigned char *) decstate->curbyte, decstate->curbyte - decstate->start );
+                _croak_cannot_decode_64bit( aTHX_ (const uint8_t *) decstate->curbyte, decstate->curbyte - decstate->start );
             }
 
             decstate->curbyte += 8;
@@ -707,7 +707,7 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
 //----------------------------------------------------------------------
 
 // Taken from RFC 7049:
-double decode_half_float(unsigned char *halfp) {
+double decode_half_float(uint8_t *halfp) {
     int half = (halfp[0] << 8) + halfp[1];
     int exp = (half >> 10) & 0x1f;
     int mant = half & 0x3ff;
@@ -719,7 +719,7 @@ double decode_half_float(unsigned char *halfp) {
 }
 
 union {
-    unsigned char bytes[8];
+    uint8_t bytes[8];
     float as_float;
     double as_double;
 } float_bytes;
@@ -753,7 +753,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     struct_sizeparse sizeparse;
 
-    unsigned char major_type = *(decstate->curbyte) & 0xe0;
+    uint8_t major_type = *(decstate->curbyte) & 0xe0;
 
     switch (major_type) {
         case TYPE_UINT:
@@ -945,7 +945,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 case CBOR_HALF_FLOAT:
                     _DECODE_CHECK_FOR_OVERAGE( decstate, 3 );
 
-                    ret = newSVnv( decode_half_float( (unsigned char *) (1 + decstate->curbyte) ) );
+                    ret = newSVnv( decode_half_float( (uint8_t *) (1 + decstate->curbyte) ) );
 
                     decstate->curbyte += 3;
                     break;
@@ -959,7 +959,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_flt = *( (float *) (1 + decstate->curbyte) );
                     }
                     else {
-                        _DECODE_FLOAT_TO_LE( (unsigned char *) (1 + decstate->curbyte), decoded_flt );
+                        _DECODE_FLOAT_TO_LE( (uint8_t *) (1 + decstate->curbyte), decoded_flt );
                     }
 
                     ret = newSVnv( (NV) decoded_flt );
@@ -976,7 +976,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_dbl = *( (double *) (1 + decstate->curbyte) );
                     }
                     else {
-                        _DECODE_DOUBLE_TO_LE( (unsigned char *) (1 + decstate->curbyte), decoded_dbl );
+                        _DECODE_DOUBLE_TO_LE( (uint8_t *) (1 + decstate->curbyte), decoded_dbl );
                     }
 
                     ret = newSVnv( (NV) decoded_dbl );
