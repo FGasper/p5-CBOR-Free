@@ -54,6 +54,8 @@
 bool is_big_endian;
 bool perl_is_64bit;
 
+uint8_t encode_recurse = 0;
+
 //----------------------------------------------------------------------
 // Definitions
 
@@ -98,9 +100,16 @@ void _void_uint_to_str(STRLEN num, char *numstr, const char strlen) {
     my_snprintf(numstr, strlen, "%lu", num);
 }
 
+void _croak( const char *croakval ) {
+    encode_recurse = 0;
+
+    croak(croakval);
+}
+
 void _die( pTHX_ I32 flags, char **argv ) {
     call_argv( "CBOR::Free::_die", G_EVAL | flags, argv );
-    croak(NULL);
+
+    _croak(NULL);
 }
 
 void _croak_unrecognized(pTHX_ SV *value) {
@@ -187,28 +196,28 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 // These encode num as big-endian into buffer.
 // Importantly, on big-endian systems this is just a memcpy.
 
-#define _U16_TO_BUFFER( num, buffer ) \
-    *(buffer)       = num >> 8; \
-    *( 1 + buffer ) = num;
+static inline void _u16_to_buffer( UV num, uint8_t *buffer ) {
+    buffer[0] = num >> 8;
+    buffer[1] = num;
+}
 
+static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
+    buffer[0]       = num >> 24;
+    buffer[1] = num >> 16;
+    buffer[2] = num >> 8;
+    buffer[3] = num;
+}
 
-#define _U32_TO_BUFFER( num, buffer ) \
-    *(buffer)       = num >> 24; \
-    *( 1 + buffer ) = num >> 16; \
-    *( 2 + buffer ) = num >> 8; \
-    *( 3 + buffer ) = num;
-
-
-#define _U64_TO_BUFFER( num, buffer ) \
-    *(buffer)       = num >> 56; \
-    *( 1 + buffer ) = num >> 48; \
-    *( 2 + buffer ) = num >> 40; \
-    *( 3 + buffer ) = num >> 32; \
-    *( 4 + buffer ) = num >> 24; \
-    *( 5 + buffer ) = num >> 16; \
-    *( 6 + buffer ) = num >> 8; \
-    *( 7 + buffer ) = num;
-
+static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
+    buffer[0] = num >> 56;
+    buffer[1] = num >> 48;
+    buffer[2] = num >> 40;
+    buffer[3] = num >> 32;
+    buffer[4] = num >> 24;
+    buffer[5] = num >> 16;
+    buffer[6] = num >> 8;
+    buffer[7] = num;
+}
 
 //----------------------------------------------------------------------
 
@@ -239,21 +248,21 @@ SV *_init_length_buffer( pTHX_ UV num, const uint8_t type, SV *buffer ) {
     else if ( num <= 0xffff ) {
         encode_hdr[0] = type + 0x19;
 
-        _U16_TO_BUFFER( num, 1 + encode_hdr );
+        _u16_to_buffer( num, 1 + encode_hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
     }
     else if ( num <= 0xffffffff ) {
         encode_hdr[0] = type + 0x1a;
 
-        _U32_TO_BUFFER( num, 1 + encode_hdr );
+        _u32_to_buffer( num, 1 + encode_hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
     }
     else {
         encode_hdr[0] = type + 0x1b;
 
-        _U64_TO_BUFFER( num, 1 + encode_hdr );
+        _u64_to_buffer( num, 1 + encode_hdr );
 
         _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
     }
@@ -280,21 +289,21 @@ SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
         else if ( num <= 0xffff ) {
             encode_hdr[0] = TYPE_NEGINT_MEDIUM;
 
-            _U16_TO_BUFFER( num, 1 + encode_hdr );
+            _u16_to_buffer( num, 1 + encode_hdr );
 
             _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
         }
         else if ( num <= 0xffffffff ) {
             encode_hdr[0] = TYPE_NEGINT_LARGE;
 
-            _U32_TO_BUFFER( num, 1 + encode_hdr );
+            _u32_to_buffer( num, 1 + encode_hdr );
 
             _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
         }
         else {
             encode_hdr[0] = TYPE_NEGINT_HUGE;
 
-            _U64_TO_BUFFER( num, 1 + encode_hdr );
+            _u64_to_buffer( num, 1 + encode_hdr );
 
             _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
         }
@@ -303,18 +312,15 @@ SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
     return buffer;
 }
 
-uint8_t encode_recurse = 0;
-
 SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
     ++encode_recurse;
     if (encode_recurse > MAX_ENCODE_RECURSE) {
-        encode_recurse = 0;
 
         // call_pv() killed the process in Win32; this seems to fix that.
         static char * words[] = { NULL };
         call_argv("CBOR::Free::_die_recursion", G_EVAL|G_DISCARD, words);
 
-        croak(NULL);
+        _croak(NULL);
     }
 
     SV *RETVAL = NULL;
@@ -390,7 +396,8 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
         if (sv_derived_from(value, BOOLEAN_CLASS)) {
             char newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
 
-            _INIT_LENGTH_SETUP_BUFFER( RETVAL = buffer, &newbyte, 1 );
+            _INIT_LENGTH_SETUP_BUFFER( buffer, &newbyte, 1 );
+            RETVAL = buffer;
         }
         else if (sv_derived_from(value, TAGGED_CLASS)) {
             AV *array = (AV *)SvRV(value);
@@ -507,7 +514,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = medium;
-            _U16_TO_BUFFER( *((uint16_t *) decstate->curbyte), (uint8_t *) &(ret.size.u16) );
+            _u16_to_buffer( *((uint16_t *) decstate->curbyte), (uint8_t *) &(ret.size.u16) );
 
             decstate->curbyte += 2;
 
@@ -519,7 +526,7 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
             ret.sizetype = large;
-            _U32_TO_BUFFER( *((uint32_t *) decstate->curbyte), (uint8_t *) &(ret.size.u32) );
+            _u32_to_buffer( *((uint32_t *) decstate->curbyte), (uint8_t *) &(ret.size.u32) );
 
             decstate->curbyte += 4;
 
@@ -532,11 +539,11 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             if (perl_is_64bit) {
                 ret.sizetype = huge;
-                _U64_TO_BUFFER( *((uint64_t *) decstate->curbyte), (uint8_t *) &(ret.size.u64) );
+                _u64_to_buffer( *((uint64_t *) decstate->curbyte), (uint8_t *) &(ret.size.u64) );
             }
             else if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
                 ret.sizetype = large;
-                _U32_TO_BUFFER( *((uint32_t *) (4 + decstate->curbyte)), (uint8_t *) &(ret.size.u32) );
+                _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (uint8_t *) &(ret.size.u32) );
             }
             else {
                 _croak_cannot_decode_64bit( aTHX_ (const uint8_t *) decstate->curbyte, decstate->curbyte - decstate->start );
@@ -630,7 +637,7 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
                 cur = _decode( aTHX_ decstate );
 
                 if (!av_store(array, i, cur)) {
-                    croak("Failed to store item in array!");
+                    _croak("Failed to store item in array!");
                 }
             }
         }
@@ -724,25 +731,27 @@ union {
     double as_double;
 } float_bytes;
 
-#define _DECODE_FLOAT_TO_LE( ptr, target ) \
-    float_bytes.bytes[0] = *( 3 + ptr ); \
-    float_bytes.bytes[1] = *( 2 + ptr ); \
-    float_bytes.bytes[2] = *( 1 + ptr ); \
-    float_bytes.bytes[3] = *(ptr); \
-    target = float_bytes.as_float;
+static inline float _decode_float_to_le( uint8_t *ptr ) {
+    float_bytes.bytes[0] = ptr[3];
+    float_bytes.bytes[1] = ptr[2];
+    float_bytes.bytes[2] = ptr[1];
+    float_bytes.bytes[3] = ptr[0];
 
+    return float_bytes.as_float;
+}
 
-#define _DECODE_DOUBLE_TO_LE( ptr, target ) \
-    float_bytes.bytes[0] = *( 7 + ptr ); \
-    float_bytes.bytes[1] = *( 6 + ptr ); \
-    float_bytes.bytes[2] = *( 5 + ptr ); \
-    float_bytes.bytes[3] = *( 4 + ptr ); \
-    float_bytes.bytes[4] = *( 3 + ptr ); \
-    float_bytes.bytes[5] = *( 2 + ptr ); \
-    float_bytes.bytes[6] = *( 1 + ptr ); \
-    float_bytes.bytes[7] = *(ptr); \
-    target = float_bytes.as_double;
+static inline double _decode_double_to_le( uint8_t *ptr ) {
+    float_bytes.bytes[0] = ptr[7];
+    float_bytes.bytes[1] = ptr[6];
+    float_bytes.bytes[2] = ptr[5];
+    float_bytes.bytes[3] = ptr[4];
+    float_bytes.bytes[4] = ptr[3];
+    float_bytes.bytes[5] = ptr[2];
+    float_bytes.bytes[6] = ptr[1];
+    float_bytes.bytes[7] = ptr[0];
 
+    return float_bytes.as_double;
+}
 
 //----------------------------------------------------------------------
 
@@ -874,7 +883,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 default:
 
                     // This shouldn’t happen, but just in case.
-                    croak("Unknown string length descriptor!");
+                    _croak("Unknown string length descriptor!");
             }
 
             // XXX: “perldoc perlapi” says this function is experimental.
@@ -959,7 +968,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_flt = *( (float *) (1 + decstate->curbyte) );
                     }
                     else {
-                        _DECODE_FLOAT_TO_LE( (uint8_t *) (1 + decstate->curbyte), decoded_flt );
+                        decoded_flt = _decode_float_to_le( (uint8_t *) (1 + decstate->curbyte ) );
                     }
 
                     ret = newSVnv( (NV) decoded_flt );
@@ -976,7 +985,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_dbl = *( (double *) (1 + decstate->curbyte) );
                     }
                     else {
-                        _DECODE_DOUBLE_TO_LE( (uint8_t *) (1 + decstate->curbyte), decoded_dbl );
+                        decoded_dbl = _decode_double_to_le( (uint8_t *) (1 + decstate->curbyte ) );
                     }
 
                     ret = newSVnv( (NV) decoded_dbl );
@@ -991,7 +1000,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             break;
 
         default:
-            croak("Unknown type!");
+            _croak("Unknown type!");
     }
 
     return ret;
