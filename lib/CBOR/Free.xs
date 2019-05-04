@@ -41,23 +41,21 @@
 
 #define MAX_ENCODE_RECURSE 98
 
-#define _INIT_LENGTH_SETUP_BUFFER(buffer, hdr, len) \
-    if (buffer) { \
-        sv_catpvn( buffer, (char *) hdr, len ); \
-    } \
-    else { \
-        buffer = newSVpvn( (char *) hdr, len ); \
-    }
-
 // populated in XS BOOT code below.
 // TODO: Handle these in the preprocessor.
 bool is_big_endian;
 bool perl_is_64bit;
 
-uint8_t encode_recurse = 0;
-
 //----------------------------------------------------------------------
 // Definitions
+
+typedef struct {
+    char *buffer;
+    STRLEN len;
+    uint8_t recurse_count;
+    uint8_t scratch[9];
+    bool is_canonical;
+} encode_ctx;
 
 typedef struct {
     char* start;
@@ -65,6 +63,12 @@ typedef struct {
     char* curbyte;
     char* end;
     bool is_map_key;
+
+    union {
+        uint8_t bytes[8];
+        float as_float;
+        double as_double;
+    } float_bytes;
 } decode_ctx;
 
 enum enum_sizetype {
@@ -100,11 +104,7 @@ void _void_uint_to_str(STRLEN num, char *numstr, const char strlen) {
     my_snprintf(numstr, strlen, "%lu", num);
 }
 
-void _croak( const char *croakval ) {
-    encode_recurse = 0;
-
-    croak(croakval);
-}
+#define _croak croak
 
 void _die( pTHX_ I32 flags, char **argv ) {
     call_argv( "CBOR::Free::_die", G_EVAL | flags, argv );
@@ -193,6 +193,14 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 
 //----------------------------------------------------------------------
 
+static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, void *hdr, STRLEN len) {
+    Renew( encode_state->buffer, len + encode_state->len, char );
+    Copy( hdr, encode_state->buffer + encode_state->len, len, char );
+    encode_state->len += len;
+}
+
+//----------------------------------------------------------------------
+
 // These encode num as big-endian into buffer.
 // Importantly, on big-endian systems this is just a memcpy.
 
@@ -230,91 +238,85 @@ I32 sortstring( pTHX_ SV *a, SV *b ) {
 
 //----------------------------------------------------------------------
 
-uint8_t encode_hdr[9];
-
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
-SV *_init_length_buffer( pTHX_ UV num, const uint8_t type, SV *buffer ) {
+static inline void _init_length_buffer( pTHX_ UV num, const uint8_t type, encode_ctx *encode_state ) {
     if ( num < 0x18 ) {
-        encode_hdr[0] = type + (uint8_t) num;
+        encode_state->scratch[0] = type + (uint8_t) num;
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 1);
+        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
     }
     else if ( num <= 0xff ) {
-        encode_hdr[0] = type + 0x18;
-        encode_hdr[1] = (uint8_t) num;
+        encode_state->scratch[0] = type + 0x18;
+        encode_state->scratch[1] = (uint8_t) num;
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 2);
+        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
     }
     else if ( num <= 0xffff ) {
-        encode_hdr[0] = type + 0x19;
+        encode_state->scratch[0] = type + 0x19;
 
-        _u16_to_buffer( num, 1 + encode_hdr );
+        _u16_to_buffer( num, 1 + encode_state->scratch );
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
+        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 3);
     }
     else if ( num <= 0xffffffff ) {
-        encode_hdr[0] = type + 0x1a;
+        encode_state->scratch[0] = type + 0x1a;
 
-        _u32_to_buffer( num, 1 + encode_hdr );
+        _u32_to_buffer( num, 1 + encode_state->scratch );
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
+        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 5);
     }
     else {
-        encode_hdr[0] = type + 0x1b;
+        encode_state->scratch[0] = type + 0x1b;
 
-        _u64_to_buffer( num, 1 + encode_hdr );
+        _u64_to_buffer( num, 1 + encode_state->scratch );
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
+        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
     }
-
-    return buffer;
 }
 
-SV *_init_length_buffer_negint( pTHX_ IV num, SV *buffer ) {
+static inline void _init_length_buffer_negint( pTHX_ IV num, encode_ctx *encode_state ) {
     if ( (UV) -num <= 0x18 ) {
-        encode_hdr[0] = TYPE_NEGINT + (uint8_t) -num - 1;
+        encode_state->scratch[0] = TYPE_NEGINT + (uint8_t) -num - 1;
 
-        _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 1);
+        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
     }
     else {
         num++;
         num = -num;
 
         if ( num <= 0xff ) {
-            encode_hdr[0] = TYPE_NEGINT_SMALL;
-            encode_hdr[1] = (uint8_t) num;
+            encode_state->scratch[0] = TYPE_NEGINT_SMALL;
+            encode_state->scratch[1] = (uint8_t) num;
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 2);
+            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
         }
         else if ( num <= 0xffff ) {
-            encode_hdr[0] = TYPE_NEGINT_MEDIUM;
+            encode_state->scratch[0] = TYPE_NEGINT_MEDIUM;
 
-            _u16_to_buffer( num, 1 + encode_hdr );
+            _u16_to_buffer( num, 1 + encode_state->scratch );
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 3);
+            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 3);
         }
         else if ( num <= 0xffffffff ) {
-            encode_hdr[0] = TYPE_NEGINT_LARGE;
+            encode_state->scratch[0] = TYPE_NEGINT_LARGE;
 
-            _u32_to_buffer( num, 1 + encode_hdr );
+            _u32_to_buffer( num, 1 + encode_state->scratch );
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 5);
+            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 5);
         }
         else {
-            encode_hdr[0] = TYPE_NEGINT_HUGE;
+            encode_state->scratch[0] = TYPE_NEGINT_HUGE;
 
-            _u64_to_buffer( num, 1 + encode_hdr );
+            _u64_to_buffer( num, 1 + encode_state->scratch );
 
-            _INIT_LENGTH_SETUP_BUFFER(buffer, encode_hdr, 9);
+            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
         }
     }
-
-    return buffer;
 }
 
-SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
-    ++encode_recurse;
-    if (encode_recurse > MAX_ENCODE_RECURSE) {
+void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
+    ++encode_state->recurse_count;
+    if (encode_state->recurse_count > MAX_ENCODE_RECURSE) {
 
         // call_pv() killed the process in Win32; this seems to fix that.
         static char * words[] = { NULL };
@@ -323,15 +325,11 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
         _croak(NULL);
     }
 
-    SV *RETVAL = NULL;
-
     if (!SvROK(value)) {
 
         if (!SvOK(value)) {
             char null = CBOR_NULL;
-            _INIT_LENGTH_SETUP_BUFFER(buffer, &null, 1);
-
-            RETVAL = buffer;
+            _COPY_INTO_ENCODE(encode_state, &null, 1);
         }
         else if (SvIOK(value)) {
             IV val = SvIVX(value);
@@ -339,11 +337,11 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
             // In testing, Perl’s (0 + ~0) evaluated as < 0 here,
             // but the SvUOK() check fixes that.
             if (val < 0 && !SvUOK(value)) {
-                RETVAL = _init_length_buffer_negint( aTHX_ val, buffer );
+                _init_length_buffer_negint( aTHX_ val, encode_state );
             }
             else {
                 // NB: SvUOK doesn’t work to identify nonnegatives … ?
-                RETVAL = _init_length_buffer( aTHX_ val, TYPE_UINT, buffer );
+                _init_length_buffer( aTHX_ val, TYPE_UINT, encode_state );
             }
         }
         else if (SvNOK(value)) {
@@ -355,14 +353,21 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
 
             if (is_big_endian) {
                 char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
-                _INIT_LENGTH_SETUP_BUFFER(buffer, bytes, 9);
+                _COPY_INTO_ENCODE(encode_state, bytes, 9);
             }
             else {
-                char bytes[9] = { CBOR_DOUBLE, valptr[7], valptr[6], valptr[5], valptr[4], valptr[3], valptr[2], valptr[1], valptr[0] };
-                _INIT_LENGTH_SETUP_BUFFER(buffer, bytes, 9);
-            }
+                encode_state->scratch[0] = CBOR_DOUBLE;
+                encode_state->scratch[1] = valptr[7];
+                encode_state->scratch[2] = valptr[6];
+                encode_state->scratch[3] = valptr[5];
+                encode_state->scratch[4] = valptr[4];
+                encode_state->scratch[5] = valptr[3];
+                encode_state->scratch[6] = valptr[2];
+                encode_state->scratch[7] = valptr[1];
+                encode_state->scratch[8] = valptr[0];
 
-            RETVAL = buffer;
+                _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
+            }
         }
         else {
             STRLEN len = SvCUR(value);
@@ -383,29 +388,28 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
             }
             */
 
-            RETVAL = _init_length_buffer( aTHX_
+            _init_length_buffer( aTHX_
                 len,
                 (encode_as_text ? TYPE_UTF8 : TYPE_BINARY),
-                buffer
+                encode_state
             );
 
-            sv_catpvn( RETVAL, val, len );
+            _COPY_INTO_ENCODE( encode_state, val, len );
         }
     }
     else if (sv_isobject(value)) {
         if (sv_derived_from(value, BOOLEAN_CLASS)) {
             char newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
 
-            _INIT_LENGTH_SETUP_BUFFER( buffer, &newbyte, 1 );
-            RETVAL = buffer;
+            _COPY_INTO_ENCODE( encode_state, &newbyte, 1 );
         }
         else if (sv_derived_from(value, TAGGED_CLASS)) {
             AV *array = (AV *)SvRV(value);
             SV **tag = av_fetch(array, 0, 0);
             IV tagnum = SvIV(*tag);
 
-            RETVAL = _init_length_buffer( aTHX_ tagnum, TYPE_TAG, buffer );
-            _encode( aTHX_ *(av_fetch(array, 1, 0)), RETVAL, encode_canonical_yn );
+            _init_length_buffer( aTHX_ tagnum, TYPE_TAG, encode_state );
+            _encode( aTHX_ *(av_fetch(array, 1, 0)), encode_state );
         }
 
         // TODO: Support TO_JSON() method?
@@ -420,14 +424,14 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
             SSize_t len;
             len = 1 + av_len(array);
 
-            RETVAL = _init_length_buffer( aTHX_ len, TYPE_ARRAY, buffer );
+            _init_length_buffer( aTHX_ len, TYPE_ARRAY, encode_state );
 
             SSize_t i;
 
             SV **cur;
             for (i=0; i<len; i++) {
                 cur = av_fetch(array, i, 0);
-                _encode( aTHX_ *cur, RETVAL, encode_canonical_yn );
+                _encode( aTHX_ *cur, encode_state );
             }
         }
         else if (SVt_PVHV == SvTYPE(SvRV(value))) {
@@ -439,9 +443,9 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
 
             I32 keyscount = hv_iterinit(hash);
 
-            RETVAL = _init_length_buffer( aTHX_ keyscount, TYPE_MAP, buffer );
+            _init_length_buffer( aTHX_ keyscount, TYPE_MAP, encode_state );
 
-            if (encode_canonical_yn) {
+            if (encode_state->is_canonical) {
                 SV *keys[keyscount];
 
                 I32 curkey = 0;
@@ -459,22 +463,23 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
                     key_length = SvCUR(cur);
 
                     // Store the key.
-                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, RETVAL );
-                    sv_catpvn( RETVAL, key, key_length );
+                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
+                    _COPY_INTO_ENCODE( encode_state, key, key_length );
 
                     cur = *( hv_fetch(hash, key, key_length, 0) );
 
-                    _encode( aTHX_ cur, RETVAL, encode_canonical_yn );
+                    _encode( aTHX_ cur, encode_state );
                 }
             }
             else {
                 while ((cur = hv_iternextsv(hash, &key, &key_length))) {
 
                     // Store the key.
-                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, RETVAL );
-                    sv_catpvn( RETVAL, key, key_length );
+                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
 
-                    _encode( aTHX_ cur, RETVAL, encode_canonical_yn );
+                    _COPY_INTO_ENCODE( encode_state, key, key_length );
+
+                    _encode( aTHX_ cur, encode_state );
                 }
             }
         }
@@ -483,9 +488,7 @@ SV *_encode( pTHX_ SV *value, SV *buffer, bool encode_canonical_yn ) {
         }
     }
 
-    --encode_recurse;
-
-    return RETVAL;
+    --encode_state->recurse_count;
 }
 
 //----------------------------------------------------------------------
@@ -725,32 +728,26 @@ double decode_half_float(uint8_t *halfp) {
     return half & 0x8000 ? -val : val;
 }
 
-union {
-    uint8_t bytes[8];
-    float as_float;
-    double as_double;
-} float_bytes;
+static inline float _decode_float_to_le( decode_ctx* decstate, uint8_t *ptr ) {
+    decstate->float_bytes.bytes[0] = ptr[3];
+    decstate->float_bytes.bytes[1] = ptr[2];
+    decstate->float_bytes.bytes[2] = ptr[1];
+    decstate->float_bytes.bytes[3] = ptr[0];
 
-static inline float _decode_float_to_le( uint8_t *ptr ) {
-    float_bytes.bytes[0] = ptr[3];
-    float_bytes.bytes[1] = ptr[2];
-    float_bytes.bytes[2] = ptr[1];
-    float_bytes.bytes[3] = ptr[0];
-
-    return float_bytes.as_float;
+    return decstate->float_bytes.as_float;
 }
 
-static inline double _decode_double_to_le( uint8_t *ptr ) {
-    float_bytes.bytes[0] = ptr[7];
-    float_bytes.bytes[1] = ptr[6];
-    float_bytes.bytes[2] = ptr[5];
-    float_bytes.bytes[3] = ptr[4];
-    float_bytes.bytes[4] = ptr[3];
-    float_bytes.bytes[5] = ptr[2];
-    float_bytes.bytes[6] = ptr[1];
-    float_bytes.bytes[7] = ptr[0];
+static inline double _decode_double_to_le( decode_ctx* decstate, uint8_t *ptr ) {
+    decstate->float_bytes.bytes[0] = ptr[7];
+    decstate->float_bytes.bytes[1] = ptr[6];
+    decstate->float_bytes.bytes[2] = ptr[5];
+    decstate->float_bytes.bytes[3] = ptr[4];
+    decstate->float_bytes.bytes[4] = ptr[3];
+    decstate->float_bytes.bytes[5] = ptr[2];
+    decstate->float_bytes.bytes[6] = ptr[1];
+    decstate->float_bytes.bytes[7] = ptr[0];
 
-    return float_bytes.as_double;
+    return decstate->float_bytes.as_double;
 }
 
 //----------------------------------------------------------------------
@@ -968,7 +965,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_flt = *( (float *) (1 + decstate->curbyte) );
                     }
                     else {
-                        decoded_flt = _decode_float_to_le( (uint8_t *) (1 + decstate->curbyte ) );
+                        decoded_flt = _decode_float_to_le( decstate, (uint8_t *) (1 + decstate->curbyte ) );
                     }
 
                     ret = newSVnv( (NV) decoded_flt );
@@ -985,7 +982,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         decoded_dbl = *( (double *) (1 + decstate->curbyte) );
                     }
                     else {
-                        decoded_dbl = _decode_double_to_le( (uint8_t *) (1 + decstate->curbyte ) );
+                        decoded_dbl = _decode_double_to_le( decstate, (uint8_t *) (1 + decstate->curbyte ) );
                     }
 
                     ret = newSVnv( (NV) decoded_dbl );
@@ -1023,14 +1020,30 @@ BOOT:
 SV *
 _c_encode( SV * value )
     CODE:
-        RETVAL = _encode(aTHX_ value, NULL, false);
+        encode_ctx encode_state;
+        encode_state.buffer = NULL;
+        encode_state.len = 0;
+        encode_state.recurse_count = 0;
+        encode_state.is_canonical = false;
+
+        _encode(aTHX_ value, &encode_state);
+
+        RETVAL = newSVpvn( encode_state.buffer, encode_state.len );
     OUTPUT:
         RETVAL
 
 SV *
 _c_encode_canonical( SV * value )
     CODE:
-        RETVAL = _encode(aTHX_ value, NULL, true);
+        encode_ctx encode_state;
+        encode_state.buffer = NULL;
+        encode_state.len = 0;
+        encode_state.recurse_count = 0;
+        encode_state.is_canonical = true;
+
+        _encode(aTHX_ value, &encode_state);
+
+        RETVAL = newSVpvn( encode_state.buffer, encode_state.len );
     OUTPUT:
         RETVAL
 
