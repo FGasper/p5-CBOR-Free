@@ -41,10 +41,8 @@
 
 #define MAX_ENCODE_RECURSE 98
 
-// populated in XS BOOT code below.
-// TODO: Handle these in the preprocessor.
-bool is_big_endian;
-bool perl_is_64bit;
+#define IS_LITTLE_ENDIAN (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678)
+#define IS_64_BIT        (BYTEORDER > 0x10000)
 
 //----------------------------------------------------------------------
 // Definitions
@@ -351,23 +349,22 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
             char *valptr = (char *) &val;
 
-            if (is_big_endian) {
-                char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
-                _COPY_INTO_ENCODE(encode_state, bytes, 9);
-            }
-            else {
-                encode_state->scratch[0] = CBOR_DOUBLE;
-                encode_state->scratch[1] = valptr[7];
-                encode_state->scratch[2] = valptr[6];
-                encode_state->scratch[3] = valptr[5];
-                encode_state->scratch[4] = valptr[4];
-                encode_state->scratch[5] = valptr[3];
-                encode_state->scratch[6] = valptr[2];
-                encode_state->scratch[7] = valptr[1];
-                encode_state->scratch[8] = valptr[0];
+#if IS_LITTLE_ENDIAN
+            encode_state->scratch[0] = CBOR_DOUBLE;
+            encode_state->scratch[1] = valptr[7];
+            encode_state->scratch[2] = valptr[6];
+            encode_state->scratch[3] = valptr[5];
+            encode_state->scratch[4] = valptr[4];
+            encode_state->scratch[5] = valptr[3];
+            encode_state->scratch[6] = valptr[2];
+            encode_state->scratch[7] = valptr[1];
+            encode_state->scratch[8] = valptr[0];
 
-                _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
-            }
+            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
+#else
+            char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
+            _COPY_INTO_ENCODE(encode_state, bytes, 9);
+#endif
         }
         else {
             STRLEN len = SvCUR(value);
@@ -540,17 +537,18 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            if (perl_is_64bit) {
-                ret.sizetype = huge;
-                _u64_to_buffer( *((uint64_t *) decstate->curbyte), (uint8_t *) &(ret.size.u64) );
-            }
-            else if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
+#if IS_64_BIT
+            ret.sizetype = huge;
+            _u64_to_buffer( *((uint64_t *) decstate->curbyte), (uint8_t *) &(ret.size.u64) );
+#else
+            if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
                 ret.sizetype = large;
                 _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (uint8_t *) &(ret.size.u32) );
             }
             else {
                 _croak_cannot_decode_64bit( aTHX_ (const uint8_t *) decstate->curbyte, decstate->curbyte - decstate->start );
             }
+#endif
 
             decstate->curbyte += 8;
 
@@ -803,9 +801,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     break;
 
                 case large:
-                    if (!perl_is_64bit && sizeparse.size.u32 >= 0x80000000U) {
+#if !IS_64_BIT
+                    if (sizeparse.size.u32 >= 0x80000000U) {
                         _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u32, decstate->curbyte - decstate->start - 4 );
                     }
+#endif
 
                     ret = newSViv( ( (int64_t) sizeparse.size.u32 ) * -1 - 1 );
                     break;
@@ -961,12 +961,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                     float decoded_flt;
 
-                    if (is_big_endian) {
-                        decoded_flt = *( (float *) (1 + decstate->curbyte) );
-                    }
-                    else {
-                        decoded_flt = _decode_float_to_le( decstate, (uint8_t *) (1 + decstate->curbyte ) );
-                    }
+#if IS_LITTLE_ENDIAN
+                    decoded_flt = _decode_float_to_le( decstate, (uint8_t *) (1 + decstate->curbyte ) );
+#else
+                    decoded_flt = *( (float *) (1 + decstate->curbyte) );
+#endif
 
                     ret = newSVnv( (NV) decoded_flt );
 
@@ -978,12 +977,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
                     double decoded_dbl;
 
-                    if (is_big_endian) {
-                        decoded_dbl = *( (double *) (1 + decstate->curbyte) );
-                    }
-                    else {
-                        decoded_dbl = _decode_double_to_le( decstate, (uint8_t *) (1 + decstate->curbyte ) );
-                    }
+#if IS_LITTLE_ENDIAN
+                    decoded_dbl = _decode_double_to_le( decstate, (uint8_t *) (1 + decstate->curbyte ) );
+#else
+                    decoded_dbl = *( (double *) (1 + decstate->curbyte) );
+#endif
 
                     ret = newSVnv( (NV) decoded_dbl );
 
@@ -1012,10 +1010,6 @@ PROTOTYPES: DISABLE
 BOOT:
     HV *stash = gv_stashpvn("CBOR::Free", 10, FALSE);
     newCONSTSUB(stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
-
-    unsigned short testshort = 1;
-    is_big_endian = !(bool) *((char *) &testshort);
-    perl_is_64bit = sizeof(UV) >= 8;
 
 SV *
 _c_encode( SV * value )
