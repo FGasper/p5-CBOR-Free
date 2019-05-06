@@ -44,6 +44,8 @@
 #define IS_LITTLE_ENDIAN (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678)
 #define IS_64_BIT        (BYTEORDER > 0x10000)
 
+const uint8_t CBOR_NULL_U8 = 0xf6;
+
 //----------------------------------------------------------------------
 // Definitions
 
@@ -147,8 +149,6 @@ void _croak_invalid_utf8( pTHX_ char *string ) {
 }
 
 void _croak_invalid_map_key( pTHX_ const char *key, STRLEN offset ) {
-
-
     char offsetstr[20];
     my_snprintf( offsetstr, 20, "%lu", offset );
 
@@ -208,7 +208,7 @@ static inline void _u16_to_buffer( UV num, uint8_t *buffer ) {
 }
 
 static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
-    buffer[0]       = num >> 24;
+    buffer[0] = num >> 24;
     buffer[1] = num >> 16;
     buffer[2] = num >> 8;
     buffer[3] = num;
@@ -326,8 +326,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
     if (!SvROK(value)) {
 
         if (!SvOK(value)) {
-            char null = CBOR_NULL;
-            _COPY_INTO_ENCODE(encode_state, &null, 1);
+            _COPY_INTO_ENCODE(encode_state, &CBOR_NULL_U8, 1);
         }
         else if (SvIOK(value)) {
             IV val = SvIVX(value);
@@ -415,74 +414,72 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             _croak_unrecognized(aTHX_ value);
         }
     }
-    else {
-        if (SVt_PVAV == SvTYPE(SvRV(value))) {
-            AV *array = (AV *)SvRV(value);
-            SSize_t len;
-            len = 1 + av_len(array);
+    else if (SVt_PVAV == SvTYPE(SvRV(value))) {
+        AV *array = (AV *)SvRV(value);
+        SSize_t len;
+        len = 1 + av_len(array);
 
-            _init_length_buffer( aTHX_ len, TYPE_ARRAY, encode_state );
+        _init_length_buffer( aTHX_ len, TYPE_ARRAY, encode_state );
 
-            SSize_t i;
+        SSize_t i;
 
-            SV **cur;
-            for (i=0; i<len; i++) {
-                cur = av_fetch(array, i, 0);
-                _encode( aTHX_ *cur, encode_state );
-            }
+        SV **cur;
+        for (i=0; i<len; i++) {
+            cur = av_fetch(array, i, 0);
+            _encode( aTHX_ *cur, encode_state );
         }
-        else if (SVt_PVHV == SvTYPE(SvRV(value))) {
-            HV *hash = (HV *)SvRV(value);
+    }
+    else if (SVt_PVHV == SvTYPE(SvRV(value))) {
+        HV *hash = (HV *)SvRV(value);
 
-            char *key;
-            I32 key_length;
-            SV *cur;
+        char *key;
+        I32 key_length;
+        SV *cur;
 
-            I32 keyscount = hv_iterinit(hash);
+        I32 keyscount = hv_iterinit(hash);
 
-            _init_length_buffer( aTHX_ keyscount, TYPE_MAP, encode_state );
+        _init_length_buffer( aTHX_ keyscount, TYPE_MAP, encode_state );
 
-            if (encode_state->is_canonical) {
-                SV *keys[keyscount];
+        if (encode_state->is_canonical) {
+            SV *keys[keyscount];
 
-                I32 curkey = 0;
+            I32 curkey = 0;
 
-                while (hv_iternextsv(hash, &key, &key_length)) {
-                    keys[curkey] = newSVpvn(key, key_length);
-                    ++curkey;
-                }
-
-                sortsv(keys, keyscount, sortstring);
-
-                for (curkey=0; curkey < keyscount; ++curkey) {
-                    cur = keys[curkey];
-                    key = SvPV_nolen(cur);
-                    key_length = SvCUR(cur);
-
-                    // Store the key.
-                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
-                    _COPY_INTO_ENCODE( encode_state, key, key_length );
-
-                    cur = *( hv_fetch(hash, key, key_length, 0) );
-
-                    _encode( aTHX_ cur, encode_state );
-                }
+            while (hv_iternextsv(hash, &key, &key_length)) {
+                keys[curkey] = newSVpvn(key, key_length);
+                ++curkey;
             }
-            else {
-                while ((cur = hv_iternextsv(hash, &key, &key_length))) {
 
-                    // Store the key.
-                    _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
+            sortsv(keys, keyscount, sortstring);
 
-                    _COPY_INTO_ENCODE( encode_state, key, key_length );
+            for (curkey=0; curkey < keyscount; ++curkey) {
+                cur = keys[curkey];
+                key = SvPV_nolen(cur);
+                key_length = SvCUR(cur);
 
-                    _encode( aTHX_ cur, encode_state );
-                }
+                // Store the key.
+                _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
+                _COPY_INTO_ENCODE( encode_state, key, key_length );
+
+                cur = *( hv_fetch(hash, key, key_length, 0) );
+
+                _encode( aTHX_ cur, encode_state );
             }
         }
         else {
-            _croak_unrecognized(aTHX_ value);
+            while ((cur = hv_iternextsv(hash, &key, &key_length))) {
+
+                // Store the key.
+                _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
+
+                _COPY_INTO_ENCODE( encode_state, key, key_length );
+
+                _encode( aTHX_ cur, encode_state );
+            }
         }
+    }
+    else {
+        _croak_unrecognized(aTHX_ value);
     }
 
     --encode_state->recurse_count;
