@@ -140,6 +140,12 @@ file a feature request.)
 Most errors are represented via instances of subclasses of
 L<CBOR::Free::X>, which subclasses L<X::Tiny::Base>.
 
+=head1 SPEED
+
+CBOR::Free seems pretty snappy. In my benchmarks it keeps pace with
+L<CBOR::XS> as well as L<Data::MessagePack> and, as would be expected,
+is palpably faster than L<Cpanel::JSON::XS> and L<JSON::XS>.
+
 =head1 AUTHOR
 
 L<Gasper Software Consulting|http://gaspersoftware.com> (FELIPE)
@@ -179,12 +185,6 @@ BEGIN {
 our ($true, $false);
 *true = *Types::Serialiser::true;
 *false = *Types::Serialiser::false;
-
-sub encode {
-    my %opts = @_[ 1 .. $#_ ];
-
-    return $opts{'canonical'} ? _c_encode_canonical($_[0]) : _c_encode($_[0]);
-}
 
 sub tag {
     return CBOR::Free::Tagged->new(@_);

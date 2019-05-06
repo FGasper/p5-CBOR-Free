@@ -41,16 +41,21 @@
 
 #define MAX_ENCODE_RECURSE 98
 
+#define ENCODE_ALLOC_CHUNK_SIZE 1024
+
 #define IS_LITTLE_ENDIAN (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678)
 #define IS_64_BIT        (BYTEORDER > 0x10000)
 
-const uint8_t CBOR_NULL_U8 = 0xf6;
+const uint8_t CBOR_NULL_U8  = CBOR_NULL;
+const uint8_t CBOR_FALSE_U8 = CBOR_FALSE;
+const uint8_t CBOR_TRUE_U8  = CBOR_TRUE;
 
 //----------------------------------------------------------------------
 // Definitions
 
 typedef struct {
     char *buffer;
+    STRLEN buflen;
     STRLEN len;
     uint8_t recurse_count;
     uint8_t scratch[9];
@@ -192,7 +197,11 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 //----------------------------------------------------------------------
 
 static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, void *hdr, STRLEN len) {
-    Renew( encode_state->buffer, len + encode_state->len, char );
+    if ( (len + encode_state->len) > encode_state->buflen ) {
+        Renew( encode_state->buffer, encode_state->buflen + len + ENCODE_ALLOC_CHUNK_SIZE, char );
+        encode_state->buflen += len + ENCODE_ALLOC_CHUNK_SIZE;
+    }
+
     Copy( hdr, encode_state->buffer + encode_state->len, len, char );
     encode_state->len += len;
 }
@@ -393,26 +402,26 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             _COPY_INTO_ENCODE( encode_state, val, len );
         }
     }
+    else if (sv_derived_from(value, BOOLEAN_CLASS)) {
+        _COPY_INTO_ENCODE(
+            encode_state,
+            SvIV(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
+            1
+        );
+    }
+    else if (sv_derived_from(value, TAGGED_CLASS)) {
+        AV *array = (AV *)SvRV(value);
+        SV **tag = av_fetch(array, 0, 0);
+        IV tagnum = SvIV(*tag);
+
+        _init_length_buffer( aTHX_ tagnum, TYPE_TAG, encode_state );
+        _encode( aTHX_ *(av_fetch(array, 1, 0)), encode_state );
+    }
+
+    // TODO: Support TO_JSON() method?
+
     else if (sv_isobject(value)) {
-        if (sv_derived_from(value, BOOLEAN_CLASS)) {
-            char newbyte = SvIV(SvRV(value)) ? CBOR_TRUE : CBOR_FALSE;
-
-            _COPY_INTO_ENCODE( encode_state, &newbyte, 1 );
-        }
-        else if (sv_derived_from(value, TAGGED_CLASS)) {
-            AV *array = (AV *)SvRV(value);
-            SV **tag = av_fetch(array, 0, 0);
-            IV tagnum = SvIV(*tag);
-
-            _init_length_buffer( aTHX_ tagnum, TYPE_TAG, encode_state );
-            _encode( aTHX_ *(av_fetch(array, 1, 0)), encode_state );
-        }
-
-        // TODO: Support TO_JSON() method?
-
-        else {
-            _croak_unrecognized(aTHX_ value);
-        }
+        _croak_unrecognized(aTHX_ value);
     }
     else if (SVt_PVAV == SvTYPE(SvRV(value))) {
         AV *array = (AV *)SvRV(value);
@@ -1009,34 +1018,37 @@ BOOT:
     newCONSTSUB(stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
 
 SV *
-_c_encode( SV * value )
+encode( SV * value, ... )
     CODE:
         encode_ctx encode_state;
+
         encode_state.buffer = NULL;
+        Newx( encode_state.buffer, ENCODE_ALLOC_CHUNK_SIZE, char );
+
+        encode_state.buflen = ENCODE_ALLOC_CHUNK_SIZE;
         encode_state.len = 0;
         encode_state.recurse_count = 0;
+
         encode_state.is_canonical = false;
 
-        _encode(aTHX_ value, &encode_state);
+        for (U8 i=1; i<items; i++) {
+            if (!(i % 2)) break;
 
-        RETVAL = newSVpvn( encode_state.buffer, encode_state.len );
-    OUTPUT:
-        RETVAL
-
-SV *
-_c_encode_canonical( SV * value )
-    CODE:
-        encode_ctx encode_state;
-        encode_state.buffer = NULL;
-        encode_state.len = 0;
-        encode_state.recurse_count = 0;
-        encode_state.is_canonical = true;
+            if (!memcmp( SvPV_nolen(ST(i)), "canonical", 9)) {
+                ++i;
+                if (i<items) encode_state.is_canonical = SvTRUE(ST(i));
+                break;
+            }
+        }
 
         _encode(aTHX_ value, &encode_state);
 
         RETVAL = newSVpvn( encode_state.buffer, encode_state.len );
+
+        Safefree(encode_state.buffer);
     OUTPUT:
         RETVAL
+
 
 SV *
 decode( SV *cbor )
