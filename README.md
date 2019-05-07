@@ -112,6 +112,12 @@ file a feature request.)
 Most errors are represented via instances of subclasses of
 [CBOR::Free::X](https://metacpan.org/pod/CBOR::Free::X), which subclasses [X::Tiny::Base](https://metacpan.org/pod/X::Tiny::Base).
 
+# SPEED
+
+CBOR::Free seems pretty snappy. In my benchmarks it keeps pace with
+[CBOR::XS](https://metacpan.org/pod/CBOR::XS) as well as [Data::MessagePack](https://metacpan.org/pod/Data::MessagePack) and, as would be expected,
+is palpably faster than [Cpanel::JSON::XS](https://metacpan.org/pod/Cpanel::JSON::XS) and [JSON::XS](https://metacpan.org/pod/JSON::XS).
+
 # AUTHOR
 
 [Gasper Software Consulting](http://gaspersoftware.com) (FELIPE)

@@ -50,6 +50,17 @@ const uint8_t CBOR_NULL_U8  = CBOR_NULL;
 const uint8_t CBOR_FALSE_U8 = CBOR_FALSE;
 const uint8_t CBOR_TRUE_U8  = CBOR_TRUE;
 
+enum CBOR_TYPE {
+    CBOR_TYPE_UINT,
+    CBOR_TYPE_NEGINT,
+    CBOR_TYPE_BINARY,
+    CBOR_TYPE_UTF8,
+    CBOR_TYPE_ARRAY,
+    CBOR_TYPE_MAP,
+    CBOR_TYPE_TAG,
+    CBOR_TYPE_OTHER,
+};
+
 //----------------------------------------------------------------------
 // Definitions
 
@@ -209,7 +220,8 @@ static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, void *hdr, STRLE
 //----------------------------------------------------------------------
 
 // These encode num as big-endian into buffer.
-// Importantly, on big-endian systems this is just a memcpy.
+// Importantly, on big-endian systems this is just a memcpy,
+// while on little-endian systems it’s a bswap.
 
 static inline void _u16_to_buffer( UV num, uint8_t *buffer ) {
     buffer[0] = num >> 8;
@@ -495,8 +507,21 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 }
 
 //----------------------------------------------------------------------
+// DECODER:
+//----------------------------------------------------------------------
+
+union control_byte {
+    uint8_t u8;
+
+    struct {
+        uint8_t length_type : 5;
+        enum CBOR_TYPE major_type : 3;
+    } pieces;
+};
 
 // NB: We already checked that curbyte is safe to read!
+// TODO: Just return a UV; the caller can already use control_byte
+// to have parsed the size type.
 struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
     struct_sizeparse ret;
 
@@ -656,6 +681,8 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
 //----------------------------------------------------------------------
 
 void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
+    // TODO: Don’t create an SV for keys since we’re just going
+    // to throw it away.
     decstate->is_map_key = true;
     SV *curkey = _decode( aTHX_ decstate );
     decstate->is_map_key = false;
@@ -763,10 +790,10 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     struct_sizeparse sizeparse;
 
-    uint8_t major_type = *(decstate->curbyte) & 0xe0;
+    union control_byte *control = decstate->curbyte;
 
-    switch (major_type) {
-        case TYPE_UINT:
+    switch (control->pieces.major_type) {
+        case CBOR_TYPE_UINT:
             sizeparse = _parse_for_uint_len( aTHX_ decstate );
             switch (sizeparse.sizetype) {
                 //case tiny:
@@ -793,7 +820,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             }
 
             break;
-        case TYPE_NEGINT:
+        case CBOR_TYPE_NEGINT:
             sizeparse = _parse_for_uint_len( aTHX_ decstate );
 
             switch (sizeparse.sizetype) {
@@ -813,7 +840,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     }
 #endif
 
-                    ret = newSViv( ( (int64_t) sizeparse.size.u32 ) * -1 - 1 );
+                    ret = newSViv( ( -1 - (int64_t) sizeparse.size.u32 ) );
                     break;
 
                 case huge:
@@ -821,7 +848,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                         _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u64, decstate->curbyte - decstate->start - 8 );
                     }
 
-                    ret = newSViv( ( (int64_t) sizeparse.size.u64 ) * -1 - 1 );
+                    ret = newSViv( ( -1 - (int64_t) sizeparse.size.u64 ) );
                     break;
 
                 default:
@@ -831,8 +858,8 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             }
 
             break;
-        case TYPE_BINARY:
-        case TYPE_UTF8:
+        case CBOR_TYPE_BINARY:
+        case CBOR_TYPE_UTF8:
             sizeparse = _parse_for_uint_len( aTHX_ decstate );
 
             switch (sizeparse.sizetype) {
@@ -894,22 +921,22 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             // to invoke utf8::decode() via call_pv(), which is ugly,
             // or just to assume the UTF-8 is valid, which is wrong.
             //
-            if (TYPE_UTF8 == major_type) {
+            if (CBOR_TYPE_UTF8 == control->pieces.major_type) {
                 if ( !sv_utf8_decode(ret) ) {
                     _croak_invalid_utf8( aTHX_ SvPV_nolen(ret) );
                 }
             }
 
             break;
-        case TYPE_ARRAY:
+        case CBOR_TYPE_ARRAY:
             ret = _decode_array( aTHX_ decstate );
 
             break;
-        case TYPE_MAP:
+        case CBOR_TYPE_MAP:
             ret = _decode_map( aTHX_ decstate );
 
             break;
-        case TYPE_TAG:
+        case CBOR_TYPE_TAG:
 
             // For now, just throw this tag value away.
             sizeparse = _parse_for_uint_len( aTHX_ decstate );
@@ -920,8 +947,8 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             ret = _decode( aTHX_ decstate );
 
             break;
-        case TYPE_OTHER:
-            switch ((uint8_t) *(decstate->curbyte)) {
+        case CBOR_TYPE_OTHER:
+            switch (control->u8) {
                 case CBOR_FALSE:
                     if (decstate->is_map_key) {
                         _croak_invalid_map_key( aTHX_ "false", decstate->curbyte- decstate->start );

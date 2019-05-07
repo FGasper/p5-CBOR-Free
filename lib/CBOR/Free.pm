@@ -143,8 +143,8 @@ L<CBOR::Free::X>, which subclasses L<X::Tiny::Base>.
 =head1 SPEED
 
 CBOR::Free seems pretty snappy. In my benchmarks it keeps pace with
-L<CBOR::XS> as well as L<Data::MessagePack> and, as would be expected,
-is palpably faster than L<Cpanel::JSON::XS> and L<JSON::XS>.
+L<CBOR::XS> as well as L<Data::MessagePack>. As would be expected,
+it’s palpably faster than L<Cpanel::JSON::XS> and L<JSON::XS>.
 
 =head1 AUTHOR
 
