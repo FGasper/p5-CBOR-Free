@@ -1090,7 +1090,8 @@ encode( SV * value, ... )
 
         encode_state.is_canonical = false;
 
-        for (U8 i=1; i<items; i++) {
+        U8 i;
+        for (i=1; i<items; i++) {
             if (!(i % 2)) break;
 
             if ((SvCUR(ST(i)) == 9) && !memcmp( SvPV_nolen(ST(i)), "canonical", 9)) {
