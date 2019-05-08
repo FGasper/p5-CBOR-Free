@@ -1089,9 +1089,24 @@ encode( SV * value, ... )
 
         _encode(aTHX_ value, &encode_state);
 
-        RETVAL = newSVpvn( encode_state.buffer, encode_state.len );
+        // Don’t use newSVpvn here because that will copy the string.
+        // Instead, create a new SV and manually assign its pieces.
+        // This follows the example from ext/POSIX/POSIX.xs:
 
-        Safefree(encode_state.buffer);
+        // Ensure there’s a trailing NUL:
+        _COPY_INTO_ENCODE( &encode_state, "\0", 1 );
+
+        // Resize (down) to avoid memory leakage.
+        Renew( encode_state.buffer, encode_state.len, char );
+
+        RETVAL = newSV(0);
+        SvUPGRADE(RETVAL, SVt_PV);
+        SvPV_set(RETVAL, encode_state.buffer);
+        SvPOK_on(RETVAL);
+        SvCUR_set(RETVAL, encode_state.len - 1);
+        SvLEN_set(RETVAL, encode_state.len);
+
+        //Safefree(encode_state.buffer);
     OUTPUT:
         RETVAL
 
