@@ -164,11 +164,42 @@ void _croak_invalid_utf8( pTHX_ char *string ) {
     _die( aTHX_ G_DISCARD, words);
 }
 
-void _croak_invalid_map_key( pTHX_ const char *key, STRLEN offset ) {
+void _croak_invalid_map_key( pTHX_ const uint8_t byte, STRLEN offset ) {
+    char bytebuf[5];
+
+    char *bytestr;
+
+    switch (byte) {
+        case CBOR_FALSE:
+            bytestr = "false";
+            break;
+        case CBOR_TRUE:
+            bytestr = "true";
+            break;
+        case CBOR_NULL:
+            bytestr = "null";
+            break;
+        case CBOR_UNDEFINED:
+            bytestr = "undefined";
+            break;
+        default:
+            switch ((byte & 0xe0) >> 5) {
+                case CBOR_TYPE_ARRAY:
+                    bytestr = "array";
+                    break;
+                case CBOR_TYPE_MAP:
+                    bytestr = "map";
+                    break;
+                default:
+                    my_snprintf( bytebuf, 5, "0x%02x", byte );
+                    bytestr = bytebuf;
+            }
+    }
+
     char offsetstr[20];
     my_snprintf( offsetstr, 20, "%lu", offset );
 
-    char * words[] = { "InvalidMapKey", (char *) key, offsetstr, NULL };
+    char * words[] = { "InvalidMapKey", bytestr, offsetstr, NULL };
 
     _die( aTHX_ G_DISCARD, words);
 }
@@ -680,22 +711,177 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
 
 //----------------------------------------------------------------------
 
-void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
-    // TODO: Don’t create an SV for keys since we’re just going
-    // to throw it away.
-    decstate->is_map_key = true;
-    SV *curkey = _decode( aTHX_ decstate );
-    decstate->is_map_key = false;
+struct numbuf {
+    union {
+        UV uv;
+        IV iv;
+    } num;
 
-    SV *curval = _decode( aTHX_ decstate );
+    char *buffer;
+};
+
+UV _decode_uint( pTHX_ decode_ctx* decstate ) {
+    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+
+    switch (sizeparse.sizetype) {
+        //case tiny:
+        case small:
+            return sizeparse.size.u8;
+
+        case medium:
+            return sizeparse.size.u16;
+
+        case large:
+            return sizeparse.size.u32;
+
+        case huge:
+            return sizeparse.size.u64;
+    }
+
+    _croak_invalid_control( aTHX_ decstate );
+}
+
+IV _decode_negint( pTHX_ decode_ctx* decstate ) {
+    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+
+    switch (sizeparse.sizetype) {
+        //case tiny:
+        case small:
+            return ( -1 - sizeparse.size.u8 );
+
+        case medium:
+            return ( -1 - sizeparse.size.u16 );
+
+        case large:
+#if !IS_64_BIT
+            if (sizeparse.size.u32 >= 0x80000000U) {
+                _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u32, decstate->curbyte - decstate->start - 4 );
+            }
+#endif
+
+            return ( -1 - (int64_t) sizeparse.size.u32 );
+            break;
+
+        case huge:
+            if (sizeparse.size.u64 >= 0x8000000000000000U) {
+                _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u64, decstate->curbyte - decstate->start - 8 );
+            }
+
+            return ( -1 - (int64_t) sizeparse.size.u64 );
+    }
+
+    _croak_invalid_control( aTHX_ decstate );
+}
+
+struct numbuf _decode_str( pTHX_ decode_ctx* decstate ) {
+    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+
+    struct numbuf ret;
+
+    switch (sizeparse.sizetype) {
+        //case tiny:
+        case small:
+            ret.num.uv = sizeparse.size.u8;
+            break;
+
+        case medium:
+            ret.num.uv = sizeparse.size.u16;
+            break;
+
+        case large:
+            ret.num.uv = sizeparse.size.u32;
+            break;
+
+        case huge:
+            ret.num.uv = sizeparse.size.u64;
+            break;
+
+        case indefinite:
+            ++decstate->curbyte;
+
+            SV *tempsv = newSVpvs("");
+
+            while (*(decstate->curbyte) != '\xff') {
+                //TODO: Require the same major type.
+
+                SV *cur = _decode( aTHX_ decstate );
+
+                sv_catsv(tempsv, cur);
+            }
+
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
+
+            ++decstate->curbyte;
+
+            ret.buffer = SvPV_nolen(tempsv);
+            ret.num.uv = SvCUR(tempsv);
+
+            return ret;
+
+        default:
+
+            // This shouldn’t happen, but just in case.
+            _croak("Unknown string length descriptor!");
+    }
+
+    _DECODE_CHECK_FOR_OVERAGE( decstate, ret.num.uv );
+
+    ret.buffer = decstate->curbyte;
+
+    decstate->curbyte += ret.num.uv;
+
+    return ret;
+}
+
+void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
+    _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
+
+    union control_byte control;
+    control.u8 = decstate->curbyte[0];
+
+    struct numbuf my_key;
+    my_key.buffer = NULL;
 
     // This is going to be a hash key, so it can’t usefully be
     // anything but a string/PV.
     STRLEN keylen;
-    char *keystr = SvPV_force(curkey, keylen);
+    char *keystr;
+
+    switch (control.pieces.major_type) {
+        case CBOR_TYPE_UINT:
+            my_key.num.uv = _decode_uint( aTHX_ decstate );
+
+            Newx( keystr, 30, char );
+
+            keylen = my_snprintf(keystr, 30, "%lu", my_key.num.uv);
+
+            break;
+
+        case CBOR_TYPE_NEGINT:
+            my_key.num.iv = _decode_negint( aTHX_ decstate );
+
+            Newx( keystr, 30, char );
+
+            keylen = my_snprintf(keystr, 30, "%ld", my_key.num.iv);
+
+            break;
+
+        case CBOR_TYPE_BINARY:
+        case CBOR_TYPE_UTF8:
+            my_key = _decode_str( aTHX_ decstate );
+            keystr = my_key.buffer;
+            keylen = my_key.num.uv;
+            break;
+
+        default:
+            _croak_invalid_map_key( aTHX_ decstate->curbyte[0], decstate->curbyte - decstate->start );
+    }
+
+    SV *curval = _decode( aTHX_ decstate );
 
     hv_store(hash, keystr, keylen, curval, 0);
-    sv_2mortal(curkey);
+
+    if (!my_key.buffer) Safefree(keystr);
 }
 
 SV *_decode_map( pTHX_ decode_ctx* decstate ) {
@@ -783,6 +969,12 @@ static inline double _decode_double_to_le( decode_ctx* decstate, uint8_t *ptr ) 
 
 //----------------------------------------------------------------------
 
+SV *_decode_str_to_sv( pTHX_ decode_ctx* decstate ) {
+    struct numbuf decoded_str = _decode_str( aTHX_ decstate );
+
+    return newSVpvn( decoded_str.buffer, decoded_str.num.uv );
+}
+
 SV *_decode( pTHX_ decode_ctx* decstate ) {
     SV *ret = NULL;
 
@@ -790,131 +982,20 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     struct_sizeparse sizeparse;
 
-    union control_byte *control = decstate->curbyte;
+    union control_byte *control = (union control_byte *) decstate->curbyte;
 
     switch (control->pieces.major_type) {
         case CBOR_TYPE_UINT:
-            sizeparse = _parse_for_uint_len( aTHX_ decstate );
-            switch (sizeparse.sizetype) {
-                //case tiny:
-                case small:
-                    ret = newSVuv( sizeparse.size.u8 );
-                    break;
-
-                case medium:
-                    ret = newSVuv( sizeparse.size.u16 );
-                    break;
-
-                case large:
-                    ret = newSVuv( sizeparse.size.u32 );
-                    break;
-
-                case huge:
-                    ret = newSVuv( sizeparse.size.u64 );
-                    break;
-
-                default:
-                    _croak_invalid_control( aTHX_ decstate );
-                    break;
-
-            }
+            ret = newSVuv( _decode_uint( aTHX_ decstate ) );
 
             break;
         case CBOR_TYPE_NEGINT:
-            sizeparse = _parse_for_uint_len( aTHX_ decstate );
-
-            switch (sizeparse.sizetype) {
-                //case tiny:
-                case small:
-                    ret = newSViv( -1 - sizeparse.size.u8 );
-                    break;
-
-                case medium:
-                    ret = newSViv( -1 - sizeparse.size.u16 );
-                    break;
-
-                case large:
-#if !IS_64_BIT
-                    if (sizeparse.size.u32 >= 0x80000000U) {
-                        _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u32, decstate->curbyte - decstate->start - 4 );
-                    }
-#endif
-
-                    ret = newSViv( ( -1 - (int64_t) sizeparse.size.u32 ) );
-                    break;
-
-                case huge:
-                    if (sizeparse.size.u64 >= 0x8000000000000000U) {
-                        _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u64, decstate->curbyte - decstate->start - 8 );
-                    }
-
-                    ret = newSViv( ( -1 - (int64_t) sizeparse.size.u64 ) );
-                    break;
-
-                default:
-                    _croak_invalid_control( aTHX_ decstate );
-                    break;
-
-            }
+            ret = newSViv( _decode_negint( aTHX_ decstate ) );
 
             break;
         case CBOR_TYPE_BINARY:
         case CBOR_TYPE_UTF8:
-            sizeparse = _parse_for_uint_len( aTHX_ decstate );
-
-            switch (sizeparse.sizetype) {
-                //case tiny:
-                case small:
-                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u8);
-                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u8 );
-                    decstate->curbyte += sizeparse.size.u8;
-
-                    break;
-
-                case medium:
-                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u16);
-                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u16 );
-                    decstate->curbyte += sizeparse.size.u16;
-
-                    break;
-
-                case large:
-                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u32);
-                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u32 );
-                    decstate->curbyte += sizeparse.size.u32;
-
-                    break;
-
-                case huge:
-                    _DECODE_CHECK_FOR_OVERAGE( decstate, sizeparse.size.u64);
-                    ret = newSVpvn( decstate->curbyte, sizeparse.size.u64 );
-                    decstate->curbyte += sizeparse.size.u64;
-                    break;
-
-                case indefinite:
-                    ++decstate->curbyte;
-
-                    ret = newSVpvs("");
-
-                    while (*(decstate->curbyte) != '\xff') {
-                        //TODO: Require the same major type.
-
-                        SV *cur = _decode( aTHX_ decstate );
-
-                        sv_catsv(ret, cur);
-                    }
-
-                    _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
-
-                    ++decstate->curbyte;
-
-                    break;
-
-                default:
-
-                    // This shouldn’t happen, but just in case.
-                    _croak("Unknown string length descriptor!");
-            }
+            ret = _decode_str_to_sv( aTHX_ decstate );
 
             // XXX: “perldoc perlapi” says this function is experimental.
             // Its use here is a calculated risk; the alternatives are
@@ -950,33 +1031,17 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
         case CBOR_TYPE_OTHER:
             switch (control->u8) {
                 case CBOR_FALSE:
-                    if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "false", decstate->curbyte- decstate->start );
-                    }
-
                     ret = newSVsv( get_sv("CBOR::Free::false", 0) );
                     ++decstate->curbyte;
                     break;
 
                 case CBOR_TRUE:
-                    if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "true", decstate->curbyte - decstate->start );
-                    }
-
                     ret = newSVsv( get_sv("CBOR::Free::true", 0) );
                     ++decstate->curbyte;
                     break;
 
                 case CBOR_NULL:
-                    if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "null", decstate->curbyte - decstate->start );
-                    }
-
                 case CBOR_UNDEFINED:
-                    if (decstate->is_map_key) {
-                        _croak_invalid_map_key( aTHX_ "undefined", decstate->curbyte - decstate->start );
-                    }
-
                     ret = newSVsv( &PL_sv_undef );
                     ++decstate->curbyte;
                     break;

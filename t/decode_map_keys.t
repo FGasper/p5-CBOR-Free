@@ -14,6 +14,8 @@ my @invalid = (
     [ "\xf5" => 'true' ],
     [ "\xf6" => 'null' ],
     [ "\xf7" => 'undefined' ],
+    [ "\x80" => 'array' ],
+    [ "\xa0" => 'map' ],
 );
 
 for my $t (@invalid) {
