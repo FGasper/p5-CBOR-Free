@@ -13,20 +13,6 @@
 #include <string.h>
 #include <math.h>
 
-#define TYPE_UINT   0
-#define TYPE_NEGINT 0x20
-#define TYPE_BINARY 0x40
-#define TYPE_UTF8   0x60
-#define TYPE_ARRAY  0x80
-#define TYPE_MAP    0xa0
-#define TYPE_TAG    0xc0
-#define TYPE_OTHER  0xe0
-
-#define TYPE_NEGINT_SMALL  (0x18 + TYPE_NEGINT)
-#define TYPE_NEGINT_MEDIUM (0x19 + TYPE_NEGINT)
-#define TYPE_NEGINT_LARGE  (0x1a + TYPE_NEGINT)
-#define TYPE_NEGINT_HUGE   (0x1b + TYPE_NEGINT)
-
 #define CBOR_HALF_FLOAT 0xf9
 #define CBOR_FLOAT      0xfa
 #define CBOR_DOUBLE     0xfb
