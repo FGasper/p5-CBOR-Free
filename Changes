@@ -2,7 +2,7 @@ Revision history for Perl module CBOR::Free
 
 0.07
 - Significant speedups!
-- Decode now accepts only ints or strings as map keys.
+- Decode now accepts only integers or strings as map keys.
 
 0.06 3 May 2019
 - Relax Test::More version requirement a bit.

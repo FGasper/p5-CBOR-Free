@@ -83,8 +83,8 @@ become Perl binary strings. (This may become configurable later.)
 Note that invalid UTF-8 in a CBOR UTF-8 string is considered
 invalid input and will thus prompt a thrown exception.
 
-=item * CBOR null, undefined, true, and false are considered invalid input
-when given as map keys. An exception is thrown if the decoder finds these.
+=item * The only map keys that C<decode()> accepts are integers and strings.
+An exception is thrown if the decoder finds anything else as a map key.
 
 =item * CBOR booleans become the corresponding L<Types::Serialiser> values.
 Both CBOR null and undefined become Perl undef.
