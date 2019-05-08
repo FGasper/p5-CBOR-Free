@@ -828,7 +828,7 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
             my_key.num.iv = _decode_negint( aTHX_ decstate );
 
             keystr = decstate->scratch.bytes;
-            keylen = my_snprintf(decstate->scratch.bytes, sizeof(decstate->scratch.bytes), "%lld", my_key.num.uv);
+            keylen = my_snprintf(decstate->scratch.bytes, sizeof(decstate->scratch.bytes), "%lld", my_key.num.iv);
 
             break;
 
