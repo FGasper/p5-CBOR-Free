@@ -1065,16 +1065,16 @@ BOOT:
 SV *
 encode( SV * value, ... )
     CODE:
-        encode_ctx encode_state;
+        encode_ctx encode_state[1];
 
-        encode_state.buffer = NULL;
-        Newx( encode_state.buffer, ENCODE_ALLOC_CHUNK_SIZE, char );
+        encode_state->buffer = NULL;
+        Newx( encode_state->buffer, ENCODE_ALLOC_CHUNK_SIZE, char );
 
-        encode_state.buflen = ENCODE_ALLOC_CHUNK_SIZE;
-        encode_state.len = 0;
-        encode_state.recurse_count = 0;
+        encode_state->buflen = ENCODE_ALLOC_CHUNK_SIZE;
+        encode_state->len = 0;
+        encode_state->recurse_count = 0;
 
-        encode_state.is_canonical = false;
+        encode_state->is_canonical = false;
 
         U8 i;
         for (i=1; i<items; i++) {
@@ -1082,31 +1082,27 @@ encode( SV * value, ... )
 
             if ((SvCUR(ST(i)) == 9) && !memcmp( SvPV_nolen(ST(i)), "canonical", 9)) {
                 ++i;
-                if (i<items) encode_state.is_canonical = SvTRUE(ST(i));
+                if (i<items) encode_state->is_canonical = SvTRUE(ST(i));
                 break;
             }
         }
 
-        _encode(aTHX_ value, &encode_state);
+        _encode(aTHX_ value, encode_state);
 
         // Don’t use newSVpvn here because that will copy the string.
         // Instead, create a new SV and manually assign its pieces.
         // This follows the example from ext/POSIX/POSIX.xs:
 
-        // Ensure there’s a trailing NUL:
-        _COPY_INTO_ENCODE( &encode_state, "\0", 1 );
-
-        // Resize (down) to avoid memory leakage.
-        Renew( encode_state.buffer, encode_state.len, char );
+        // Ensure that there’s a trailing NUL:
+        _COPY_INTO_ENCODE( encode_state, "\0", 1 );
 
         RETVAL = newSV(0);
         SvUPGRADE(RETVAL, SVt_PV);
-        SvPV_set(RETVAL, encode_state.buffer);
+        SvPV_set(RETVAL, encode_state->buffer);
         SvPOK_on(RETVAL);
-        SvCUR_set(RETVAL, encode_state.len - 1);
-        SvLEN_set(RETVAL, encode_state.len);
+        SvCUR_set(RETVAL, encode_state->len - 1);
+        SvLEN_set(RETVAL, encode_state->buflen);
 
-        //Safefree(encode_state.buffer);
     OUTPUT:
         RETVAL
 
