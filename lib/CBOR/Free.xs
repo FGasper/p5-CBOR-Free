@@ -46,9 +46,9 @@
 #define IS_LITTLE_ENDIAN (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678)
 #define IS_64_BIT        (BYTEORDER > 0x10000)
 
-const uint8_t CBOR_NULL_U8  = CBOR_NULL;
-const uint8_t CBOR_FALSE_U8 = CBOR_FALSE;
-const uint8_t CBOR_TRUE_U8  = CBOR_TRUE;
+static const uint8_t CBOR_NULL_U8  = CBOR_NULL;
+static const uint8_t CBOR_FALSE_U8 = CBOR_FALSE;
+static const uint8_t CBOR_TRUE_U8  = CBOR_TRUE;
 
 enum CBOR_TYPE {
     CBOR_TYPE_UINT,
@@ -60,6 +60,9 @@ enum CBOR_TYPE {
     CBOR_TYPE_TAG,
     CBOR_TYPE_OTHER,
 };
+
+static HV *boolean_stash;
+static HV *tagged_stash;
 
 //----------------------------------------------------------------------
 // Definitions
@@ -78,13 +81,12 @@ typedef struct {
     STRLEN size;
     char* curbyte;
     char* end;
-    bool is_map_key;
 
     union {
-        uint8_t bytes[8];
+        uint8_t bytes[30];  // used for num -> key conversions
         float as_float;
         double as_double;
-    } float_bytes;
+    } scratch;
 } decode_ctx;
 
 enum enum_sizetype {
@@ -107,6 +109,15 @@ typedef struct {
     enum enum_sizetype sizetype;
     union anyint size;
 } struct_sizeparse;
+
+union control_byte {
+    uint8_t u8;
+
+    struct {
+        uint8_t length_type : 5;
+        enum CBOR_TYPE major_type : 3;
+    } pieces;
+};
 
 //----------------------------------------------------------------------
 // Prototypes
@@ -289,34 +300,37 @@ I32 sortstring( pTHX_ SV *a, SV *b ) {
 //----------------------------------------------------------------------
 
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
-static inline void _init_length_buffer( pTHX_ UV num, const uint8_t type, encode_ctx *encode_state ) {
+static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type, encode_ctx *encode_state ) {
+    union control_byte *scratch0 = encode_state->scratch;
+    scratch0->pieces.major_type = major_type;
+
     if ( num < 0x18 ) {
-        encode_state->scratch[0] = type + (uint8_t) num;
+        scratch0->pieces.length_type = (uint8_t) num;
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
     }
     else if ( num <= 0xff ) {
-        encode_state->scratch[0] = type + 0x18;
+        scratch0->pieces.length_type = 0x18;
         encode_state->scratch[1] = (uint8_t) num;
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
     }
     else if ( num <= 0xffff ) {
-        encode_state->scratch[0] = type + 0x19;
+        scratch0->pieces.length_type = 0x19;
 
         _u16_to_buffer( num, 1 + encode_state->scratch );
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 3);
     }
     else if ( num <= 0xffffffff ) {
-        encode_state->scratch[0] = type + 0x1a;
+        scratch0->pieces.length_type = 0x1a;
 
         _u32_to_buffer( num, 1 + encode_state->scratch );
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 5);
     }
     else {
-        encode_state->scratch[0] = type + 0x1b;
+        scratch0->pieces.length_type = 0x1b;
 
         _u64_to_buffer( num, 1 + encode_state->scratch );
 
@@ -324,48 +338,9 @@ static inline void _init_length_buffer( pTHX_ UV num, const uint8_t type, encode
     }
 }
 
-static inline void _init_length_buffer_negint( pTHX_ IV num, encode_ctx *encode_state ) {
-    if ( (UV) -num <= 0x18 ) {
-        encode_state->scratch[0] = TYPE_NEGINT + (uint8_t) -num - 1;
-
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
-    }
-    else {
-        num++;
-        num = -num;
-
-        if ( num <= 0xff ) {
-            encode_state->scratch[0] = TYPE_NEGINT_SMALL;
-            encode_state->scratch[1] = (uint8_t) num;
-
-            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
-        }
-        else if ( num <= 0xffff ) {
-            encode_state->scratch[0] = TYPE_NEGINT_MEDIUM;
-
-            _u16_to_buffer( num, 1 + encode_state->scratch );
-
-            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 3);
-        }
-        else if ( num <= 0xffffffff ) {
-            encode_state->scratch[0] = TYPE_NEGINT_LARGE;
-
-            _u32_to_buffer( num, 1 + encode_state->scratch );
-
-            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 5);
-        }
-        else {
-            encode_state->scratch[0] = TYPE_NEGINT_HUGE;
-
-            _u64_to_buffer( num, 1 + encode_state->scratch );
-
-            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
-        }
-    }
-}
-
 void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
     ++encode_state->recurse_count;
+
     if (encode_state->recurse_count > MAX_ENCODE_RECURSE) {
 
         // call_pv() killed the process in Win32; this seems to fix that.
@@ -377,26 +352,23 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
     if (!SvROK(value)) {
 
-        if (!SvOK(value)) {
-            _COPY_INTO_ENCODE(encode_state, &CBOR_NULL_U8, 1);
-        }
-        else if (SvIOK(value)) {
+        if (SvIOK(value)) {
             IV val = SvIVX(value);
 
             // In testing, Perl’s (0 + ~0) evaluated as < 0 here,
             // but the SvUOK() check fixes that.
             if (val < 0 && !SvUOK(value)) {
-                _init_length_buffer_negint( aTHX_ val, encode_state );
+                _init_length_buffer( aTHX_ -(++val), CBOR_TYPE_NEGINT, encode_state );
             }
             else {
                 // NB: SvUOK doesn’t work to identify nonnegatives … ?
-                _init_length_buffer( aTHX_ val, TYPE_UINT, encode_state );
+                _init_length_buffer( aTHX_ val, CBOR_TYPE_UINT, encode_state );
             }
         }
         else if (SvNOK(value)) {
 
             // Typecast to a double to accommodate long-double perls.
-            double val = (double) SvNV(value);
+            double val = (double) SvNVX(value);
 
             char *valptr = (char *) &val;
 
@@ -417,10 +389,13 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             _COPY_INTO_ENCODE(encode_state, bytes, 9);
 #endif
         }
+        else if (!SvOK(value)) {
+            _COPY_INTO_ENCODE(encode_state, &CBOR_NULL_U8, 1);
+        }
         else {
-            STRLEN len = SvCUR(value);
+            char *val = SvPOK(value) ? SvPVX(value) : SvPV_nolen(value);
 
-            char *val = SvPV_nolen(value);
+            STRLEN len = SvCUR(value);
 
             bool encode_as_text = !!SvUTF8(value);
 
@@ -438,40 +413,42 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
             _init_length_buffer( aTHX_
                 len,
-                (encode_as_text ? TYPE_UTF8 : TYPE_BINARY),
+                (encode_as_text ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY),
                 encode_state
             );
 
             _COPY_INTO_ENCODE( encode_state, val, len );
         }
     }
-    else if (sv_derived_from(value, BOOLEAN_CLASS)) {
-        _COPY_INTO_ENCODE(
-            encode_state,
-            SvIV(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
-            1
-        );
-    }
-    else if (sv_derived_from(value, TAGGED_CLASS)) {
-        AV *array = (AV *)SvRV(value);
-        SV **tag = av_fetch(array, 0, 0);
-        IV tagnum = SvIV(*tag);
-
-        _init_length_buffer( aTHX_ tagnum, TYPE_TAG, encode_state );
-        _encode( aTHX_ *(av_fetch(array, 1, 0)), encode_state );
-    }
-
-    // TODO: Support TO_JSON() method?
-
     else if (sv_isobject(value)) {
-        _croak_unrecognized(aTHX_ value);
+        HV *stash = SvSTASH ( SvRV(value) );
+
+        if (boolean_stash == stash) {
+            _COPY_INTO_ENCODE(
+                encode_state,
+                SvIV_nomg(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
+                1
+            );
+        }
+        else if (tagged_stash == stash) {
+            AV *array = (AV *)SvRV(value);
+            SV **tag = av_fetch(array, 0, 0);
+            IV tagnum = SvIV(*tag);
+
+            _init_length_buffer( aTHX_ tagnum, CBOR_TYPE_TAG, encode_state );
+            _encode( aTHX_ *(av_fetch(array, 1, 0)), encode_state );
+        }
+
+        // TODO: Support TO_JSON() method?
+
+        else _croak_unrecognized(aTHX_ value);
     }
     else if (SVt_PVAV == SvTYPE(SvRV(value))) {
         AV *array = (AV *)SvRV(value);
         SSize_t len;
         len = 1 + av_len(array);
 
-        _init_length_buffer( aTHX_ len, TYPE_ARRAY, encode_state );
+        _init_length_buffer( aTHX_ len, CBOR_TYPE_ARRAY, encode_state );
 
         SSize_t i;
 
@@ -490,7 +467,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
         I32 keyscount = hv_iterinit(hash);
 
-        _init_length_buffer( aTHX_ keyscount, TYPE_MAP, encode_state );
+        _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
 
         if (encode_state->is_canonical) {
             SV *keys[keyscount];
@@ -510,7 +487,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 key_length = SvCUR(cur);
 
                 // Store the key.
-                _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
+                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
                 _COPY_INTO_ENCODE( encode_state, key, key_length );
 
                 cur = *( hv_fetch(hash, key, key_length, 0) );
@@ -522,7 +499,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             while ((cur = hv_iternextsv(hash, &key, &key_length))) {
 
                 // Store the key.
-                _init_length_buffer( aTHX_ key_length, TYPE_BINARY, encode_state );
+                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
 
                 _COPY_INTO_ENCODE( encode_state, key, key_length );
 
@@ -540,15 +517,6 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 //----------------------------------------------------------------------
 // DECODER:
 //----------------------------------------------------------------------
-
-union control_byte {
-    uint8_t u8;
-
-    struct {
-        uint8_t length_type : 5;
-        enum CBOR_TYPE major_type : 3;
-    } pieces;
-};
 
 // NB: We already checked that curbyte is safe to read!
 // TODO: Just return a UV; the caller can already use control_byte
@@ -851,18 +819,16 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
         case CBOR_TYPE_UINT:
             my_key.num.uv = _decode_uint( aTHX_ decstate );
 
-            Newx( keystr, 30, char );
-
-            keylen = my_snprintf(keystr, 30, "%lu", my_key.num.uv);
+            keystr = decstate->scratch.bytes;
+            keylen = my_snprintf(decstate->scratch.bytes, sizeof(decstate->scratch.bytes), "%lu", my_key.num.uv);
 
             break;
 
         case CBOR_TYPE_NEGINT:
             my_key.num.iv = _decode_negint( aTHX_ decstate );
 
-            Newx( keystr, 30, char );
-
-            keylen = my_snprintf(keystr, 30, "%ld", my_key.num.iv);
+            keystr = decstate->scratch.bytes;
+            keylen = my_snprintf(decstate->scratch.bytes, sizeof(decstate->scratch.bytes), "%ld", my_key.num.uv);
 
             break;
 
@@ -880,8 +846,6 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
     SV *curval = _decode( aTHX_ decstate );
 
     hv_store(hash, keystr, keylen, curval, 0);
-
-    if (!my_key.buffer) Safefree(keystr);
 }
 
 SV *_decode_map( pTHX_ decode_ctx* decstate ) {
@@ -946,25 +910,25 @@ double decode_half_float(uint8_t *halfp) {
 }
 
 static inline float _decode_float_to_le( decode_ctx* decstate, uint8_t *ptr ) {
-    decstate->float_bytes.bytes[0] = ptr[3];
-    decstate->float_bytes.bytes[1] = ptr[2];
-    decstate->float_bytes.bytes[2] = ptr[1];
-    decstate->float_bytes.bytes[3] = ptr[0];
+    decstate->scratch.bytes[0] = ptr[3];
+    decstate->scratch.bytes[1] = ptr[2];
+    decstate->scratch.bytes[2] = ptr[1];
+    decstate->scratch.bytes[3] = ptr[0];
 
-    return decstate->float_bytes.as_float;
+    return decstate->scratch.as_float;
 }
 
 static inline double _decode_double_to_le( decode_ctx* decstate, uint8_t *ptr ) {
-    decstate->float_bytes.bytes[0] = ptr[7];
-    decstate->float_bytes.bytes[1] = ptr[6];
-    decstate->float_bytes.bytes[2] = ptr[5];
-    decstate->float_bytes.bytes[3] = ptr[4];
-    decstate->float_bytes.bytes[4] = ptr[3];
-    decstate->float_bytes.bytes[5] = ptr[2];
-    decstate->float_bytes.bytes[6] = ptr[1];
-    decstate->float_bytes.bytes[7] = ptr[0];
+    decstate->scratch.bytes[0] = ptr[7];
+    decstate->scratch.bytes[1] = ptr[6];
+    decstate->scratch.bytes[2] = ptr[5];
+    decstate->scratch.bytes[3] = ptr[4];
+    decstate->scratch.bytes[4] = ptr[3];
+    decstate->scratch.bytes[5] = ptr[2];
+    decstate->scratch.bytes[6] = ptr[1];
+    decstate->scratch.bytes[7] = ptr[0];
 
-    return decstate->float_bytes.as_double;
+    return decstate->scratch.as_double;
 }
 
 //----------------------------------------------------------------------
@@ -1106,8 +1070,11 @@ MODULE = CBOR::Free           PACKAGE = CBOR::Free
 PROTOTYPES: DISABLE
 
 BOOT:
-    HV *stash = gv_stashpvn("CBOR::Free", 10, FALSE);
+    HV *stash = gv_stashpv("CBOR::Free", FALSE);
     newCONSTSUB(stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
+
+    boolean_stash = gv_stashpv(BOOLEAN_CLASS, 1);
+    tagged_stash = gv_stashpv(TAGGED_CLASS, 1);
 
 SV *
 encode( SV * value, ... )
@@ -1126,7 +1093,7 @@ encode( SV * value, ... )
         for (U8 i=1; i<items; i++) {
             if (!(i % 2)) break;
 
-            if (!memcmp( SvPV_nolen(ST(i)), "canonical", 9)) {
+            if ((SvCUR(ST(i)) == 9) && !memcmp( SvPV_nolen(ST(i)), "canonical", 9)) {
                 ++i;
                 if (i<items) encode_state.is_canonical = SvTRUE(ST(i));
                 break;

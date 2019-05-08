@@ -115,8 +115,8 @@ Most errors are represented via instances of subclasses of
 # SPEED
 
 CBOR::Free seems pretty snappy. In my benchmarks it keeps pace with
-[CBOR::XS](https://metacpan.org/pod/CBOR::XS) as well as [Data::MessagePack](https://metacpan.org/pod/Data::MessagePack) and, as would be expected,
-is palpably faster than [Cpanel::JSON::XS](https://metacpan.org/pod/Cpanel::JSON::XS) and [JSON::XS](https://metacpan.org/pod/JSON::XS).
+[CBOR::XS](https://metacpan.org/pod/CBOR::XS) as well as [Data::MessagePack](https://metacpan.org/pod/Data::MessagePack). As would be expected,
+it’s palpably faster than [Cpanel::JSON::XS](https://metacpan.org/pod/Cpanel::JSON::XS) and [JSON::XS](https://metacpan.org/pod/JSON::XS).
 
 # AUTHOR
 
