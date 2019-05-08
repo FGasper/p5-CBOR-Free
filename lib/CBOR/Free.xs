@@ -54,9 +54,7 @@ static HV *tagged_stash;
 // Definitions
 
 typedef struct {
-    char *buffer;
-    STRLEN buflen;
-    STRLEN len;
+    SV *sv;
     uint8_t recurse_count;
     uint8_t scratch[9];
     bool is_canonical;
@@ -235,14 +233,8 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 
 //----------------------------------------------------------------------
 
-static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, void *hdr, STRLEN len) {
-    if ( (len + encode_state->len) > encode_state->buflen ) {
-        Renew( encode_state->buffer, encode_state->buflen + len + ENCODE_ALLOC_CHUNK_SIZE, char );
-        encode_state->buflen += len + ENCODE_ALLOC_CHUNK_SIZE;
-    }
-
-    Copy( hdr, encode_state->buffer + encode_state->len, len, char );
-    encode_state->len += len;
+static inline void _COPY_INTO_ENCODE( pTHX_ encode_ctx *encode_state, void *hdr, STRLEN len) {
+    sv_catpvn( encode_state->sv, hdr, len );
 }
 
 //----------------------------------------------------------------------
@@ -293,34 +285,34 @@ static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type,
     if ( num < 0x18 ) {
         scratch0->pieces.length_type = (uint8_t) num;
 
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
+        _COPY_INTO_ENCODE( aTHX_ encode_state, encode_state->scratch, 1);
     }
     else if ( num <= 0xff ) {
         scratch0->pieces.length_type = 0x18;
         encode_state->scratch[1] = (uint8_t) num;
 
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
+        _COPY_INTO_ENCODE( aTHX_ encode_state, encode_state->scratch, 2);
     }
     else if ( num <= 0xffff ) {
         scratch0->pieces.length_type = 0x19;
 
         _u16_to_buffer( num, 1 + encode_state->scratch );
 
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 3);
+        _COPY_INTO_ENCODE( aTHX_ encode_state, encode_state->scratch, 3);
     }
     else if ( num <= 0xffffffff ) {
         scratch0->pieces.length_type = 0x1a;
 
         _u32_to_buffer( num, 1 + encode_state->scratch );
 
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 5);
+        _COPY_INTO_ENCODE( aTHX_ encode_state, encode_state->scratch, 5);
     }
     else {
         scratch0->pieces.length_type = 0x1b;
 
         _u64_to_buffer( num, 1 + encode_state->scratch );
 
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
+        _COPY_INTO_ENCODE( aTHX_ encode_state, encode_state->scratch, 9);
     }
 }
 
@@ -369,14 +361,14 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             encode_state->scratch[7] = valptr[1];
             encode_state->scratch[8] = valptr[0];
 
-            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
+            _COPY_INTO_ENCODE( aTHX_ encode_state, encode_state->scratch, 9);
 #else
             char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
-            _COPY_INTO_ENCODE(encode_state, bytes, 9);
+            _COPY_INTO_ENCODE( aTHX_ encode_state, bytes, 9);
 #endif
         }
         else if (!SvOK(value)) {
-            _COPY_INTO_ENCODE(encode_state, &CBOR_NULL_U8, 1);
+            _COPY_INTO_ENCODE( aTHX_ encode_state, &CBOR_NULL_U8, 1);
         }
         else {
             char *val = SvPOK(value) ? SvPVX(value) : SvPV_nolen(value);
@@ -403,14 +395,14 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 encode_state
             );
 
-            _COPY_INTO_ENCODE( encode_state, val, len );
+            _COPY_INTO_ENCODE( aTHX_ encode_state, val, len );
         }
     }
     else if (sv_isobject(value)) {
         HV *stash = SvSTASH ( SvRV(value) );
 
         if (boolean_stash == stash) {
-            _COPY_INTO_ENCODE(
+            _COPY_INTO_ENCODE( aTHX_
                 encode_state,
                 SvIV_nomg(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
                 1
@@ -474,7 +466,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
                 // Store the key.
                 _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-                _COPY_INTO_ENCODE( encode_state, key, key_length );
+                _COPY_INTO_ENCODE( aTHX_ encode_state, key, key_length );
 
                 cur = *( hv_fetch(hash, key, key_length, 0) );
 
@@ -487,7 +479,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 // Store the key.
                 _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
 
-                _COPY_INTO_ENCODE( encode_state, key, key_length );
+                _COPY_INTO_ENCODE( aTHX_ encode_state, key, key_length );
 
                 _encode( aTHX_ cur, encode_state );
             }
@@ -1067,11 +1059,8 @@ encode( SV * value, ... )
     CODE:
         encode_ctx encode_state;
 
-        encode_state.buffer = NULL;
-        Newx( encode_state.buffer, ENCODE_ALLOC_CHUNK_SIZE, char );
+        encode_state.sv = newSVpvn("", 0);
 
-        encode_state.buflen = ENCODE_ALLOC_CHUNK_SIZE;
-        encode_state.len = 0;
         encode_state.recurse_count = 0;
 
         encode_state.is_canonical = false;
@@ -1089,9 +1078,7 @@ encode( SV * value, ... )
 
         _encode(aTHX_ value, &encode_state);
 
-        RETVAL = newSVpvn( encode_state.buffer, encode_state.len );
-
-        Safefree(encode_state.buffer);
+        RETVAL = encode_state.sv;
     OUTPUT:
         RETVAL
 
