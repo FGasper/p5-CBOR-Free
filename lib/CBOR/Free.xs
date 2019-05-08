@@ -100,8 +100,8 @@ union control_byte {
     uint8_t u8;
 
     struct {
-        uint8_t length_type : 5;
-        enum CBOR_TYPE major_type : 3;
+        unsigned int length_type : 5;
+        unsigned int major_type : 3;
     } pieces;
 };
 
@@ -934,7 +934,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
-    switch (control->pieces.major_type) {
+	switch (control->pieces.major_type) {
         case CBOR_TYPE_UINT:
             ret = newSVuv( _decode_uint( aTHX_ decstate ) );
 
