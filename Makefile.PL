@@ -51,7 +51,7 @@ WriteMakefile1(
         'FindBin' => 0,
         'Data::Dumper'    => 0,
         'Test::Exception' => 0,
-        'Test::More'      => 1.302140,
+        'Test::More'      => 1.302133,
         'Test::FailWarnings' => 0,
         'Test::Deep'      => 0,
     },
