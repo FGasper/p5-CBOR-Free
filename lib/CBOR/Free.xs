@@ -32,9 +32,10 @@
 #define IS_LITTLE_ENDIAN (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678)
 #define IS_64_BIT        (BYTEORDER > 0x10000)
 
-static const uint8_t CBOR_NULL_U8  = CBOR_NULL;
-static const uint8_t CBOR_FALSE_U8 = CBOR_FALSE;
-static const uint8_t CBOR_TRUE_U8  = CBOR_TRUE;
+static const unsigned char NUL = 0;
+static const unsigned char CBOR_NULL_U8  = CBOR_NULL;
+static const unsigned char CBOR_FALSE_U8 = CBOR_FALSE;
+static const unsigned char CBOR_TRUE_U8  = CBOR_TRUE;
 
 enum CBOR_TYPE {
     CBOR_TYPE_UINT,
@@ -113,9 +114,25 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-void _void_uint_to_str(STRLEN num, char *numstr, const char strlen) {
-    my_snprintf(numstr, strlen, "%lu", num);
+#if IS_64_BIT
+UV _uv_to_str(unsigned long long num, char *numstr, const char strlen) {
+    return my_snprintf( numstr, strlen, "%llu", num );
 }
+#else
+UV _uv_to_str(unsigned long num, char *numstr, const char strlen) {
+    return my_snprintf( numstr, strlen, "%lu", num );
+}
+#endif
+
+#if IS_64_BIT
+UV _iv_to_str(long long num, char *numstr, const char strlen) {
+    return my_snprintf( numstr, strlen, "%lld", num );
+}
+#else
+UV _iv_to_str(long num, char *numstr, const char strlen) {
+    return my_snprintf( numstr, strlen, "%ld", num );
+}
+#endif
 
 #define _croak croak
 
@@ -133,7 +150,7 @@ void _croak_unrecognized(pTHX_ SV *value) {
 
 void _croak_incomplete( pTHX_ STRLEN lack ) {
     char lackstr[24];
-    _void_uint_to_str( lack, lackstr, 24 );
+    _uv_to_str( lack, lackstr, sizeof(lackstr) );
 
     char * words[3] = { "Incomplete", lackstr, NULL };
 
@@ -147,8 +164,8 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     char ordstr[24];
     char offsetstr[24];
 
-    _void_uint_to_str(ord, ordstr, 24);
-    _void_uint_to_str(offset, offsetstr, 24);
+    _uv_to_str(ord, ordstr, sizeof(ordstr));
+    _uv_to_str(offset, offsetstr, sizeof(offsetstr));
 
     char * words[] = { "InvalidControl", ordstr, offsetstr, NULL };
 
@@ -194,7 +211,7 @@ void _croak_invalid_map_key( pTHX_ const uint8_t byte, STRLEN offset ) {
     }
 
     char offsetstr[20];
-    my_snprintf( offsetstr, 20, "%lu", offset );
+    _uv_to_str( offset, offsetstr, sizeof(offsetstr) );
 
     char * words[] = { "InvalidMapKey", bytestr, offsetstr, NULL };
 
@@ -208,7 +225,7 @@ void _croak_cannot_decode_64bit( pTHX_ const uint8_t *u64bytes, STRLEN offset ) 
     my_snprintf( numhex, 20, "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
 
     char offsetstr[20];
-    my_snprintf( offsetstr, 20, "%lu", offset );
+    _uv_to_str( offset, offsetstr, sizeof(offsetstr) );
 
     char * words[] = { "CannotDecode64Bit", numhex, offsetstr, NULL };
 
@@ -217,10 +234,10 @@ void _croak_cannot_decode_64bit( pTHX_ const uint8_t *u64bytes, STRLEN offset ) 
 
 void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
     char absstr[40];
-    my_snprintf(absstr, 40, sizeof(abs) == 4 ? "%lu" : "%llu", abs);
+    _uv_to_str( abs, absstr, sizeof(absstr) );
 
     char offsetstr[20];
-    my_snprintf( offsetstr, 20, "%lu", offset );
+    _uv_to_str( offset, offsetstr, sizeof(offsetstr) );
 
     char * words[] = { "NegativeIntTooLow", absstr, offsetstr, NULL };
 
@@ -235,7 +252,7 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 
 //----------------------------------------------------------------------
 
-static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, void *hdr, STRLEN len) {
+static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, const unsigned char *hdr, STRLEN len) {
     if ( (len + encode_state->len) > encode_state->buflen ) {
         Renew( encode_state->buffer, encode_state->buflen + len + ENCODE_ALLOC_CHUNK_SIZE, char );
         encode_state->buflen += len + ENCODE_ALLOC_CHUNK_SIZE;
@@ -287,7 +304,7 @@ I32 sortstring( pTHX_ SV *a, SV *b ) {
 
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
 static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type, encode_ctx *encode_state ) {
-    union control_byte *scratch0 = encode_state->scratch;
+    union control_byte *scratch0 = (void *) encode_state->scratch;
     scratch0->pieces.major_type = major_type;
 
     if ( num < 0x18 ) {
@@ -403,7 +420,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 encode_state
             );
 
-            _COPY_INTO_ENCODE( encode_state, val, len );
+            _COPY_INTO_ENCODE( encode_state, (unsigned char *) val, len );
         }
     }
     else if (sv_isobject(value)) {
@@ -412,7 +429,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
         if (boolean_stash == stash) {
             _COPY_INTO_ENCODE(
                 encode_state,
-                SvIV_nomg(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
+                SvTRUE(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
                 1
             );
         }
@@ -474,7 +491,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
                 // Store the key.
                 _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-                _COPY_INTO_ENCODE( encode_state, key, key_length );
+                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
 
                 cur = *( hv_fetch(hash, key, key_length, 0) );
 
@@ -487,7 +504,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 // Store the key.
                 _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
 
-                _COPY_INTO_ENCODE( encode_state, key, key_length );
+                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
 
                 _encode( aTHX_ cur, encode_state );
             }
@@ -690,9 +707,12 @@ UV _decode_uint( pTHX_ decode_ctx* decstate ) {
 
         case huge:
             return sizeparse.size.u64;
+
+        default:
+            _croak_invalid_control( aTHX_ decstate );
     }
 
-    _croak_invalid_control( aTHX_ decstate );
+    return 0;   // Silence compiler warning
 }
 
 IV _decode_negint( pTHX_ decode_ctx* decstate ) {
@@ -714,7 +734,6 @@ IV _decode_negint( pTHX_ decode_ctx* decstate ) {
 #endif
 
             return ( -1 - (int64_t) sizeparse.size.u32 );
-            break;
 
         case huge:
             if (sizeparse.size.u64 >= 0x8000000000000000U) {
@@ -722,9 +741,12 @@ IV _decode_negint( pTHX_ decode_ctx* decstate ) {
             }
 
             return ( -1 - (int64_t) sizeparse.size.u64 );
+
+        default:
+            _croak_invalid_control( aTHX_ decstate );
     }
 
-    _croak_invalid_control( aTHX_ decstate );
+    return 0;   // Silence compiler warning
 }
 
 struct numbuf _decode_str( pTHX_ decode_ctx* decstate ) {
@@ -805,16 +827,16 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
         case CBOR_TYPE_UINT:
             my_key.num.uv = _decode_uint( aTHX_ decstate );
 
-            keystr = decstate->scratch.bytes;
-            keylen = my_snprintf(decstate->scratch.bytes, sizeof(decstate->scratch.bytes), sizeof(my_key.num.uv) == 4 ? "%lu" : "%llu", my_key.num.uv);
+            keystr = (char *) decstate->scratch.bytes;
+            keylen = _uv_to_str( my_key.num.uv, keystr, sizeof(decstate->scratch.bytes));
 
             break;
 
         case CBOR_TYPE_NEGINT:
             my_key.num.iv = _decode_negint( aTHX_ decstate );
 
-            keystr = decstate->scratch.bytes;
-            keylen = my_snprintf(decstate->scratch.bytes, sizeof(decstate->scratch.bytes), sizeof(my_key.num.iv) == 4 ? "%ld" : "%lld", my_key.num.iv);
+            keystr = (char *) decstate->scratch.bytes;
+            keylen = _iv_to_str( my_key.num.iv, keystr, sizeof(decstate->scratch.bytes));
 
             break;
 
@@ -1094,7 +1116,7 @@ encode( SV * value, ... )
         // This follows the example from ext/POSIX/POSIX.xs:
 
         // Ensure that there’s a trailing NUL:
-        _COPY_INTO_ENCODE( encode_state, "\0", 1 );
+        _COPY_INTO_ENCODE( encode_state, &NUL, 1 );
 
         RETVAL = newSV(0);
         SvUPGRADE(RETVAL, SVt_PV);
@@ -1120,7 +1142,6 @@ decode( SV *cbor )
             cborlen,
             cborstr,
             cborstr + cborlen,
-            false,
         };
 
         RETVAL = _decode( aTHX_ &decode_state );
@@ -1129,7 +1150,7 @@ decode( SV *cbor )
             STRLEN bytes_count = decode_state.end - decode_state.curbyte;
 
             char numstr[24];
-            _void_uint_to_str(bytes_count, numstr, 24);
+            _uv_to_str(bytes_count, numstr, 24);
 
             char * words[2] = { numstr, NULL };
 
