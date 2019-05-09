@@ -178,7 +178,7 @@ use CBOR::Free::Tagged;
 our ($VERSION);
 
 BEGIN {
-    $VERSION = '0.07_03';
+    $VERSION = '0.07';
     XSLoader::load();
 }
 
