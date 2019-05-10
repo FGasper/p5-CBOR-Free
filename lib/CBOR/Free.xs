@@ -805,38 +805,32 @@ UV _decode_uint( pTHX_ decode_ctx* decstate, union control_byte* control ) {
     return _parse_for_uint_len2( aTHX_ decstate, control );
 }
 
-IV _decode_negint( pTHX_ decode_ctx* decstate ) {
-    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+IV _decode_negint( pTHX_ decode_ctx* decstate, union control_byte* control ) {
+    if (control->pieces.length_type == 0x1f)
+        _croak_invalid_control( aTHX_ decstate );
 
-    switch (sizeparse.sizetype) {
-        //case tiny:
-        case small:
-            return ( -1 - sizeparse.size.u8 );
+    UV positive = _parse_for_uint_len2( aTHX_ decstate, control );
 
-        case medium:
-            return ( -1 - sizeparse.size.u16 );
+#if IS_64_BIT
+    if (positive >= 0x8000000000000000U) {
+        _croak_cannot_decode_negative( aTHX_ 1 + positive, decstate->curbyte - decstate->start - 8 );
+    }
+#else
+    if (positive >= 0x80000000U) {
+        STRLEN offset = decstate->curbyte - decstate->start;
 
-        case large:
-#if !IS_64_BIT
-            if (sizeparse.size.u32 >= 0x80000000U) {
-                _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u32, decstate->curbyte - decstate->start - 4 );
-            }
+        if (control->pieces.length_type == 0x1a) {
+            offset -= 4;
+        }
+        else {
+            offset -= 8;
+        }
+
+        _croak_cannot_decode_negative( aTHX_ 1 + positive, offset );
+    }
 #endif
 
-            return ( -1 - (int64_t) sizeparse.size.u32 );
-
-        case huge:
-            if (sizeparse.size.u64 >= 0x8000000000000000U) {
-                _croak_cannot_decode_negative( aTHX_ 1 + sizeparse.size.u64, decstate->curbyte - decstate->start - 8 );
-            }
-
-            return ( -1 - (int64_t) sizeparse.size.u64 );
-
-        default:
-            _croak_invalid_control( aTHX_ decstate );
-    }
-
-    return 0;   // Silence compiler warning
+    return( -1 - (int64_t) positive );
 }
 
 struct numbuf _decode_str( pTHX_ decode_ctx* decstate ) {
@@ -922,7 +916,7 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
             break;
 
         case CBOR_TYPE_NEGINT:
-            my_key.num.iv = _decode_negint( aTHX_ decstate );
+            my_key.num.iv = _decode_negint( aTHX_ decstate, control );
 
             keystr = (char *) decstate->scratch.bytes;
             keylen = _iv_to_str( my_key.num.iv, keystr, sizeof(decstate->scratch.bytes));
@@ -1051,7 +1045,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             break;
         case CBOR_TYPE_NEGINT:
-            ret = newSViv( _decode_negint( aTHX_ decstate ) );
+            ret = newSViv( _decode_negint( aTHX_ decstate, control ) );
 
             break;
         case CBOR_TYPE_BINARY:
