@@ -3,6 +3,22 @@ package CBOR::Free;
 use strict;
 use warnings;
 
+use Types::Serialiser;
+
+use CBOR::Free::X;
+use CBOR::Free::Tagged;
+
+our ($VERSION);
+
+use XSLoader ();
+
+BEGIN {
+    $VERSION = '0.08_01';
+    XSLoader::load();
+}
+
+#----------------------------------------------------------------------
+
 =encoding utf-8
 
 =head1 NAME
@@ -167,20 +183,6 @@ applications.
 =cut
 
 #----------------------------------------------------------------------
-
-use XSLoader ();
-
-use Types::Serialiser;
-
-use CBOR::Free::X;
-use CBOR::Free::Tagged;
-
-our ($VERSION);
-
-BEGIN {
-    $VERSION = '0.07';
-    XSLoader::load();
-}
 
 our ($true, $false);
 *true = *Types::Serialiser::true;
