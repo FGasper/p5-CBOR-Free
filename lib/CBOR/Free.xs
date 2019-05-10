@@ -724,51 +724,27 @@ struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
 
 //----------------------------------------------------------------------
 
-SV *_decode_array( pTHX_ decode_ctx* decstate ) {
-    SSize_t array_length;
+SV *_decode_array( pTHX_ decode_ctx* decstate, union control_byte* control ) {
 
-    AV *array = NULL;
+    AV *array = newAV();
     SV *cur = NULL;
 
-    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+    if (control->pieces.length_type == 0x1f) {
+        ++decstate->curbyte;
 
-    switch (sizeparse.sizetype) {
-        //case tiny:
-        case small:
-            array_length = sizeparse.size.u8;
-            break;
+        while (*(decstate->curbyte) != '\xff') {
 
-        case medium:
-            array_length = sizeparse.size.u16;
-            break;
+            cur = _decode( aTHX_ decstate );
+            av_push(array, cur);
+            //sv_2mortal(cur);
+        }
 
-        case large:
-            array_length = sizeparse.size.u32;
-            break;
+        _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
 
-        case huge:
-            array_length = sizeparse.size.u64;
-            break;
-
-        case indefinite:
-            ++decstate->curbyte;
-
-            array = newAV();
-
-            while (*(decstate->curbyte) != '\xff') {
-
-                cur = _decode( aTHX_ decstate );
-                av_push(array, cur);
-                //sv_2mortal(cur);
-            }
-
-            _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
-
-            ++decstate->curbyte;
+        ++decstate->curbyte;
     }
-
-    if (!array) {
-        array = newAV();
+    else {
+        SSize_t array_length = _parse_for_uint_len2( aTHX_ decstate, control );
 
         if (array_length) {
             av_fill(array, array_length - 1);
@@ -917,47 +893,28 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
     hv_store(hash, keystr, keylen, curval, 0);
 }
 
-SV *_decode_map( pTHX_ decode_ctx* decstate ) {
-    SSize_t keycount = 0;
-
+SV *_decode_map( pTHX_ decode_ctx* decstate, union control_byte* control ) {
     HV *hash = newHV();
 
-    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+    if (control->pieces.length_type == 0x1f) {
+        ++decstate->curbyte;
 
-    switch (sizeparse.sizetype) {
-        //case tiny:
-        case small:
-            keycount = sizeparse.size.u8;
-            break;
-
-        case medium:
-            keycount = sizeparse.size.u16;
-            break;
-
-        case large:
-            keycount = sizeparse.size.u32;
-            break;
-
-        case huge:
-            keycount = sizeparse.size.u64;
-            break;
-
-        case indefinite:
-            ++decstate->curbyte;
-
-            while (*(decstate->curbyte) != '\xff') {
-                _decode_to_hash( aTHX_ decstate, hash );
-            }
-
-            _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
-
-            ++decstate->curbyte;
-    }
-
-    if (keycount) {
-        while (keycount > 0) {
+        while (*(decstate->curbyte) != '\xff') {
             _decode_to_hash( aTHX_ decstate, hash );
-            --keycount;
+        }
+
+        _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
+
+        ++decstate->curbyte;
+    }
+    else {
+        SSize_t keycount = _parse_for_uint_len2( aTHX_ decstate, control );
+
+        if (keycount) {
+            while (keycount > 0) {
+                _decode_to_hash( aTHX_ decstate, hash );
+                --keycount;
+            }
         }
     }
 
@@ -1043,20 +1000,21 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             break;
         case CBOR_TYPE_ARRAY:
-            ret = _decode_array( aTHX_ decstate );
+            ret = _decode_array( aTHX_ decstate, control );
 
             break;
         case CBOR_TYPE_MAP:
-            ret = _decode_map( aTHX_ decstate );
+            ret = _decode_map( aTHX_ decstate, control );
 
             break;
         case CBOR_TYPE_TAG:
 
-            // For now, just throw this tag value away.
-            sizeparse = _parse_for_uint_len( aTHX_ decstate );
-            if (sizeparse.sizetype == indefinite) {
+            if (control->pieces.length_type == 0x1f) {
                 _croak_invalid_control( aTHX_ decstate );
             }
+
+            // For now, just throw this tag value away.
+            _parse_for_uint_len2( aTHX_ decstate, control );
 
             ret = _decode( aTHX_ decstate );
 
