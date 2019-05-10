@@ -13,6 +13,9 @@
 #include <string.h>
 #include <math.h>
 
+// For ntohs and ntohl
+#include <arpa/inet.h>
+
 #define CBOR_HALF_FLOAT 0xf9
 #define CBOR_FLOAT      0xfa
 #define CBOR_DOUBLE     0xfb
@@ -291,6 +294,37 @@ static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
     buffer[7] = num;
 }
 
+static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
+    UV num = 0;
+
+#if IS_64_BIT
+    num |= buffer[0];
+    num = num << 8;
+
+    num |= buffer[1];
+    num = num << 8;
+
+    num |= buffer[2];
+    num = num << 8;
+
+    num |= buffer[3];
+    num = num << 8;
+#endif
+
+    num |= buffer[4];
+    num = num << 8;
+
+    num |= buffer[5];
+    num = num << 8;
+
+    num |= buffer[6];
+    num = num << 8;
+
+    num |= buffer[7];
+
+    return num;
+}
+
 //----------------------------------------------------------------------
 
 // NOTE: Contrary to what we’d ordinarily expect, for canonical CBOR
@@ -521,6 +555,79 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 // DECODER:
 //----------------------------------------------------------------------
 
+UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate, union control_byte* control ) {
+    UV ret;
+
+    switch (control->pieces.length_type) {
+        case 0x18:
+
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 2);
+
+            ++decstate->curbyte;
+
+            ret = (uint8_t) decstate->curbyte[0];
+
+            ++decstate->curbyte;
+
+            break;
+
+        case 0x19:
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 3);
+
+            ++decstate->curbyte;
+
+            ret = ntohs( *((uint16_t *) decstate->curbyte) );
+
+            decstate->curbyte += 2;
+
+            break;
+
+        case 0x1a:
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 5);
+
+            ++decstate->curbyte;
+
+            ret = ntohl( *((uint32_t *) decstate->curbyte) );
+
+            decstate->curbyte += 4;
+
+            break;
+
+        case 0x1b:
+            _DECODE_CHECK_FOR_OVERAGE( decstate, 9);
+
+            ++decstate->curbyte;
+
+#if !IS_64_BIT
+
+            if (decstate->curbyte[0] || decstate->curbyte[1] || decstate->curbyte[2] || decstate->curbyte[3]) {
+                _croak_cannot_decode_64bit( aTHX_ (const uint8_t *) decstate->curbyte, decstate->curbyte - decstate->start );
+            }
+#endif
+            ret = _buffer_u64_to_uv( decstate->curbyte );
+
+            decstate->curbyte += 8;
+
+            break;
+
+        case 0x1c:
+        case 0x1d:
+        case 0x1e:
+        case 0x1f:  // indefinite must be handled outside this function.
+            _croak_invalid_control( aTHX_ decstate );
+            break;
+
+        default:
+            ret = (uint8_t) control->pieces.length_type;
+
+            decstate->curbyte++;
+
+            break;
+    }
+
+    return ret;
+}
+
 // NB: We already checked that curbyte is safe to read!
 // TODO: Just return a UV; the caller can already use control_byte
 // to have parsed the size type.
@@ -691,28 +798,11 @@ struct numbuf {
     char *buffer;
 };
 
-UV _decode_uint( pTHX_ decode_ctx* decstate ) {
-    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
+UV _decode_uint( pTHX_ decode_ctx* decstate, union control_byte* control ) {
+    if (control->pieces.length_type == 0x1f)
+        _croak_invalid_control( aTHX_ decstate );
 
-    switch (sizeparse.sizetype) {
-        //case tiny:
-        case small:
-            return sizeparse.size.u8;
-
-        case medium:
-            return sizeparse.size.u16;
-
-        case large:
-            return sizeparse.size.u32;
-
-        case huge:
-            return sizeparse.size.u64;
-
-        default:
-            _croak_invalid_control( aTHX_ decstate );
-    }
-
-    return 0;   // Silence compiler warning
+    return _parse_for_uint_len2( aTHX_ decstate, control );
 }
 
 IV _decode_negint( pTHX_ decode_ctx* decstate ) {
@@ -812,8 +902,7 @@ struct numbuf _decode_str( pTHX_ decode_ctx* decstate ) {
 void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
     _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
 
-    union control_byte control;
-    control.u8 = decstate->curbyte[0];
+    union control_byte *control = (union control_byte *) decstate->curbyte;
 
     struct numbuf my_key;
     my_key.buffer = NULL;
@@ -823,9 +912,9 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
     STRLEN keylen;
     char *keystr;
 
-    switch (control.pieces.major_type) {
+    switch (control->pieces.major_type) {
         case CBOR_TYPE_UINT:
-            my_key.num.uv = _decode_uint( aTHX_ decstate );
+            my_key.num.uv = _decode_uint( aTHX_ decstate, control );
 
             keystr = (char *) decstate->scratch.bytes;
             keylen = _uv_to_str( my_key.num.uv, keystr, sizeof(decstate->scratch.bytes));
@@ -956,9 +1045,9 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
-	switch (control->pieces.major_type) {
+    switch (control->pieces.major_type) {
         case CBOR_TYPE_UINT:
-            ret = newSVuv( _decode_uint( aTHX_ decstate ) );
+            ret = newSVuv( _decode_uint( aTHX_ decstate, control ) );
 
             break;
         case CBOR_TYPE_NEGINT:
