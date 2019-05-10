@@ -95,11 +95,6 @@ union anyint {
     uint64_t u64;
 };
 
-typedef struct {
-    enum enum_sizetype sizetype;
-    union anyint size;
-} struct_sizeparse;
-
 union control_byte {
     uint8_t u8;
 
@@ -628,100 +623,6 @@ UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate, union control_byte* control
     return ret;
 }
 
-// NB: We already checked that curbyte is safe to read!
-// TODO: Just return a UV; the caller can already use control_byte
-// to have parsed the size type.
-struct_sizeparse _parse_for_uint_len( pTHX_ decode_ctx* decstate ) {
-    struct_sizeparse ret;
-
-    switch (*(decstate->curbyte) & 0x1f) {  // 0x1f == 0b00011111
-        case 0x18:
-
-            _DECODE_CHECK_FOR_OVERAGE( decstate, 2);
-
-            ++decstate->curbyte;
-
-            ret.sizetype = small;
-            ret.size.u8 = *decstate->curbyte;
-
-            ++decstate->curbyte;
-
-            break;
-
-        case 0x19:
-            _DECODE_CHECK_FOR_OVERAGE( decstate, 3);
-
-            ++decstate->curbyte;
-
-            ret.sizetype = medium;
-            _u16_to_buffer( *((uint16_t *) decstate->curbyte), (uint8_t *) &(ret.size.u16) );
-
-            decstate->curbyte += 2;
-
-            break;
-
-        case 0x1a:
-            _DECODE_CHECK_FOR_OVERAGE( decstate, 5);
-
-            ++decstate->curbyte;
-
-            ret.sizetype = large;
-            _u32_to_buffer( *((uint32_t *) decstate->curbyte), (uint8_t *) &(ret.size.u32) );
-
-            decstate->curbyte += 4;
-
-            break;
-
-        case 0x1b:
-            _DECODE_CHECK_FOR_OVERAGE( decstate, 9);
-
-            ++decstate->curbyte;
-
-#if IS_64_BIT
-            ret.sizetype = huge;
-            _u64_to_buffer( *((uint64_t *) decstate->curbyte), (uint8_t *) &(ret.size.u64) );
-#else
-            if (!decstate->curbyte[0] && !decstate->curbyte[1] && !decstate->curbyte[2] && !decstate->curbyte[3]) {
-                ret.sizetype = large;
-                _u32_to_buffer( *((uint32_t *) (4 + decstate->curbyte)), (uint8_t *) &(ret.size.u32) );
-            }
-            else {
-                _croak_cannot_decode_64bit( aTHX_ (const uint8_t *) decstate->curbyte, decstate->curbyte - decstate->start );
-            }
-#endif
-
-            decstate->curbyte += 8;
-
-            break;
-
-        case 0x1c:
-        case 0x1d:
-        case 0x1e:
-            _croak_invalid_control( aTHX_ decstate );
-            break;
-
-        case 0x1f:
-            // ++decstate->curbyte;
-            // NOTE: We do NOT increment the pointer here
-            // because callers need to distinguish for themselves
-            // whether indefinite is a valid case.
-
-            ret.sizetype = indefinite;
-
-            break;
-
-        default:
-            ret.sizetype = small;
-            ret.size.u8 = (uint8_t) (*(decstate->curbyte) & 0x1f);
-
-            decstate->curbyte++;
-
-            break;
-    }
-
-    return ret;
-}
-
 //----------------------------------------------------------------------
 
 SV *_decode_array( pTHX_ decode_ctx* decstate, union control_byte* control ) {
@@ -969,8 +870,6 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
     SV *ret = NULL;
 
     _DECODE_CHECK_FOR_OVERAGE( decstate, 1);
-
-    struct_sizeparse sizeparse;
 
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
