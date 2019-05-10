@@ -833,56 +833,34 @@ IV _decode_negint( pTHX_ decode_ctx* decstate, union control_byte* control ) {
     return( -1 - (int64_t) positive );
 }
 
-struct numbuf _decode_str( pTHX_ decode_ctx* decstate ) {
-    struct_sizeparse sizeparse = _parse_for_uint_len( aTHX_ decstate );
-
+struct numbuf _decode_str( pTHX_ decode_ctx* decstate, union control_byte* control ) {
     struct numbuf ret;
 
-    switch (sizeparse.sizetype) {
-        //case tiny:
-        case small:
-            ret.num.uv = sizeparse.size.u8;
-            break;
+    if (control->pieces.length_type == 0x1f) {
+        ++decstate->curbyte;
 
-        case medium:
-            ret.num.uv = sizeparse.size.u16;
-            break;
+        //TODO: Parse it as a string, not an SV.
+        SV *tempsv = newSVpvs("");
 
-        case large:
-            ret.num.uv = sizeparse.size.u32;
-            break;
+        while (*(decstate->curbyte) != '\xff') {
+            //TODO: Require the same major type.
 
-        case huge:
-            ret.num.uv = sizeparse.size.u64;
-            break;
+            SV *cur = _decode( aTHX_ decstate );
 
-        case indefinite:
-            ++decstate->curbyte;
+            sv_catsv(tempsv, cur);
+        }
 
-            SV *tempsv = newSVpvs("");
+        _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
 
-            while (*(decstate->curbyte) != '\xff') {
-                //TODO: Require the same major type.
+        ++decstate->curbyte;
 
-                SV *cur = _decode( aTHX_ decstate );
+        ret.buffer = SvPV_nolen(tempsv);
+        ret.num.uv = SvCUR(tempsv);
 
-                sv_catsv(tempsv, cur);
-            }
-
-            _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
-
-            ++decstate->curbyte;
-
-            ret.buffer = SvPV_nolen(tempsv);
-            ret.num.uv = SvCUR(tempsv);
-
-            return ret;
-
-        default:
-
-            // This shouldn’t happen, but just in case.
-            _croak("Unknown string length descriptor!");
+        return ret;
     }
+
+    ret.num.uv = _parse_for_uint_len2( aTHX_ decstate, control );
 
     _DECODE_CHECK_FOR_OVERAGE( decstate, ret.num.uv );
 
@@ -925,7 +903,7 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
 
         case CBOR_TYPE_BINARY:
         case CBOR_TYPE_UTF8:
-            my_key = _decode_str( aTHX_ decstate );
+            my_key = _decode_str( aTHX_ decstate, control );
             keystr = my_key.buffer;
             keylen = my_key.num.uv;
             break;
@@ -1024,8 +1002,8 @@ static inline double _decode_double_to_le( decode_ctx* decstate, uint8_t *ptr ) 
 
 //----------------------------------------------------------------------
 
-SV *_decode_str_to_sv( pTHX_ decode_ctx* decstate ) {
-    struct numbuf decoded_str = _decode_str( aTHX_ decstate );
+SV *_decode_str_to_sv( pTHX_ decode_ctx* decstate, union control_byte* control ) {
+    struct numbuf decoded_str = _decode_str( aTHX_ decstate, control );
 
     return newSVpvn( decoded_str.buffer, decoded_str.num.uv );
 }
@@ -1050,7 +1028,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             break;
         case CBOR_TYPE_BINARY:
         case CBOR_TYPE_UTF8:
-            ret = _decode_str_to_sv( aTHX_ decstate );
+            ret = _decode_str_to_sv( aTHX_ decstate, control );
 
             // XXX: “perldoc perlapi” says this function is experimental.
             // Its use here is a calculated risk; the alternatives are
