@@ -866,7 +866,7 @@ double decode_half_float(uint8_t *halfp) {
     return half & 0x8000 ? -val : val;
 }
 
-static inline float _decode_float_to_le( decode_ctx* decstate, uint8_t *ptr ) {
+static inline float _decode_float_to_host( pTHX_ decode_ctx* decstate, uint8_t *ptr ) {
     *((uint32_t *) decstate->scratch.bytes) = ntohl( *((uint32_t *) ptr) );
 
     return decstate->scratch.as_float;
@@ -977,7 +977,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     float decoded_flt;
 
 #if IS_LITTLE_ENDIAN
-                    decoded_flt = _decode_float_to_le( decstate, (uint8_t *) (1 + decstate->curbyte ) );
+                    decoded_flt = _decode_float_to_host( aTHX_ decstate, (uint8_t *) (1 + decstate->curbyte ) );
 #else
                     decoded_flt = *( (float *) (1 + decstate->curbyte) );
 #endif
