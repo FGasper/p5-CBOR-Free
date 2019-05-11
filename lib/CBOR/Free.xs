@@ -273,26 +273,26 @@ static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, const unsigned c
 // while on little-endian systems it’s a bswap.
 
 static inline void _u16_to_buffer( UV num, uint8_t *buffer ) {
-    buffer[0] = num >> 8;
-    buffer[1] = num;
+    *(buffer++) = num >> 8;
+    *(buffer++) = num;
 }
 
 static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
-    buffer[0] = num >> 24;
-    buffer[1] = num >> 16;
-    buffer[2] = num >> 8;
-    buffer[3] = num;
+    *(buffer++) = num >> 24;
+    *(buffer++) = num >> 16;
+    *(buffer++) = num >> 8;
+    *(buffer++) = num;
 }
 
 static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
-    buffer[0] = num >> 56;
-    buffer[1] = num >> 48;
-    buffer[2] = num >> 40;
-    buffer[3] = num >> 32;
-    buffer[4] = num >> 24;
-    buffer[5] = num >> 16;
-    buffer[6] = num >> 8;
-    buffer[7] = num;
+    *(buffer++) = num >> 56;
+    *(buffer++) = num >> 48;
+    *(buffer++) = num >> 40;
+    *(buffer++) = num >> 32;
+    *(buffer++) = num >> 24;
+    *(buffer++) = num >> 16;
+    *(buffer++) = num >> 8;
+    *(buffer++) = num;
 }
 
 // Basically ntohll(), but it accepts a pointer.
@@ -300,29 +300,31 @@ static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
     UV num = 0;
 
 #if IS_64_BIT
-    num |= buffer[0];
+    num |= *(buffer++);
     num = num << 8;
 
-    num |= buffer[1];
+    num |= *(buffer++);
     num = num << 8;
 
-    num |= buffer[2];
+    num |= *(buffer++);
     num = num << 8;
 
-    num |= buffer[3];
+    num |= *(buffer++);
     num = num << 8;
+#else
+    buffer += 4;
 #endif
 
-    num |= buffer[4];
+    num |= *(buffer++);
     num = num << 8;
 
-    num |= buffer[5];
+    num |= *(buffer++);
     num = num << 8;
 
-    num |= buffer[6];
+    num |= *(buffer++);
     num = num << 8;
 
-    num |= buffer[7];
+    num |= *(buffer++);
 
     return num;
 }
@@ -865,10 +867,7 @@ double decode_half_float(uint8_t *halfp) {
 }
 
 static inline float _decode_float_to_le( decode_ctx* decstate, uint8_t *ptr ) {
-    decstate->scratch.bytes[0] = ptr[3];
-    decstate->scratch.bytes[1] = ptr[2];
-    decstate->scratch.bytes[2] = ptr[1];
-    decstate->scratch.bytes[3] = ptr[0];
+    *((uint32_t *) decstate->scratch.bytes) = ntohl( *((uint32_t *) ptr) );
 
     return decstate->scratch.as_float;
 }
