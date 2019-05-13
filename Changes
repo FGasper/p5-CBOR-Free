@@ -1,5 +1,9 @@
 Revision history for Perl module CBOR::Free
 
+0.09
+- Further optimizations.
+- Test fixes (obscure MSWin32?)
+
 0.08 10 May 2019
 - Further decoding speed-ups.
 
