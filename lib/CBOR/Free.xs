@@ -118,25 +118,13 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-#if IS_64_BIT
-UV _uv_to_str(unsigned long long num, char *numstr, const char strlen) {
-    return my_snprintf( numstr, strlen, "%llu", num );
-}
-#else
-UV _uv_to_str(unsigned long num, char *numstr, const char strlen) {
+UV _uv_to_str(UV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, "%lu", num );
 }
-#endif
 
-#if IS_64_BIT
-UV _iv_to_str(long long num, char *numstr, const char strlen) {
-    return my_snprintf( numstr, strlen, "%lld", num );
-}
-#else
-UV _iv_to_str(long num, char *numstr, const char strlen) {
+UV _iv_to_str(IV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, "%ld", num );
 }
-#endif
 
 #define _croak croak
 
