@@ -64,6 +64,9 @@ enum CBOR_TYPE {
 static HV *boolean_stash;
 static HV *tagged_stash;
 
+static const char* UV_TO_STR_TMPL = sizeof(UV) == 8 ? "%llu" : "%lu";
+static const char* IV_TO_STR_TMPL = sizeof(UV) == 8 ? "%lld" : "%ld";
+
 //----------------------------------------------------------------------
 // Definitions
 
@@ -121,9 +124,6 @@ union control_byte {
 SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
-
-#define UV_TO_STR_TMPL sizeof(unsigned long) == 8 ? "%lu" : "%llu"
-#define IV_TO_STR_TMPL sizeof(unsigned long) == 8 ? "%ld" : "%lld"
 
 UV _uv_to_str(UV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, UV_TO_STR_TMPL, num );
