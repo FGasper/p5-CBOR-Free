@@ -13,7 +13,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.09_01';
+    $VERSION = '0.09_02';
     XSLoader::load();
 }
 
