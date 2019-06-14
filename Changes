@@ -1,5 +1,9 @@
 Revision history for Perl module CBOR::Free
 
+0.09
+- Always encode Inf, -Inf, and NaN to half-precision.
+- Fix off-by-one when trying to decode -(~0).
+
 0.08 10 May 2019
 - Further decoding speed-ups.
 
