@@ -122,12 +122,15 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
+#define UV_TO_STR_TMPL sizeof(unsigned long) == 8 ? "%lu" : "%llu"
+#define IV_TO_STR_TMPL sizeof(unsigned long) == 8 ? "%ld" : "%lld"
+
 UV _uv_to_str(UV num, char *numstr, const char strlen) {
-    return my_snprintf( numstr, strlen, "%lu", num );
+    return my_snprintf( numstr, strlen, UV_TO_STR_TMPL, num );
 }
 
 UV _iv_to_str(IV num, char *numstr, const char strlen) {
-    return my_snprintf( numstr, strlen, "%ld", num );
+    return my_snprintf( numstr, strlen, IV_TO_STR_TMPL, num );
 }
 
 #define _croak croak
@@ -293,28 +296,28 @@ static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
 
 #if IS_64_BIT
     num |= *(buffer++);
-    num = num << 8;
+    num <<= 8;
 
     num |= *(buffer++);
-    num = num << 8;
+    num <<= 8;
 
     num |= *(buffer++);
-    num = num << 8;
+    num <<= 8;
 
     num |= *(buffer++);
-    num = num << 8;
+    num <<= 8;
 #else
     buffer += 4;
 #endif
 
     num |= *(buffer++);
-    num = num << 8;
+    num <<= 8;
 
     num |= *(buffer++);
-    num = num << 8;
+    num <<= 8;
 
     num |= *(buffer++);
-    num = num << 8;
+    num <<= 8;
 
     num |= *(buffer++);
 
