@@ -695,8 +695,9 @@ struct numbuf {
 UV _decode_uint( pTHX_ decode_ctx* decstate ) {
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
-    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE)
+    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
         _croak_invalid_control( aTHX_ decstate );
+    }
 
     return _parse_for_uint_len2( aTHX_ decstate );
 }
@@ -704,8 +705,9 @@ UV _decode_uint( pTHX_ decode_ctx* decstate ) {
 IV _decode_negint( pTHX_ decode_ctx* decstate ) {
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
-    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE)
+    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
         _croak_invalid_control( aTHX_ decstate );
+    }
 
     UV positive = _parse_for_uint_len2( aTHX_ decstate );
 
