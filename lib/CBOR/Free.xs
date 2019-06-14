@@ -46,6 +46,10 @@ static const unsigned char CBOR_NULL_U8  = CBOR_NULL;
 static const unsigned char CBOR_FALSE_U8 = CBOR_FALSE;
 static const unsigned char CBOR_TRUE_U8  = CBOR_TRUE;
 
+static const unsigned char CBOR_INF_SHORT[3] = { 0xf9, 0x7c, 0x00 };
+static const unsigned char CBOR_NAN_SHORT[3] = { 0xf9, 0x7e, 0x00 };
+static const unsigned char CBOR_NEGINF_SHORT[3] = { 0xf9, 0xfc, 0x00 };
+
 enum CBOR_TYPE {
     CBOR_TYPE_UINT,
     CBOR_TYPE_NEGINT,
@@ -395,28 +399,43 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             }
         }
         else if (SvNOK(value)) {
+            NV val_nv = SvNVX(value);
 
-            // Typecast to a double to accommodate long-double perls.
-            double val = (double) SvNVX(value);
+            if (isinfnan(val_nv)) {
+                if (Perl_isnan(val_nv)) {
+                    _COPY_INTO_ENCODE(encode_state, CBOR_NAN_SHORT, 3);
+                }
+                else if (val_nv > 0) {
+                    _COPY_INTO_ENCODE(encode_state, CBOR_INF_SHORT, 3);
+                }
+                else {
+                    _COPY_INTO_ENCODE(encode_state, CBOR_NEGINF_SHORT, 3);
+                }
+            }
+            else {
 
-            char *valptr = (char *) &val;
+                // Typecast to a double to accommodate long-double perls.
+                double val = (double) val_nv;
+
+                char *valptr = (char *) &val;
 
 #if IS_LITTLE_ENDIAN
-            encode_state->scratch[0] = CBOR_DOUBLE;
-            encode_state->scratch[1] = valptr[7];
-            encode_state->scratch[2] = valptr[6];
-            encode_state->scratch[3] = valptr[5];
-            encode_state->scratch[4] = valptr[4];
-            encode_state->scratch[5] = valptr[3];
-            encode_state->scratch[6] = valptr[2];
-            encode_state->scratch[7] = valptr[1];
-            encode_state->scratch[8] = valptr[0];
+                encode_state->scratch[0] = CBOR_DOUBLE;
+                encode_state->scratch[1] = valptr[7];
+                encode_state->scratch[2] = valptr[6];
+                encode_state->scratch[3] = valptr[5];
+                encode_state->scratch[4] = valptr[4];
+                encode_state->scratch[5] = valptr[3];
+                encode_state->scratch[6] = valptr[2];
+                encode_state->scratch[7] = valptr[1];
+                encode_state->scratch[8] = valptr[0];
 
-            _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
+                _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
 #else
-            char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
-            _COPY_INTO_ENCODE(encode_state, bytes, 9);
+                char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
+                _COPY_INTO_ENCODE(encode_state, bytes, 9);
 #endif
+            }
         }
         else if (!SvOK(value)) {
             _COPY_INTO_ENCODE(encode_state, &CBOR_NULL_U8, 1);
@@ -692,7 +711,7 @@ IV _decode_negint( pTHX_ decode_ctx* decstate ) {
 
 #if IS_64_BIT
     if (positive >= 0x8000000000000000U) {
-        _croak_cannot_decode_negative( aTHX_ 1 + positive, decstate->curbyte - decstate->start - 8 );
+        _croak_cannot_decode_negative( aTHX_ positive, decstate->curbyte - decstate->start - 8 );
     }
 #else
     if (positive >= 0x80000000U) {
@@ -705,7 +724,7 @@ IV _decode_negint( pTHX_ decode_ctx* decstate ) {
             offset -= 8;
         }
 
-        _croak_cannot_decode_negative( aTHX_ 1 + positive, offset );
+        _croak_cannot_decode_negative( aTHX_ positive, offset );
     }
 #endif
 
