@@ -1,8 +1,7 @@
 Revision history for Perl module CBOR::Free
 
 0.10 14 Jun 2019
-- Fix number stringification breakage on 32-bit Perls.
-- Fix test breakage on 32-bit Perls.
+- Fix test & number stringification on 32-bit Perls (broken in 0.09).
 
 0.09 14 Jun 2019
 - Further optimizations.
