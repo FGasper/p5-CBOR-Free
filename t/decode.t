@@ -66,7 +66,7 @@ for my $t (@tests) {
 sub _cmpbin {
     my ($got, $expect, $label) = @_;
 
-    return is_deeply( $got, $expect, $label );
+    return is_deeply( $got, $expect, $label ) or diag explain $got;
 }
 
 done_testing;
