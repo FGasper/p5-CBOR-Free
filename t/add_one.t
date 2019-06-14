@@ -7,10 +7,10 @@ use Test::More;
 
 use_ok('CBOR::Free::AddOne');
 
-my $maxlen = (length pack 'P') > 4 ? 19 : 9;
+my $maxlen = (length pack 'L!') > 4 ? 19 : 9;
 
 for (1 .. 100) {
-    my $len = 1 + int rand 19;
+    my $len = 1 + int rand $maxlen;
 
     my $int = 0 + join( q<>, map { int rand 10 } 1 .. $len );
 
