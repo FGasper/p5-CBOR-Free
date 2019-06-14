@@ -40,3 +40,4 @@ t/string.t
 t/tag.t
 t/uint.t
 t/undef.t
+t/upstream_test_vectors.t
