@@ -404,7 +404,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
         else if (SvNOK(value)) {
             NV val_nv = SvNVX(value);
 
-            if (isinfnan(val_nv)) {
+            if (Perl_isinfnan(val_nv)) {
                 if (Perl_isnan(val_nv)) {
                     _COPY_INTO_ENCODE(encode_state, CBOR_NAN_SHORT, 3);
                 }

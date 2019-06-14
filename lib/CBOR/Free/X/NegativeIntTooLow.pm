@@ -15,6 +15,4 @@ sub _new {
     return $class->SUPER::_new( sprintf('The CBOR buffer contains a negative number (-%s) at offset %u that is too low for this build of Perl to understand.', $abs, $offset) )
 }
 
-
-
 1;

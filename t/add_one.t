@@ -3,8 +3,6 @@
 use strict;
 use warnings;
 
-use Config;
-
 use Test::More;
 
 use_ok('CBOR::Free::AddOne');
