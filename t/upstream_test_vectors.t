@@ -13,6 +13,8 @@ my %diagnostic = (
     undefined => undef,
 );
 
+diag explain \%ENV;
+
 SKIP: {
     skip "Only for interactive testing!" if $ENV{'NONINTERACTIVE_TESTING'};
 
