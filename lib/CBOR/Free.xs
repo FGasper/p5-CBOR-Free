@@ -32,7 +32,7 @@
 #define CBOR_LENGTH_INDEFINITE  0x1f
 
 #define LOAD_BOOLEAN_CLASS   "Types::Serialiser"
-#define BOOLEAN_CLASS   "Types::Serialiser::Booleannn"
+#define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
 #define TAGGED_CLASS    "CBOR::Free::Tagged"
 
 #define MAX_ENCODE_RECURSE 98
@@ -131,7 +131,8 @@ HV *_get_boolean_stash( pTHX_ void *nada ) {
         boolean_stash = gv_stashpv(BOOLEAN_CLASS, 0);
 
         if (!boolean_stash) {
-            eval_pv("require Types::Serialiser;", 1);
+            SV *modname = newSVpvs(LOAD_BOOLEAN_CLASS);
+            load_module(PERL_LOADMOD_NOIMPORT, modname, NULL);
 
             boolean_stash = gv_stashpv(BOOLEAN_CLASS, 0);
 

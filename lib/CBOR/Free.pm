@@ -171,6 +171,8 @@ This code is licensed under the same license as Perl itself.
 
 =head1 SEE ALSO
 
+L<CBOR::PP> is a pure-Perl CBOR library.
+
 L<CBOR::XS> is an older CBOR module on CPAN. It’s got more bells and
 whistles, so check it out if CBOR::Free lacks a feature you’d like.
 Note that L<its maintainer has abandoned support for Perl versions from 5.22
