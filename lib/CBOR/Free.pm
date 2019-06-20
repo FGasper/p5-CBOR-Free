@@ -11,7 +11,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.11_02';
+    $VERSION = '0.11';
     XSLoader::load();
 }
 
@@ -116,9 +116,8 @@ C<encode()> receives.)
 =head1 BOOLEANS
 
 C<CBOR::Free::true()> and C<CBOR::Free::false()> are defined as
-convenience aliases for the equivalent L<Types::Serialiser> values.
-Note that there are no aliases for C<$Types::Serialiser::true> or
-C<$Types::Serialiser::false>.
+convenience aliases for the equivalent L<Types::Serialiser> functions.
+(Note that there are no equivalent scalar aliases.)
 
 =head1 FRACTIONAL (FLOATING-POINT) NUMBERS
 
@@ -160,6 +159,11 @@ L<CBOR::Free::X>, which subclasses L<X::Tiny::Base>.
 CBOR::Free is pretty snappy. I find that it keeps pace with or
 surpasses L<CBOR::XS>, L<Cpanel::JSON::XS>, L<JSON::XS>, L<Sereal>,
 and L<Data::MessagePack>.
+
+It’s also quite light. Its only “heavy” dependency is
+L<Types::Serialiser>, which is only loaded when you actually need it.
+This keeps memory usage low for when, e.g., you’re using CBOR for
+IPC between Perl processes and have no need for true booleans.
 
 =head1 AUTHOR
 
