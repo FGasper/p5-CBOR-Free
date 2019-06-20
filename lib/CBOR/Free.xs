@@ -32,7 +32,7 @@
 #define CBOR_LENGTH_INDEFINITE  0x1f
 
 #define LOAD_BOOLEAN_CLASS   "Types::Serialiser"
-#define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
+#define BOOLEAN_CLASS   "Types::Serialiser::Booleannn"
 #define TAGGED_CLASS    "CBOR::Free::Tagged"
 
 #define MAX_ENCODE_RECURSE 98
@@ -131,13 +131,12 @@ HV *_get_boolean_stash( pTHX_ void *nada ) {
         boolean_stash = gv_stashpv(BOOLEAN_CLASS, 0);
 
         if (!boolean_stash) {
-            SV *class_sv = newSVpvs(LOAD_BOOLEAN_CLASS);
-            load_module( PERL_LOADMOD_NOIMPORT, class_sv, NULL );
+            eval_pv("require Types::Serialiser;", 1);
 
             boolean_stash = gv_stashpv(BOOLEAN_CLASS, 0);
 
             if (!boolean_stash) {
-                fprintf(stderr, "==================== still no stash???\n");
+                _croak("Loaded Types::Serialiser but didn’t find stash!");
             }
         }
     }

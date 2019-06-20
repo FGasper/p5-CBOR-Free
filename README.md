@@ -78,9 +78,10 @@ tag number. (Include $obj, not $DATA, in the data structure that
 
 # BOOLEANS
 
-`CBOR::Free::true()`, `CBOR::Free::false()`,
-`$CBOR::Free::true`, and `$CBOR::Free::false` are defined as
+`CBOR::Free::true()` and `CBOR::Free::false()` are defined as
 convenience aliases for the equivalent [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) values.
+Note that there are no aliases for `$Types::Serialiser::true` or
+`$Types::Serialiser::false`.
 
 # FRACTIONAL (FLOATING-POINT) NUMBERS
 
