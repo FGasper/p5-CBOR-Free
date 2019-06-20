@@ -42,6 +42,8 @@
 #define IS_LITTLE_ENDIAN (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678)
 #define IS_64_BIT        (BYTEORDER > 0x10000)
 
+#define _croak croak
+
 static const unsigned char NUL = 0;
 static const unsigned char CBOR_NULL_U8  = CBOR_NULL;
 static const unsigned char CBOR_FALSE_U8 = CBOR_FALSE;
@@ -126,8 +128,10 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-HV *_get_boolean_stash( pTHX_ void *nada ) {
+STATIC HV *_get_boolean_stash() {
     if (!boolean_stash) {
+        dTHX;
+
         boolean_stash = gv_stashpv(BOOLEAN_CLASS, 0);
 
         if (!boolean_stash) {
@@ -148,18 +152,20 @@ HV *_get_boolean_stash( pTHX_ void *nada ) {
 static SV *stored_false = NULL;
 static SV *stored_true = NULL;
 
-SV *_get_false( pTHX_ void *nada ) {
+SV *_get_false() {
     if (!stored_false) {
-        _get_boolean_stash( aTHX_ nada );
+        dTHX;
+        _get_boolean_stash();
         stored_false = get_sv("Types::Serialiser::false", 0);
     }
 
     return stored_false;
 }
 
-SV *_get_true( pTHX_ void *nada ) {
+SV *_get_true() {
     if (!stored_true) {
-        _get_boolean_stash( aTHX_ nada );
+        dTHX;
+        _get_boolean_stash();
         stored_true = get_sv("Types::Serialiser::true", 0);
     }
 
@@ -173,8 +179,6 @@ UV _uv_to_str(UV num, char *numstr, const char strlen) {
 UV _iv_to_str(IV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, IV_TO_STR_TMPL, num );
 }
-
-#define _croak croak
 
 void _die( pTHX_ I32 flags, char **argv ) {
     call_argv( "CBOR::Free::_die", G_EVAL | flags, argv );
@@ -523,7 +527,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             _init_length_buffer( aTHX_ tagnum, CBOR_TYPE_TAG, encode_state );
             _encode( aTHX_ *(av_fetch(array, 1, 0)), encode_state );
         }
-        else if (_get_boolean_stash( aTHX_ NULL ) == stash) {
+        else if (_get_boolean_stash() == stash) {
             _COPY_INTO_ENCODE(
                 encode_state,
                 SvTRUE(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
@@ -1001,12 +1005,12 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
         case CBOR_TYPE_OTHER:
             switch (control->u8) {
                 case CBOR_FALSE:
-                    ret = newSVsv( _get_false( aTHX_ NULL ) );
+                    ret = newSVsv( _get_false() );
                     ++decstate->curbyte;
                     break;
 
                 case CBOR_TRUE:
-                    ret = newSVsv( _get_true( aTHX_ NULL ) );
+                    ret = newSVsv( _get_true() );
                     ++decstate->curbyte;
                     break;
 

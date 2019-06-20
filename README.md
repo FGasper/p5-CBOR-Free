@@ -129,6 +129,8 @@ This code is licensed under the same license as Perl itself.
 
 # SEE ALSO
 
+[CBOR::PP](https://metacpan.org/pod/CBOR::PP) is a pure-Perl CBOR library.
+
 [CBOR::XS](https://metacpan.org/pod/CBOR::XS) is an older CBOR module on CPAN. It’s got more bells and
 whistles, so check it out if CBOR::Free lacks a feature you’d like.
 Note that [its maintainer has abandoned support for Perl versions from 5.22
