@@ -3,8 +3,6 @@ package CBOR::Free;
 use strict;
 use warnings;
 
-use Types::Serialiser;
-
 use CBOR::Free::X;
 use CBOR::Free::Tagged;
 
@@ -13,7 +11,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.10';
+    $VERSION = '0.11_01';
     XSLoader::load();
 }
 
@@ -117,9 +115,10 @@ C<encode()> receives.)
 
 =head1 BOOLEANS
 
-C<CBOR::Free::true()>, C<CBOR::Free::false()>,
-C<$CBOR::Free::true>, and C<$CBOR::Free::false> are defined as
+C<CBOR::Free::true()> and C<CBOR::Free::false()> are defined as
 convenience aliases for the equivalent L<Types::Serialiser> values.
+Note that there are no aliases for C<$Types::Serialiser::true> or
+C<$Types::Serialiser::false>.
 
 =head1 FRACTIONAL (FLOATING-POINT) NUMBERS
 
@@ -184,9 +183,17 @@ applications.
 
 #----------------------------------------------------------------------
 
-our ($true, $false);
-*true = *Types::Serialiser::true;
-*false = *Types::Serialiser::false;
+sub true {
+    require Types::Serialiser;
+    *true = *Types::Serialiser::true;
+    goto &true;
+}
+
+sub false {
+    require Types::Serialiser;
+    *false = *Types::Serialiser::false;
+    goto &false;
+}
 
 sub tag {
     return CBOR::Free::Tagged->new(@_);
