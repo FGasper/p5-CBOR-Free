@@ -48,7 +48,7 @@ please always check the changelog before upgrading.
 =head2 $cbor = encode( $DATA, %OPTS )
 
 Encodes a data structure or non-reference scalar to CBOR.
-The encoder recognizes and encodes integers, floats, binary and UTF-8
+The encoder recognizes and encodes integers, floats, byte and character
 strings, array and hash references, L<CBOR::Free::Tagged> instances,
 L<Types::Serialiser> booleans, and undef (encoded as null).
 
@@ -68,7 +68,7 @@ Notes on mapping Perl to CBOR:
 =over
 
 =item * The internal state of a defined Perl scalar (e.g., whether it’s an
-integer, float, binary string, or UTF-8 string) determines its CBOR
+integer, float, byte string, or character string) determines its CBOR
 encoding.
 
 =item * L<Types::Serialiser> booleans are encoded as CBOR booleans.
@@ -91,10 +91,10 @@ Notes on mapping CBOR to Perl:
 
 =over
 
-=item * CBOR UTF-8 strings become Perl UTF-8 strings. CBOR binary strings
-become Perl binary strings. (This may become configurable later.)
+=item * CBOR text strings become Perl character strings. CBOR binary strings
+become Perl byte strings. (This may become configurable later.)
 
-Note that invalid UTF-8 in a CBOR UTF-8 string is considered
+Note that invalid UTF-8 in a CBOR text string is considered
 invalid input and will thus prompt a thrown exception.
 
 =item * The only map keys that C<decode()> accepts are integers and strings.
