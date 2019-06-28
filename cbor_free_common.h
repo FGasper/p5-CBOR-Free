@@ -1,6 +1,8 @@
 #ifndef CBOR_FREE_COMMON
 #define CBOR_FREE_COMMON
 
+#include <stdint.h>
+
 #define CBOR_HALF_FLOAT 0xf9
 #define CBOR_FLOAT      0xfa
 #define CBOR_DOUBLE     0xfb

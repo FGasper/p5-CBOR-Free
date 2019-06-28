@@ -32,9 +32,12 @@ WriteMakefile1(
 
     VERBINST => 1,
 
-    OBJECT => '$(BASEEXT)$(OBJ_EXT) cbor_free_boolean.o cbor_free_encode.o',
-    #OBJECT => '$(O_FILES)',
-    #C => [ 'cbor_free_boolean.c' ],
+    OBJECT => [
+        '$(BASEEXT)$(OBJ_EXT)',
+        'cbor_free_boolean.o',
+        'cbor_free_encode.o',
+        'cbor_free_decode.o',
+    ],
 
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 7.12,
