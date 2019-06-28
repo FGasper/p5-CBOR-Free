@@ -16,71 +16,13 @@
 // For ntohs and ntohl
 #include <arpa/inet.h>
 
-#define CBOR_HALF_FLOAT 0xf9
-#define CBOR_FLOAT      0xfa
-#define CBOR_DOUBLE     0xfb
+#include "cbor_free_common.h"
 
-#define CBOR_FALSE      0xf4
-#define CBOR_TRUE       0xf5
-#define CBOR_NULL       0xf6
-#define CBOR_UNDEFINED  0xf7
-
-#define CBOR_LENGTH_SMALL       0x18
-#define CBOR_LENGTH_MEDIUM      0x19
-#define CBOR_LENGTH_LARGE       0x1a
-#define CBOR_LENGTH_HUGE        0x1b
-#define CBOR_LENGTH_INDEFINITE  0x1f
-
-#define LOAD_BOOLEAN_CLASS   "Types::Serialiser"
-#define BOOLEAN_CLASS   "Types::Serialiser::Boolean"
-#define TAGGED_CLASS    "CBOR::Free::Tagged"
-
-#define MAX_ENCODE_RECURSE 98
-
-#define ENCODE_ALLOC_CHUNK_SIZE 1024
-
-#define IS_LITTLE_ENDIAN (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678)
-#define IS_64_BIT        (BYTEORDER > 0x10000)
-
-#define _croak croak
-
-static const unsigned char NUL = 0;
-static const unsigned char CBOR_NULL_U8  = CBOR_NULL;
-static const unsigned char CBOR_FALSE_U8 = CBOR_FALSE;
-static const unsigned char CBOR_TRUE_U8  = CBOR_TRUE;
-
-static const unsigned char CBOR_INF_SHORT[3] = { 0xf9, 0x7c, 0x00 };
-static const unsigned char CBOR_NAN_SHORT[3] = { 0xf9, 0x7e, 0x00 };
-static const unsigned char CBOR_NEGINF_SHORT[3] = { 0xf9, 0xfc, 0x00 };
-
-enum CBOR_TYPE {
-    CBOR_TYPE_UINT,
-    CBOR_TYPE_NEGINT,
-    CBOR_TYPE_BINARY,
-    CBOR_TYPE_UTF8,
-    CBOR_TYPE_ARRAY,
-    CBOR_TYPE_MAP,
-    CBOR_TYPE_TAG,
-    CBOR_TYPE_OTHER,
-};
-
-static HV *boolean_stash = NULL;
-static HV *tagged_stash = NULL;
-
-static const char* UV_TO_STR_TMPL = sizeof(UV) == 8 ? "%llu" : "%lu";
-static const char* IV_TO_STR_TMPL = sizeof(UV) == 8 ? "%lld" : "%ld";
+#include "cbor_free_boolean.h"
+#include "cbor_free_encode.h"
 
 //----------------------------------------------------------------------
 // Definitions
-
-typedef struct {
-    char *buffer;
-    STRLEN buflen;
-    STRLEN len;
-    uint8_t recurse_count;
-    uint8_t scratch[9];
-    bool is_canonical;
-} encode_ctx;
 
 typedef struct {
     char* start;
@@ -95,31 +37,6 @@ typedef struct {
     } scratch;
 } decode_ctx;
 
-enum enum_sizetype {
-    //tiny = 0,
-    small = 1,
-    medium = 2,
-    large = 4,
-    huge = 8,
-    indefinite = 255,
-};
-
-union anyint {
-    uint8_t u8;
-    uint16_t u16;
-    uint32_t u32;
-    uint64_t u64;
-};
-
-union control_byte {
-    uint8_t u8;
-
-    struct {
-        unsigned int length_type : 5;
-        unsigned int major_type : 3;
-    } pieces;
-};
-
 //----------------------------------------------------------------------
 // Prototypes
 // TODO: Be C99-compliant.
@@ -128,49 +45,8 @@ SV *_decode( pTHX_ decode_ctx* decstate );
 
 //----------------------------------------------------------------------
 
-STATIC HV *_get_boolean_stash() {
-    if (!boolean_stash) {
-        dTHX;
-
-        boolean_stash = gv_stashpv(BOOLEAN_CLASS, 0);
-
-        if (!boolean_stash) {
-            SV *modname = newSVpvs(LOAD_BOOLEAN_CLASS);
-            load_module(PERL_LOADMOD_NOIMPORT, modname, NULL);
-
-            boolean_stash = gv_stashpv(BOOLEAN_CLASS, 0);
-
-            if (!boolean_stash) {
-                _croak("Loaded Types::Serialiser but didn’t find stash!");
-            }
-        }
-    }
-
-    return boolean_stash;
-}
-
-static SV *stored_false = NULL;
-static SV *stored_true = NULL;
-
-SV *_get_false() {
-    if (!stored_false) {
-        dTHX;
-        _get_boolean_stash();
-        stored_false = get_sv("Types::Serialiser::false", 0);
-    }
-
-    return stored_false;
-}
-
-SV *_get_true() {
-    if (!stored_true) {
-        dTHX;
-        _get_boolean_stash();
-        stored_true = get_sv("Types::Serialiser::true", 0);
-    }
-
-    return stored_true;
-}
+const char* UV_TO_STR_TMPL = sizeof(UV) == 8 ? "%llu" : "%lu";
+const char* IV_TO_STR_TMPL = sizeof(UV) == 8 ? "%lld" : "%ld";
 
 UV _uv_to_str(UV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, UV_TO_STR_TMPL, num );
@@ -180,25 +56,13 @@ UV _iv_to_str(IV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, IV_TO_STR_TMPL, num );
 }
 
-void _die( pTHX_ I32 flags, char **argv ) {
-    call_argv( "CBOR::Free::_die", G_EVAL | flags, argv );
-
-    _croak(NULL);
-}
-
-void _croak_unrecognized(pTHX_ SV *value) {
-    char * words[3] = { "Unrecognized", SvPV_nolen(value), NULL };
-
-    _die( aTHX_ G_DISCARD, words );
-}
-
 void _croak_incomplete( pTHX_ STRLEN lack ) {
     char lackstr[24];
     _uv_to_str( lack, lackstr, sizeof(lackstr) );
 
     char * words[3] = { "Incomplete", lackstr, NULL };
 
-    _die( aTHX_ G_DISCARD, words );
+    _die( G_DISCARD, words );
 }
 
 void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
@@ -213,13 +77,13 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
 
     char * words[] = { "InvalidControl", ordstr, offsetstr, NULL };
 
-    _die( aTHX_ G_DISCARD, words );
+    _die( G_DISCARD, words );
 }
 
 void _croak_invalid_utf8( pTHX_ char *string ) {
     char * words[3] = { "InvalidUTF8", string, NULL };
 
-    _die( aTHX_ G_DISCARD, words);
+    _die( G_DISCARD, words);
 }
 
 void _croak_invalid_map_key( pTHX_ const uint8_t byte, STRLEN offset ) {
@@ -259,7 +123,7 @@ void _croak_invalid_map_key( pTHX_ const uint8_t byte, STRLEN offset ) {
 
     char * words[] = { "InvalidMapKey", bytestr, offsetstr, NULL };
 
-    _die( aTHX_ G_DISCARD, words);
+    _die( G_DISCARD, words);
 }
 
 void _croak_cannot_decode_64bit( pTHX_ const uint8_t *u64bytes, STRLEN offset ) {
@@ -273,7 +137,7 @@ void _croak_cannot_decode_64bit( pTHX_ const uint8_t *u64bytes, STRLEN offset ) 
 
     char * words[] = { "CannotDecode64Bit", numhex, offsetstr, NULL };
 
-    _die( aTHX_ G_DISCARD, words );
+    _die( G_DISCARD, words );
 }
 
 void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
@@ -285,7 +149,7 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 
     char * words[] = { "NegativeIntTooLow", absstr, offsetstr, NULL };
 
-    _die( aTHX_ G_DISCARD, words );
+    _die( G_DISCARD, words );
 }
 
 #define _DECODE_CHECK_FOR_OVERAGE( decstate, len) \
@@ -295,45 +159,6 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 
 
 //----------------------------------------------------------------------
-
-static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, const unsigned char *hdr, STRLEN len) {
-    if ( (len + encode_state->len) > encode_state->buflen ) {
-        Renew( encode_state->buffer, encode_state->buflen + len + ENCODE_ALLOC_CHUNK_SIZE, char );
-        encode_state->buflen += len + ENCODE_ALLOC_CHUNK_SIZE;
-    }
-
-    Copy( hdr, encode_state->buffer + encode_state->len, len, char );
-    encode_state->len += len;
-}
-
-//----------------------------------------------------------------------
-
-// These encode num as big-endian into buffer.
-// Importantly, on big-endian systems this is just a memcpy,
-// while on little-endian systems it’s a bswap.
-
-static inline void _u16_to_buffer( UV num, uint8_t *buffer ) {
-    *(buffer++) = num >> 8;
-    *(buffer++) = num;
-}
-
-static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
-    *(buffer++) = num >> 24;
-    *(buffer++) = num >> 16;
-    *(buffer++) = num >> 8;
-    *(buffer++) = num;
-}
-
-static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
-    *(buffer++) = num >> 56;
-    *(buffer++) = num >> 48;
-    *(buffer++) = num >> 40;
-    *(buffer++) = num >> 32;
-    *(buffer++) = num >> 24;
-    *(buffer++) = num >> 16;
-    *(buffer++) = num >> 8;
-    *(buffer++) = num;
-}
 
 // Basically ntohll(), but it accepts a pointer.
 static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
@@ -367,247 +192,6 @@ static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
     num |= *(buffer++);
 
     return num;
-}
-
-//----------------------------------------------------------------------
-
-// NOTE: Contrary to what we’d ordinarily expect, for canonical CBOR
-// keys are only byte-sorted if their lengths are identical. Thus,
-// “z” sorts EARLIER than “aa”. (cf. section 3.9 of the RFC)
-I32 sortstring( pTHX_ SV *a, SV *b ) {
-    return (SvCUR(a) < SvCUR(b)) ? -1 : (SvCUR(a) > SvCUR(b)) ? 1 : memcmp( SvPV_nolen(a), SvPV_nolen(b), SvCUR(a) );
-}
-
-//----------------------------------------------------------------------
-
-// TODO? This could be a macro … it’d just be kind of unwieldy as such.
-static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type, encode_ctx *encode_state ) {
-    union control_byte *scratch0 = (void *) encode_state->scratch;
-    scratch0->pieces.major_type = major_type;
-
-    if ( num < CBOR_LENGTH_SMALL ) {
-        scratch0->pieces.length_type = (uint8_t) num;
-
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
-    }
-    else if ( num <= 0xff ) {
-        scratch0->pieces.length_type = CBOR_LENGTH_SMALL;
-        encode_state->scratch[1] = (uint8_t) num;
-
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
-    }
-    else if ( num <= 0xffff ) {
-        scratch0->pieces.length_type = CBOR_LENGTH_MEDIUM;
-
-        _u16_to_buffer( num, 1 + encode_state->scratch );
-
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 3);
-    }
-    else if ( num <= 0xffffffffU ) {
-        scratch0->pieces.length_type = CBOR_LENGTH_LARGE;
-
-        _u32_to_buffer( num, 1 + encode_state->scratch );
-
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 5);
-    }
-    else {
-        scratch0->pieces.length_type = CBOR_LENGTH_HUGE;
-
-        _u64_to_buffer( num, 1 + encode_state->scratch );
-
-        _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
-    }
-}
-
-void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
-    ++encode_state->recurse_count;
-
-    if (encode_state->recurse_count > MAX_ENCODE_RECURSE) {
-
-        // call_pv() killed the process in Win32; this seems to fix that.
-        static char * words[] = { NULL };
-        call_argv("CBOR::Free::_die_recursion", G_EVAL|G_DISCARD, words);
-
-        _croak(NULL);
-    }
-
-    if (!SvROK(value)) {
-
-        if (SvIOK(value)) {
-            IV val = SvIVX(value);
-
-            // In testing, Perl’s (0 + ~0) evaluated as < 0 here,
-            // but the SvUOK() check fixes that.
-            if (val < 0 && !SvUOK(value)) {
-                _init_length_buffer( aTHX_ -(++val), CBOR_TYPE_NEGINT, encode_state );
-            }
-            else {
-                // NB: SvUOK doesn’t work to identify nonnegatives … ?
-                _init_length_buffer( aTHX_ val, CBOR_TYPE_UINT, encode_state );
-            }
-        }
-        else if (SvNOK(value)) {
-            NV val_nv = SvNVX(value);
-
-            if (Perl_isnan(val_nv)) {
-                _COPY_INTO_ENCODE(encode_state, CBOR_NAN_SHORT, 3);
-            }
-            else if (Perl_isinf(val_nv)) {
-                if (val_nv > 0) {
-                    _COPY_INTO_ENCODE(encode_state, CBOR_INF_SHORT, 3);
-                }
-                else {
-                    _COPY_INTO_ENCODE(encode_state, CBOR_NEGINF_SHORT, 3);
-                }
-            }
-            else {
-
-                // Typecast to a double to accommodate long-double perls.
-                double val = (double) val_nv;
-
-                char *valptr = (char *) &val;
-
-#if IS_LITTLE_ENDIAN
-                encode_state->scratch[0] = CBOR_DOUBLE;
-                encode_state->scratch[1] = valptr[7];
-                encode_state->scratch[2] = valptr[6];
-                encode_state->scratch[3] = valptr[5];
-                encode_state->scratch[4] = valptr[4];
-                encode_state->scratch[5] = valptr[3];
-                encode_state->scratch[6] = valptr[2];
-                encode_state->scratch[7] = valptr[1];
-                encode_state->scratch[8] = valptr[0];
-
-                _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 9);
-#else
-                char bytes[9] = { CBOR_DOUBLE, valptr[0], valptr[1], valptr[2], valptr[3], valptr[4], valptr[5], valptr[6], valptr[7] };
-                _COPY_INTO_ENCODE(encode_state, bytes, 9);
-#endif
-            }
-        }
-        else if (!SvOK(value)) {
-            _COPY_INTO_ENCODE(encode_state, &CBOR_NULL_U8, 1);
-        }
-        else {
-            char *val = SvPOK(value) ? SvPVX(value) : SvPV_nolen(value);
-
-            STRLEN len = SvCUR(value);
-
-            bool encode_as_text = !!SvUTF8(value);
-
-            /*
-            if (!encode_as_text) {
-                STRLEN i;
-                for (i=0; i<len; i++) {
-                    if (val[i] & 0x80) break;
-                }
-
-                // Encode as text if there were no high-bit octets.
-                encode_as_text = (i == len);
-            }
-            */
-
-            _init_length_buffer( aTHX_
-                len,
-                (encode_as_text ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY),
-                encode_state
-            );
-
-            _COPY_INTO_ENCODE( encode_state, (unsigned char *) val, len );
-        }
-    }
-    else if (sv_isobject(value)) {
-        HV *stash = SvSTASH( SvRV(value) );
-
-        if (tagged_stash == stash) {
-            AV *array = (AV *)SvRV(value);
-            SV **tag = av_fetch(array, 0, 0);
-            IV tagnum = SvIV(*tag);
-
-            _init_length_buffer( aTHX_ tagnum, CBOR_TYPE_TAG, encode_state );
-            _encode( aTHX_ *(av_fetch(array, 1, 0)), encode_state );
-        }
-        else if (_get_boolean_stash() == stash) {
-            _COPY_INTO_ENCODE(
-                encode_state,
-                SvTRUE(SvRV(value)) ? &CBOR_TRUE_U8 : &CBOR_FALSE_U8,
-                1
-            );
-        }
-
-        // TODO: Support TO_JSON() or TO_CBOR() method?
-
-        else _croak_unrecognized(aTHX_ value);
-    }
-    else if (SVt_PVAV == SvTYPE(SvRV(value))) {
-        AV *array = (AV *)SvRV(value);
-        SSize_t len;
-        len = 1 + av_len(array);
-
-        _init_length_buffer( aTHX_ len, CBOR_TYPE_ARRAY, encode_state );
-
-        SSize_t i;
-
-        SV **cur;
-        for (i=0; i<len; i++) {
-            cur = av_fetch(array, i, 0);
-            _encode( aTHX_ *cur, encode_state );
-        }
-    }
-    else if (SVt_PVHV == SvTYPE(SvRV(value))) {
-        HV *hash = (HV *)SvRV(value);
-
-        char *key;
-        I32 key_length;
-        SV *cur;
-
-        I32 keyscount = hv_iterinit(hash);
-
-        _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
-
-        if (encode_state->is_canonical) {
-            SV *keys[keyscount];
-
-            I32 curkey = 0;
-
-            while (hv_iternextsv(hash, &key, &key_length)) {
-                keys[curkey] = newSVpvn(key, key_length);
-                ++curkey;
-            }
-
-            sortsv(keys, keyscount, sortstring);
-
-            for (curkey=0; curkey < keyscount; ++curkey) {
-                cur = keys[curkey];
-                key = SvPV_nolen(cur);
-                key_length = SvCUR(cur);
-
-                // Store the key.
-                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-
-                cur = *( hv_fetch(hash, key, key_length, 0) );
-
-                _encode( aTHX_ cur, encode_state );
-            }
-        }
-        else {
-            while ((cur = hv_iternextsv(hash, &key, &key_length))) {
-
-                // Store the key.
-                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-
-                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-
-                _encode( aTHX_ cur, encode_state );
-            }
-        }
-    }
-    else {
-        _croak_unrecognized(aTHX_ value);
-    }
-
-    --encode_state->recurse_count;
 }
 
 //----------------------------------------------------------------------
@@ -1005,12 +589,12 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
         case CBOR_TYPE_OTHER:
             switch (control->u8) {
                 case CBOR_FALSE:
-                    ret = newSVsv( _get_false() );
+                    ret = newSVsv( cbf_get_false() );
                     ++decstate->curbyte;
                     break;
 
                 case CBOR_TRUE:
-                    ret = newSVsv( _get_true() );
+                    ret = newSVsv( cbf_get_true() );
                     ++decstate->curbyte;
                     break;
 
@@ -1083,8 +667,6 @@ BOOT:
     HV *stash = gv_stashpv("CBOR::Free", FALSE);
     newCONSTSUB(stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
 
-    tagged_stash = gv_stashpv(TAGGED_CLASS, 1);
-
 SV *
 encode( SV * value, ... )
     CODE:
@@ -1110,16 +692,14 @@ encode( SV * value, ... )
             }
         }
 
-        _encode(aTHX_ value, encode_state);
+        RETVAL = newSV(0);
+
+        cbf_encode(aTHX_ value, encode_state, RETVAL);
 
         // Don’t use newSVpvn here because that will copy the string.
         // Instead, create a new SV and manually assign its pieces.
         // This follows the example from ext/POSIX/POSIX.xs:
 
-        // Ensure that there’s a trailing NUL:
-        _COPY_INTO_ENCODE( encode_state, &NUL, 1 );
-
-        RETVAL = newSV(0);
         SvUPGRADE(RETVAL, SVt_PV);
         SvPV_set(RETVAL, encode_state->buffer);
         SvPOK_on(RETVAL);
