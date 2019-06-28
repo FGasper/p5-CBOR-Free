@@ -1,3 +1,9 @@
+#define PERL_NO_GET_CONTEXT
+
+#include "EXTERN.h"
+#include "perl.h"
+#include "XSUB.h"
+
 #include "cbor_free_common.h"
 #include "cbor_free_decode.h"
 
@@ -489,6 +495,29 @@ static inline SV *_decode_str_to_sv( pTHX_ decode_ctx* decstate ) {
     return newSVpvn( decoded_str.buffer, decoded_str.num.uv );
 }
 
+SV *_call_with_argument( pTHX_ SV* cb, SV* arg ) {
+    // --- Almost all copy-paste from “perlcall” … blegh!
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    EXTEND(SP, 1);
+
+    PUSHs( sv_2mortal(arg) );
+    PUTBACK;
+
+    call_sv(cb, G_SCALAR);
+
+    SV *ret = newSVsv(POPs);
+
+    FREETMPS;
+    LEAVE;
+
+    return ret;
+}
+
 SV *_decode( pTHX_ decode_ctx* decstate ) {
     SV *ret = NULL;
 
@@ -496,6 +525,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
+fprintf(stderr, "major type: %u\n", control->pieces.major_type);
     switch (control->pieces.major_type) {
         case CBOR_TYPE_UINT:
             ret = newSVuv( _decode_uint( aTHX_ decstate ) );
@@ -535,10 +565,21 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 _croak_invalid_control( aTHX_ decstate );
             }
 
-            // For now, just throw this tag value away.
-            _parse_for_uint_len2( aTHX_ decstate );
+            UV tagnum = _parse_for_uint_len2( aTHX_ decstate );
 
             ret = _decode( aTHX_ decstate );
+
+            if (decstate->tag_handler) {
+                HV *my_tag_handler = decstate->tag_handler;
+
+                char my_numstr[24];
+                _uv_to_str(tagnum, my_numstr, 24);
+
+                SV *handler_cr = *( hv_fetch( my_tag_handler, my_numstr, strlen(my_numstr), 0 ) );
+                if (handler_cr && SvOK(handler_cr)) {
+                    ret = _call_with_argument( aTHX_ handler_cr, ret );
+                }
+            }
 
             break;
         case CBOR_TYPE_OTHER:

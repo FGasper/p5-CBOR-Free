@@ -13,11 +13,14 @@ typedef struct {
     char* curbyte;
     char* end;
 
+    HV * tag_handler;
+
     union {
         uint8_t bytes[30];  // used for num -> key conversions
         float as_float;
         double as_double;
     } scratch;
+
 } decode_ctx;
 
 struct numbuf {

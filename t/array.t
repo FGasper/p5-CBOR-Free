@@ -18,6 +18,10 @@ my @tests = (
     [ [undef, [65536]] => "\x82\xf6\x81\x1a\0\1\0\0" ],
 );
 
+my $cbf = CBOR::Free->new();
+use Devel::Peek;
+Dump($cbf);
+
 for my $t (@tests) {
     my ($in, $enc) = @$t;
 

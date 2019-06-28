@@ -25,9 +25,9 @@ CBOR::Free - Fast CBOR for everyone
 
 =head1 SYNOPSIS
 
-    $cbor = CBOR::Free::encode( $scalar_or_ar_or_hr );
+    $cbor = CBOR::Free->new()->encode( $scalar_or_ar_or_hr );
 
-    $thing = CBOR::Free::decode( $cbor )
+    $thing = CBOR::Free->new()->decode( $cbor )
 
     my $tagged = CBOR::Free::tag( 1, '2019-01-02T00:01:02Z' );
 
@@ -43,9 +43,37 @@ This distribution is an experimental effort. Its interface is still
 subject to change. If you decide to use CBOR::Free in your project,
 please always check the changelog before upgrading.
 
-=head1 FUNCTIONS
+=head1 METHODS
 
-=head2 $cbor = encode( $DATA, %OPTS )
+=head2 $obj = I<CLASS>->new()
+
+Creates a new CBOR context object.
+
+=cut
+
+#sub new { bless {} }
+
+=head2 I<OBJ>->set_tag_decode_callback( %TAG_CALLBACK )
+
+Takes a list of key/value pairs where each key is a tag (i.e., number)
+and each value is a coderef that CBOR::Free will run when that tag is
+seen during a decode operation.
+
+=cut
+
+use constant _TAG_PACK_TMPL => eval { pack 'Q' } ? 'Q' : 'L';
+
+#sub set_tag_decode_callbacks {
+#    my ($self, %tag_cb) = @_;
+#
+#    for my $tag (keys %tag_cb) {
+#        $self->{'_tag_decode_callback'}{ pack('Q'
+#    }
+#
+#    return $self;
+#}
+
+=head2 $cbor = I<OBJ>->encode( $DATA, %OPTS )
 
 Encodes a data structure or non-reference scalar to CBOR.
 The encoder recognizes and encodes integers, floats, byte and character

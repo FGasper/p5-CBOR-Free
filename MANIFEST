@@ -2,6 +2,7 @@
 .gitignore
 .travis.yml
 Changes
+Free.xs
 LICENSE
 MANIFEST
 Makefile.PL
@@ -9,6 +10,8 @@ README.md
 cbor_free_boolean.c
 cbor_free_boolean.h
 cbor_free_common.h
+cbor_free_decode.c
+cbor_free_decode.h
 cbor_free_encode.c
 cbor_free_encode.h
 lib/CBOR/Free.pm
