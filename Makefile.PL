@@ -37,7 +37,7 @@ WriteMakefile1(
     ],
 
     CONFIGURE_REQUIRES => {
-        'ExtUtils::MakeMaker' => 7.12,
+        # 'ExtUtils::MakeMaker' => 7.12,
         'Devel::PPPort' => 0,
     },
 
