@@ -10,6 +10,9 @@ CBOR::Free - Fast CBOR for everyone
 
     my $tagged = CBOR::Free::tag( 1, '2019-01-02T00:01:02Z' );
 
+Also see [CBOR::Free::Decoder](https://metacpan.org/pod/CBOR::Free::Decoder) for an object-oriented interface
+to the decoder.
+
 # DESCRIPTION
 
 This library implements [CBOR](https://tools.ietf.org/html/rfc7049)

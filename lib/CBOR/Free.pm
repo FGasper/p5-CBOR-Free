@@ -11,7 +11,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.11';
+    $VERSION = '0.12_02';
     XSLoader::load();
 }
 
@@ -30,6 +30,9 @@ CBOR::Free - Fast CBOR for everyone
     $thing = CBOR::Free::decode( $cbor )
 
     my $tagged = CBOR::Free::tag( 1, '2019-01-02T00:01:02Z' );
+
+Also see L<CBOR::Free::Decoder> for an object-oriented interface
+to the decoder.
 
 =head1 DESCRIPTION
 

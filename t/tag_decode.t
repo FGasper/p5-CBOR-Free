@@ -7,17 +7,30 @@ use Test::More;
 use Test::Deep;
 use Test::FailWarnings;
 
+use CBOR::Free;
 use CBOR::Free::Decoder;
+
+for ( 1 .. 100 ) {
+    my $tag = int rand 0xffffffff;
+
+    my $decoder = CBOR::Free::Decoder->new()->set_tag_handlers(
+        $tag => sub { 42 + shift() },
+    );
+
+    my $cbor = CBOR::Free::encode(
+        CBOR::Free::tag( $tag, 123 ),
+    );
+
+    my $decoded = $decoder->decode( $cbor );
+    is( $decoded, 165, "single callback OK (tag $tag)" );
+}
 
 my $decoder = CBOR::Free::Decoder->new()->set_tag_handlers(
     1 => sub { 42 + shift() },
 );
 
-my $decoded = $decoder->decode( "\xc1\1" );
-is( $decoded, 43, 'single callback OK' );
-
 my @w;
-$decoded = do {
+my $decoded = do {
     local $SIG{'__WARN__'} = sub { push @w, @_ };
     $decoder->decode( "\xcb\x80" );
 };
