@@ -1,6 +1,8 @@
 Revision history for Perl module CBOR::Free
 
 0.12
+- BREAKING CHANGE (minor): Unrecognized tagged values now prompt a warning.
+  This means that decode() will warn() on every tagged value.
 - Fix bug in parsing arguments to encode().
 - Create CBOR::Free::Decoder class, which allows configurable parsing
   of tagged values.

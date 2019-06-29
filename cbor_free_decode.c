@@ -152,7 +152,7 @@ void _croak_cannot_decode_64bit( pTHX_ const uint8_t *u64bytes, STRLEN offset ) 
     char numhex[20];
     numhex[19] = 0;
 
-    my_snprintf( numhex, 20, "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
+    my_snprintf( numhex, sizeof(numhex), "%02x%02x_%02x%02x_%02x%02x_%02x%02x", u64bytes[0], u64bytes[1], u64bytes[2], u64bytes[3], u64bytes[4], u64bytes[5], u64bytes[6], u64bytes[7] );
 
     char offsetstr[20];
     _uv_to_str( offset, offsetstr, sizeof(offsetstr) );
@@ -175,7 +175,10 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
 }
 
 void _warn_unhandled_tag( pTHX_ UV tagnum, U8 value_major_type ) {
-    warn("Ignoring unrecognized CBOR tag #%lu (major type %u, %s)!", tagnum, value_major_type, MAJOR_TYPE_DESCRIPTION[value_major_type]);
+    char tmpl[255];
+    my_snprintf( tmpl, sizeof(tmpl), "Ignoring unrecognized CBOR tag #%s (major type %%u, %%s)!", UV_TO_STR_TMPL );
+
+    warn(tmpl, tagnum, value_major_type, MAJOR_TYPE_DESCRIPTION[value_major_type]);
 }
 
 //----------------------------------------------------------------------

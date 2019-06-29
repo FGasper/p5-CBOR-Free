@@ -17,6 +17,7 @@ cbor_free_encode.h
 lib/CBOR/Free.pm
 lib/CBOR/Free.xs
 lib/CBOR/Free/AddOne.pm
+lib/CBOR/Free/Decoder.pm
 lib/CBOR/Free/Tagged.pm
 lib/CBOR/Free/X.pm
 lib/CBOR/Free/X/Base.pm
@@ -46,6 +47,8 @@ t/hash.t
 t/negint.t
 t/string.t
 t/tag.t
+t/tag_decode.t
 t/uint.t
 t/undef.t
 t_manual/upstream_test_vectors.t
+typemap

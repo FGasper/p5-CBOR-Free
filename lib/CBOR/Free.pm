@@ -103,7 +103,9 @@ An exception is thrown if the decoder finds anything else as a map key.
 =item * CBOR booleans become the corresponding L<Types::Serialiser> values.
 Both CBOR null and undefined become Perl undef.
 
-=item * Tags are IGNORED for now. (This may become configurable later.)
+=item * This function does not interpret tags; if you need that, look
+at L<CBOR::Free::Decoder>. Any tags that this function sees prompt a warning
+but are otherwise ignored.
 
 =back
 
