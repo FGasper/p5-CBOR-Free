@@ -53,11 +53,22 @@ static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
     return num;
 }
 
+const char *MAJOR_TYPE_DESCRIPTION[] = {
+    "unsigned integer",
+    "negative integer",
+    "byte string",
+    "text string",
+    "array",
+    "map",
+    "tag",
+    "miscellaneous",
+};
+
 //----------------------------------------------------------------------
 // Croakers
 
-#define UV_TO_STR_TMPL (sizeof(UV) == 8 ? "%llu" : "%lu")
-#define IV_TO_STR_TMPL (sizeof(UV) == 8 ? "%lld" : "%ld")
+static const char* UV_TO_STR_TMPL = (sizeof(UV) == 8 ? "%llu" : "%lu");
+static const char* IV_TO_STR_TMPL = (sizeof(UV) == 8 ? "%lld" : "%ld");
 
 UV _uv_to_str(UV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, UV_TO_STR_TMPL, num );
@@ -161,6 +172,10 @@ void _croak_cannot_decode_negative( pTHX_ UV abs, STRLEN offset ) {
     char * words[] = { "NegativeIntTooLow", absstr, offsetstr, NULL };
 
     _die( G_DISCARD, words );
+}
+
+void _warn_unhandled_tag( pTHX_ UV tagnum, U8 value_major_type ) {
+    warn("Ignoring unrecognized CBOR tag #%lu (major type %u, %s)!", tagnum, value_major_type, MAJOR_TYPE_DESCRIPTION[value_major_type]);
 }
 
 //----------------------------------------------------------------------
@@ -525,7 +540,6 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
-fprintf(stderr, "major type: %u\n", control->pieces.major_type);
     switch (control->pieces.major_type) {
         case CBOR_TYPE_UINT:
             ret = newSVuv( _decode_uint( aTHX_ decstate ) );
@@ -567,18 +581,25 @@ fprintf(stderr, "major type: %u\n", control->pieces.major_type);
 
             UV tagnum = _parse_for_uint_len2( aTHX_ decstate );
 
+            U8 value_major_type = ((union control_byte *) decstate->curbyte)->pieces.major_type;
+
             ret = _decode( aTHX_ decstate );
 
             if (decstate->tag_handler) {
+fprintf(stderr, "has handler\n");
                 HV *my_tag_handler = decstate->tag_handler;
 
-                char my_numstr[24];
-                _uv_to_str(tagnum, my_numstr, 24);
+                SV **handler_cr = hv_fetch( my_tag_handler, (char *) &tagnum, sizeof(UV), 0 );
 
-                SV *handler_cr = *( hv_fetch( my_tag_handler, my_numstr, strlen(my_numstr), 0 ) );
-                if (handler_cr && SvOK(handler_cr)) {
-                    ret = _call_with_argument( aTHX_ handler_cr, ret );
+                if (handler_cr && *handler_cr && SvOK(*handler_cr)) {
+                    ret = _call_with_argument( aTHX_ *handler_cr, ret );
                 }
+                else {
+                    _warn_unhandled_tag( aTHX_ tagnum, value_major_type );
+                }
+            }
+            else {
+                _warn_unhandled_tag( aTHX_ tagnum, value_major_type );
             }
 
             break;
@@ -653,11 +674,23 @@ fprintf(stderr, "major type: %u\n", control->pieces.major_type);
     return ret;
 }
 
-SV *cbf_decode( pTHX_ decode_ctx* decode_state ) {
-    SV *RETVAL = _decode( aTHX_ decode_state );
+SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler ) {
+    STRLEN cborlen;
 
-    if (decode_state->curbyte != decode_state->end) {
-        STRLEN bytes_count = decode_state->end - decode_state->curbyte;
+    char *cborstr = SvPV(cbor, cborlen);
+
+    decode_ctx decode_state = {
+        cborstr,
+        cborlen,
+        cborstr,
+        cborstr + cborlen,
+        tag_handler,
+    };
+
+    SV *RETVAL = _decode( aTHX_ &decode_state );
+
+    if (decode_state.curbyte != decode_state.end) {
+        STRLEN bytes_count = decode_state.end - decode_state.curbyte;
 
         char numstr[24];
         _uv_to_str(bytes_count, numstr, 24);

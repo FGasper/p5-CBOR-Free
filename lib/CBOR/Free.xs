@@ -20,27 +20,6 @@
 
 HV *cbf_stash = NULL;
 
-//SV *
-//new( const char *class )
-//    CODE:
-//        HV * rh = newHV();
-//
-//        SV * rhref = newRV_noinc( (SV *) rh );
-//
-//        HV *bless_into;
-//
-//        if (strcmp(class, _PACKAGE)) {
-//            HV *bless_into = gv_stashpv(_PACKAGE, TRUE);
-//        }
-//        else {
-//            bless_into = cbf_stash;
-//        }
-//
-//        RETVAL = sv_bless( rhref, bless_into );
-//    OUTPUT:
-//       RETVAL
-//
-
 //----------------------------------------------------------------------
 
 MODULE = CBOR::Free           PACKAGE = CBOR::Free
@@ -68,9 +47,9 @@ encode( SV * value, ... )
 
         U8 i;
         for (i=1; i<items; i++) {
-            if (!(i % 2)) break;
+            if (!(i % 2)) continue;
 
-            if ((SvCUR(ST(i)) == 9) && !memcmp( SvPV_nolen(ST(i)), "canonical", 9)) {
+            if ((SvCUR(ST(i)) == 9) && memEQ( SvPV_nolen(ST(i)), "canonical", 9)) {
                 ++i;
                 if (i<items) encode_state->is_canonical = SvTRUE(ST(i));
                 break;
@@ -98,23 +77,12 @@ encode( SV * value, ... )
 SV *
 decode( SV *cbor )
     CODE:
-        char *cborstr;
-        STRLEN cborlen;
-
-        cborstr = SvPV(cbor, cborlen);
-
-        decode_ctx decode_state = {
-            cborstr,
-            cborlen,
-            cborstr,
-            cborstr + cborlen,
-            NULL,
-        };
-
-        RETVAL = cbf_decode( aTHX_ &decode_state );
+        RETVAL = cbf_decode( aTHX_ cbor, NULL );
 
     OUTPUT:
         RETVAL
+
+# ----------------------------------------------------------------------
 
 MODULE = CBOR::Free     PACKAGE = CBOR::Free::Decoder
 
@@ -123,40 +91,17 @@ PROTOTYPES: DISABLE
 SV *
 decode( SV *selfref, SV *cbor )
     CODE:
-//sv_dump(selfref);
         HV *self = (HV *)SvRV(selfref);
-fprintf(stderr, "one\n");
 
-        SV **tag_handler_hr = hv_fetchs(self, "_tag_handler", 0);
-fprintf(stderr, "one %llu\n", tag_handler_hr);
+        HV *tag_handler = NULL;
 
-        SV *tag_handler = tag_handler_hr ? *tag_handler_hr : NULL;
-fprintf(stderr, "one %llu\n", tag_handler);
+        SV **tag_handler_hr = hv_fetchs(self, "_tag_decode_callback", 0);
 
-        if (tag_handler && !SvOK(tag_handler)) {
-fprintf(stderr, "null\n");
-            tag_handler = NULL;
+        if (tag_handler_hr && *tag_handler_hr && SvOK(*tag_handler_hr)) {
+            tag_handler = (HV *)SvRV(*tag_handler_hr);
         }
-//sv_dump(tag_handler);
-fprintf(stderr, "SVt_PVHV %u\n", SVt_PVHV);
-fprintf(stderr, "type: %llu\n", SvTYPE(SvRV(tag_handler)));
 
-        STRLEN cborlen;
-
-        char *cborstr = SvPV(cbor, cborlen);
-
-        decode_ctx decode_state = {
-            cborstr,
-            cborlen,
-            cborstr,
-            cborstr + cborlen,
-            tag_handler ? (HV *)SvRV(tag_handler) : NULL,
-        };
-
-    //fprintf(stderr, "tag handler hv %llu\n", tag_handler_hv);
-    //fprintf(stderr, "tag handler in struct %llu\n", decode_state.tag_handler);
-
-        RETVAL = cbf_decode( aTHX_ &decode_state );
+        RETVAL = cbf_decode( aTHX_ cbor, tag_handler );
 
     OUTPUT:
         RETVAL

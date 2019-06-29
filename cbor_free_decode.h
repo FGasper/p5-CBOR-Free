@@ -34,6 +34,6 @@ struct numbuf {
 
 //----------------------------------------------------------------------
 
-SV * cbf_decode( pTHX_ decode_ctx* decode_state );
+SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler );
 
 #endif
