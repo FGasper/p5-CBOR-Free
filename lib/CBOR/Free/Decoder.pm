@@ -1,5 +1,7 @@
 package CBOR::Free::Decoder;
 
+=encoding utf8
+
 =head1 NAME
 
 CBOR::Free::Decoder
