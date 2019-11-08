@@ -31,7 +31,7 @@ Creates a new CBOR decoder object.
 
 =cut
 
-sub new { bless {} }
+sub new { bless {} }    # TODO: implement in XS, and store a context.
 
 #----------------------------------------------------------------------
 
@@ -57,6 +57,10 @@ and its (scalar) return will be inserted into the decoded data structure.
 To unset a tag handler, assign undef to it.
 
 This returns the I<OBJ>.
+
+B<NOTE:> Handlers assigned here will only fire if CBOR::Free itself
+doesn’t decode the tag. For example, a handler for the “indirection” tag
+here will be ignored.
 
 =cut
 
