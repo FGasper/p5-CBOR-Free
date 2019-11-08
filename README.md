@@ -49,6 +49,7 @@ encoding.
 - [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) booleans are encoded as CBOR booleans.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
+- Scalar references are encoded via [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml).
 - Instances of [CBOR::Free::Tagged](https://metacpan.org/pod/CBOR::Free::Tagged) are encoded as tagged values.
 
 An error is thrown on excess recursion or an unrecognized object.
@@ -71,9 +72,10 @@ become Perl byte strings. (This may become configurable later.)
 An exception is thrown if the decoder finds anything else as a map key.
 - CBOR booleans become the corresponding [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) values.
 Both CBOR null and undefined become Perl undef.
-- This function does not interpret tags; if you need that, look
-at [CBOR::Free::Decoder](https://metacpan.org/pod/CBOR::Free::Decoder). Any tags that this function sees prompt a warning
-but are otherwise ignored.
+- [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml) is interpreted as a scalar reference.
+- This function does not interpret any other tags. If you need to
+decode other tags, look at [CBOR::Free::Decoder](https://metacpan.org/pod/CBOR::Free::Decoder). Any unhandled tags that
+this function sees prompt a warning but are otherwise ignored.
 
 ## $obj = tag( $NUMBER, $DATA )
 

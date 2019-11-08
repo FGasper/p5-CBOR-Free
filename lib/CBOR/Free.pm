@@ -11,7 +11,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.12';
+    $VERSION = '0.13_01';
     XSLoader::load();
 }
 
@@ -78,6 +78,8 @@ encoding.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
 
+=item * Scalar references are encoded via L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>.
+
 =item * Instances of L<CBOR::Free::Tagged> are encoded as tagged values.
 
 =back
@@ -106,9 +108,11 @@ An exception is thrown if the decoder finds anything else as a map key.
 =item * CBOR booleans become the corresponding L<Types::Serialiser> values.
 Both CBOR null and undefined become Perl undef.
 
-=item * This function does not interpret tags; if you need that, look
-at L<CBOR::Free::Decoder>. Any tags that this function sees prompt a warning
-but are otherwise ignored.
+=item * L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml> is interpreted as a scalar reference.
+
+=item * This function does not interpret any other tags. If you need to
+decode other tags, look at L<CBOR::Free::Decoder>. Any unhandled tags that
+this function sees prompt a warning but are otherwise ignored.
 
 =back
 
