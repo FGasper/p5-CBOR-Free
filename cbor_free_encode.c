@@ -8,7 +8,7 @@
 
 #define TAGGED_CLASS    "CBOR::Free::Tagged"
 
-#define IS_SCALAR_REFERENCE(value) SvTYPE(SvRV(value)) < SVt_INVLIST
+#define IS_SCALAR_REFERENCE(value) SvTYPE(SvRV(value)) <= SVt_PVMG
 
 static const unsigned char NUL = 0;
 static const unsigned char CBOR_NULL_U8  = CBOR_NULL;
