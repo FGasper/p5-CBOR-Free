@@ -8,13 +8,20 @@
 
 #define ENCODE_ALLOC_CHUNK_SIZE 1024
 
+//typedef struct {
+//    void *addr;
+//    IV count;
+//} reftracker;
+
 typedef struct {
-    char *buffer;
     STRLEN buflen;
     STRLEN len;
+    char *buffer;
+    void **reftracker;
     uint8_t recurse_count;
     uint8_t scratch[9];
     bool is_canonical;
+    //reftracker* reflist;
 } encode_ctx;
 
 SV * cbf_encode( pTHX_ SV *value, encode_ctx *encode_state, SV *RETVAL );

@@ -8,6 +8,7 @@
 
 //#include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cbor_free_common.h"
@@ -34,6 +35,7 @@ BOOT:
 SV *
 encode( SV * value, ... )
     CODE:
+        fprintf(stderr, "---------- startttt\n" );
         encode_ctx encode_state[1];
 
         encode_state->buffer = NULL;
@@ -58,7 +60,13 @@ encode( SV * value, ... )
 
         RETVAL = newSV(0);
 
+        encode_state->reftracker = calloc( 1, sizeof(void *) );
+        fprintf(stderr, "reftracker: %llu\n", encode_state->reftracker );
+        // Newxz( encode_state->reftracker, 1, void * );
+
         cbf_encode(aTHX_ value, encode_state, RETVAL);
+
+        free( encode_state->reftracker );
 
         // Don’t use newSVpvn here because that will copy the string.
         // Instead, create a new SV and manually assign its pieces.

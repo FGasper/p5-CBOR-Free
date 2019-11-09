@@ -130,8 +130,21 @@ static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type,
 
 static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_state );
 
+// static inline void* _
+
 void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
     ++encode_state->recurse_count;
+fprintf(stderr, "sizeof encode_ctx: %d\n", sizeof(encode_ctx));
+fprintf(stderr, "sizeof bool: %d\n", sizeof(bool));
+fprintf(stderr, "sizeof STRLEN: %d\n", sizeof(STRLEN));
+/*
+if (encode_state->reftracker[0]) {
+fprintf(stderr, "got a reftrack!\n");
+}
+else {
+fprintf(stderr, "no reftrack here!\n");
+}
+*/
 
     if (encode_state->recurse_count > MAX_ENCODE_RECURSE) {
 
@@ -141,6 +154,9 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
         _croak(NULL);
     }
+
+printf("refcount: %d\n", SvREFCNT(value));
+// sv_dump(value);
 
     if (!SvROK(value)) {
 
@@ -251,6 +267,33 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
     }
     else if (SVt_PVAV == SvTYPE(SvRV(value))) {
         AV *array = (AV *)SvRV(value);
+
+        if ( SvREFCNT( (SV *)array ) > 1 ) {
+            void *this_ref;
+fprintf(stderr, "refcount > 1\n");
+fprintf(stderr, "ref is %llu\n", encode_state->reftracker);
+
+            IV r = 0;
+
+            while ( this_ref = encode_state->reftracker[r++] ) {
+fprintf(stderr, "this_ref: %llu\n", this_ref);
+                if (this_ref == array) {
+                    _init_length_buffer( aTHX_ 29, CBOR_TYPE_TAG, encode_state );
+                    _init_length_buffer( aTHX_ r - 1, CBOR_TYPE_UINT, encode_state );
+                    return;
+                }
+            }
+fprintf(stderr, "No match in reflist; make a new entry\n");
+
+            realloc( encode_state->reftracker, (1 + r) * sizeof(void *) );
+fprintf(stderr, "Grew the list\n");
+            encode_state->reftracker[r - 1] = array;
+            encode_state->reftracker[r] = NULL;
+fprintf(stderr, "Assigned into the list (%llu)\n", array);
+
+            _init_length_buffer( aTHX_ 28, CBOR_TYPE_TAG, encode_state );
+        }
+
         SSize_t len;
         len = 1 + av_len(array);
 
@@ -331,6 +374,13 @@ static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_s
 }
 
 SV *cbf_encode( pTHX_ SV *value, encode_ctx *encode_state, SV *RETVAL ) {
+/*
+        encode_state->reftracker = NULL;
+// fprintf(stderr, "before alloc: %llu\n", encode_state->reftracker);
+        Newx( encode_state->reftracker, 1, void * );
+        encode_state->reftracker[0] = NULL;
+// fprintf(stderr, "after alloc: %llu\n", encode_state->reftracker);
+*/
     _encode(aTHX_ value, encode_state);
 
     // Ensure that there’s a trailing NUL:
