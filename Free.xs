@@ -35,7 +35,6 @@ BOOT:
 SV *
 encode( SV * value, ... )
     CODE:
-        fprintf(stderr, "---------- startttt\n" );
         encode_ctx encode_state[1];
 
         encode_state->buffer = NULL;
@@ -46,6 +45,9 @@ encode( SV * value, ... )
         encode_state->recurse_count = 0;
 
         encode_state->is_canonical = false;
+
+        encode_state->reftracker = NULL;
+        Newxz( encode_state->reftracker, 1, void * );
 
         U8 i;
         for (i=1; i<items; i++) {
@@ -60,13 +62,9 @@ encode( SV * value, ... )
 
         RETVAL = newSV(0);
 
-        encode_state->reftracker = calloc( 1, sizeof(void *) );
-        fprintf(stderr, "reftracker: %llu\n", encode_state->reftracker );
-        // Newxz( encode_state->reftracker, 1, void * );
-
         cbf_encode(aTHX_ value, encode_state, RETVAL);
 
-        free( encode_state->reftracker );
+        Safefree( encode_state->reftracker );
 
         // Don’t use newSVpvn here because that will copy the string.
         // Instead, create a new SV and manually assign its pieces.

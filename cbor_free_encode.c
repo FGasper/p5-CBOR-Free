@@ -91,17 +91,21 @@ static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, const unsigned c
 
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
 static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type, encode_ctx *encode_state ) {
+fprintf(stderr, "_init_length_buffer(%llu)\n", num);
     union control_byte *scratch0 = (void *) encode_state->scratch;
     scratch0->pieces.major_type = major_type;
 
     if ( num < CBOR_LENGTH_SMALL ) {
+fprintf(stderr, "size tiny\n");
         scratch0->pieces.length_type = (uint8_t) num;
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
     }
     else if ( num <= 0xff ) {
+fprintf(stderr, "size small\n");
         scratch0->pieces.length_type = CBOR_LENGTH_SMALL;
         encode_state->scratch[1] = (uint8_t) num;
+fprintf(stderr, "uint8: %02x,%02x\n", encode_state->scratch[0], encode_state->scratch[1]);
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
     }
@@ -129,6 +133,38 @@ static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type,
 }
 
 static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_state );
+
+// Return indicates to encode the actual value.
+bool _check_reference( pTHX_ SV *varref, encode_ctx *encode_state ) {
+    if ( SvREFCNT(varref) > 1 ) {
+        void *this_ref;
+fprintf(stderr, "refcount > 1\n");
+fprintf(stderr, "ref is %llu\n", encode_state->reftracker);
+
+        IV r = 0;
+
+        while ( this_ref = encode_state->reftracker[r++] ) {
+fprintf(stderr, "this_ref: %llu\n", this_ref);
+            if (this_ref == varref) {
+fprintf(stderr, "Match!\n");
+                _init_length_buffer( aTHX_ CBOR_TAG_SHAREDREF, CBOR_TYPE_TAG, encode_state );
+                _init_length_buffer( aTHX_ r - 1, CBOR_TYPE_UINT, encode_state );
+                return false;
+            }
+        }
+fprintf(stderr, "No match in reflist; make a new entry\n");
+
+        Renew( encode_state->reftracker, 1 + r, void * );
+fprintf(stderr, "Grew the list\n");
+        encode_state->reftracker[r - 1] = varref;
+        encode_state->reftracker[r] = NULL;
+fprintf(stderr, "Assigned into the list (%llu)\n", varref);
+
+        _init_length_buffer( aTHX_ CBOR_TAG_SHAREABLE, CBOR_TYPE_TAG, encode_state );
+    }
+
+    return true;
+}
 
 // static inline void* _
 
@@ -268,98 +304,78 @@ printf("refcount: %d\n", SvREFCNT(value));
     else if (SVt_PVAV == SvTYPE(SvRV(value))) {
         AV *array = (AV *)SvRV(value);
 
-        if ( SvREFCNT( (SV *)array ) > 1 ) {
-            void *this_ref;
-fprintf(stderr, "refcount > 1\n");
-fprintf(stderr, "ref is %llu\n", encode_state->reftracker);
+        if (_check_reference( aTHX_ (SV *)array, encode_state )) {
+            SSize_t len;
+            len = 1 + av_len(array);
 
-            IV r = 0;
+            _init_length_buffer( aTHX_ len, CBOR_TYPE_ARRAY, encode_state );
 
-            while ( this_ref = encode_state->reftracker[r++] ) {
-fprintf(stderr, "this_ref: %llu\n", this_ref);
-                if (this_ref == array) {
-                    _init_length_buffer( aTHX_ 29, CBOR_TYPE_TAG, encode_state );
-                    _init_length_buffer( aTHX_ r - 1, CBOR_TYPE_UINT, encode_state );
-                    return;
-                }
+            SSize_t i;
+
+            SV **cur;
+            for (i=0; i<len; i++) {
+                cur = av_fetch(array, i, 0);
+                _encode( aTHX_ *cur, encode_state );
             }
-fprintf(stderr, "No match in reflist; make a new entry\n");
-
-            realloc( encode_state->reftracker, (1 + r) * sizeof(void *) );
-fprintf(stderr, "Grew the list\n");
-            encode_state->reftracker[r - 1] = array;
-            encode_state->reftracker[r] = NULL;
-fprintf(stderr, "Assigned into the list (%llu)\n", array);
-
-            _init_length_buffer( aTHX_ 28, CBOR_TYPE_TAG, encode_state );
-        }
-
-        SSize_t len;
-        len = 1 + av_len(array);
-
-        _init_length_buffer( aTHX_ len, CBOR_TYPE_ARRAY, encode_state );
-
-        SSize_t i;
-
-        SV **cur;
-        for (i=0; i<len; i++) {
-            cur = av_fetch(array, i, 0);
-            _encode( aTHX_ *cur, encode_state );
         }
     }
     else if (SVt_PVHV == SvTYPE(SvRV(value))) {
         HV *hash = (HV *)SvRV(value);
 
-        char *key;
-        I32 key_length;
-        SV *cur;
+        if (_check_reference( aTHX_ (SV *)hash, encode_state)) {
+            char *key;
+            I32 key_length;
+            SV *cur;
 
-        I32 keyscount = hv_iterinit(hash);
+            I32 keyscount = hv_iterinit(hash);
 
-        _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
+            _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
 
-        if (encode_state->is_canonical) {
-            SV *keys[keyscount];
+            if (encode_state->is_canonical) {
+                SV *keys[keyscount];
 
-            I32 curkey = 0;
+                I32 curkey = 0;
 
-            while (hv_iternextsv(hash, &key, &key_length)) {
-                keys[curkey] = newSVpvn(key, key_length);
-                ++curkey;
+                while (hv_iternextsv(hash, &key, &key_length)) {
+                    keys[curkey] = newSVpvn(key, key_length);
+                    ++curkey;
+                }
+
+                sortsv(keys, keyscount, _sortstring);
+
+                for (curkey=0; curkey < keyscount; ++curkey) {
+                    cur = keys[curkey];
+                    key = SvPV_nolen(cur);
+                    key_length = SvCUR(cur);
+
+                    // Store the key.
+                    _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
+                    _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+
+                    cur = *( hv_fetch(hash, key, key_length, 0) );
+
+                    _encode( aTHX_ cur, encode_state );
+                }
             }
+            else {
+                while ((cur = hv_iternextsv(hash, &key, &key_length))) {
 
-            sortsv(keys, keyscount, _sortstring);
+                    // Store the key.
+                    _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
 
-            for (curkey=0; curkey < keyscount; ++curkey) {
-                cur = keys[curkey];
-                key = SvPV_nolen(cur);
-                key_length = SvCUR(cur);
+                    _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
 
-                // Store the key.
-                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-
-                cur = *( hv_fetch(hash, key, key_length, 0) );
-
-                _encode( aTHX_ cur, encode_state );
-            }
-        }
-        else {
-            while ((cur = hv_iternextsv(hash, &key, &key_length))) {
-
-                // Store the key.
-                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-
-                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-
-                _encode( aTHX_ cur, encode_state );
+                    _encode( aTHX_ cur, encode_state );
+                }
             }
         }
     }
     else if (IS_SCALAR_REFERENCE(value)) {
         SV *referent = SvRV(value);
 
-        _encode_tag( aTHX_ CBOR_TAG_INDIRECTION, referent, encode_state );
+        if (_check_reference( aTHX_ referent, encode_state)) {
+            _encode_tag( aTHX_ CBOR_TAG_INDIRECTION, referent, encode_state );
+        }
     }
     else {
         _croak_unrecognized(aTHX_ value);
