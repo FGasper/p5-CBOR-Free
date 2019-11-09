@@ -588,7 +588,9 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             if (tagnum == CBOR_TAG_SHAREDREF && decstate->reflist) {
                 if (value_major_type != CBOR_TYPE_UINT) {
-                    _croak("Gotta be UV");  // TODO: croak better
+                    char tmpl[255];
+                    my_snprintf( tmpl, sizeof(tmpl), "Shared ref type must be uint, not %%u (%%s)!", UV_TO_STR_TMPL );
+                    croak(tmpl, value_major_type, MAJOR_TYPE_DESCRIPTION[value_major_type]);
                 }
 
                 UV refnum = _parse_for_uint_len2( aTHX_ decstate );
