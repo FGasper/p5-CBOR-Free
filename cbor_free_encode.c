@@ -91,21 +91,21 @@ static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, const unsigned c
 
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
 static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type, encode_ctx *encode_state ) {
-fprintf(stderr, "_init_length_buffer(%llu)\n", num);
+//fprintf(stderr, "_init_length_buffer(%llu)\n", num);
     union control_byte *scratch0 = (void *) encode_state->scratch;
     scratch0->pieces.major_type = major_type;
 
     if ( num < CBOR_LENGTH_SMALL ) {
-fprintf(stderr, "size tiny\n");
+//fprintf(stderr, "size tiny\n");
         scratch0->pieces.length_type = (uint8_t) num;
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
     }
     else if ( num <= 0xff ) {
-fprintf(stderr, "size small\n");
+//fprintf(stderr, "size small\n");
         scratch0->pieces.length_type = CBOR_LENGTH_SMALL;
         encode_state->scratch[1] = (uint8_t) num;
-fprintf(stderr, "uint8: %02x,%02x\n", encode_state->scratch[0], encode_state->scratch[1]);
+//fprintf(stderr, "uint8: %02x,%02x\n", encode_state->scratch[0], encode_state->scratch[1]);
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
     }
@@ -136,29 +136,29 @@ static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_s
 
 // Return indicates to encode the actual value.
 bool _check_reference( pTHX_ SV *varref, encode_ctx *encode_state ) {
-    if ( encode_state->reftracker && SvREFCNT(varref) > 1 ) {
+    if ( SvREFCNT(varref) > 1 ) {
         void *this_ref;
-fprintf(stderr, "refcount > 1\n");
-fprintf(stderr, "ref is %llu\n", encode_state->reftracker);
+//fprintf(stderr, "refcount > 1\n");
+//fprintf(stderr, "ref is %llu\n", encode_state->reftracker);
 
         IV r = 0;
 
         while ( this_ref = encode_state->reftracker[r++] ) {
-fprintf(stderr, "this_ref: %llu\n", this_ref);
+//fprintf(stderr, "this_ref: %llu\n", this_ref);
             if (this_ref == varref) {
-fprintf(stderr, "Match!\n");
+//fprintf(stderr, "Match!\n");
                 _init_length_buffer( aTHX_ CBOR_TAG_SHAREDREF, CBOR_TYPE_TAG, encode_state );
                 _init_length_buffer( aTHX_ r - 1, CBOR_TYPE_UINT, encode_state );
                 return false;
             }
         }
-fprintf(stderr, "No match in reflist; make a new entry\n");
+//fprintf(stderr, "No match in reflist; make a new entry\n");
 
         Renew( encode_state->reftracker, 1 + r, void * );
-fprintf(stderr, "Grew the list\n");
+//fprintf(stderr, "Grew the list\n");
         encode_state->reftracker[r - 1] = varref;
         encode_state->reftracker[r] = NULL;
-fprintf(stderr, "Assigned into the list (%llu)\n", varref);
+//fprintf(stderr, "Assigned into the list (%llu)\n", varref);
 
         _init_length_buffer( aTHX_ CBOR_TAG_SHAREABLE, CBOR_TYPE_TAG, encode_state );
     }
@@ -170,9 +170,9 @@ fprintf(stderr, "Assigned into the list (%llu)\n", varref);
 
 void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
     ++encode_state->recurse_count;
-fprintf(stderr, "sizeof encode_ctx: %d\n", sizeof(encode_ctx));
-fprintf(stderr, "sizeof bool: %d\n", sizeof(bool));
-fprintf(stderr, "sizeof STRLEN: %d\n", sizeof(STRLEN));
+//fprintf(stderr, "sizeof encode_ctx: %d\n", sizeof(encode_ctx));
+//fprintf(stderr, "sizeof bool: %d\n", sizeof(bool));
+//fprintf(stderr, "sizeof STRLEN: %d\n", sizeof(STRLEN));
 /*
 if (encode_state->reftracker[0]) {
 fprintf(stderr, "got a reftrack!\n");
@@ -191,7 +191,7 @@ fprintf(stderr, "no reftrack here!\n");
         _croak(NULL);
     }
 
-printf("refcount: %d\n", SvREFCNT(value));
+//printf("refcount: %d\n", SvREFCNT(value));
 // sv_dump(value);
 
     if (!SvROK(value)) {
@@ -304,7 +304,7 @@ printf("refcount: %d\n", SvREFCNT(value));
     else if (SVt_PVAV == SvTYPE(SvRV(value))) {
         AV *array = (AV *)SvRV(value);
 
-        if (_check_reference( aTHX_ (SV *)array, encode_state )) {
+        if (!encode_state->reftracker || _check_reference( aTHX_ (SV *)array, encode_state )) {
             SSize_t len;
             len = 1 + av_len(array);
 
@@ -322,7 +322,7 @@ printf("refcount: %d\n", SvREFCNT(value));
     else if (SVt_PVHV == SvTYPE(SvRV(value))) {
         HV *hash = (HV *)SvRV(value);
 
-        if (_check_reference( aTHX_ (SV *)hash, encode_state)) {
+        if (!encode_state->reftracker || _check_reference( aTHX_ (SV *)hash, encode_state)) {
             char *key;
             I32 key_length;
             SV *cur;
@@ -373,7 +373,7 @@ printf("refcount: %d\n", SvREFCNT(value));
     else if (IS_SCALAR_REFERENCE(value)) {
         SV *referent = SvRV(value);
 
-        if (_check_reference( aTHX_ referent, encode_state)) {
+        if (!encode_state->reftracker || _check_reference( aTHX_ referent, encode_state)) {
             _encode_tag( aTHX_ CBOR_TAG_INDIRECTION, referent, encode_state );
         }
     }

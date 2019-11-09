@@ -598,10 +598,10 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 if (refnum >= decstate->reflistlen) {
                     _croak("Missing shareable!");
                 }
-fprintf(stderr, "recalling %u (%u total)\n", refnum, decstate->reflistlen);
+//fprintf(stderr, "recalling %u (%u total)\n", refnum, decstate->reflistlen);
 
                 ret = newRV_inc( decstate->reflist[refnum] );
-fprintf(stderr, "recalled\n");
+//fprintf(stderr, "recalled\n");
             }
             else {
                 ret = _decode( aTHX_ decstate );
@@ -610,14 +610,14 @@ fprintf(stderr, "recalled\n");
                     ret = newRV_inc(ret);
                 }
                 else if (tagnum == CBOR_TAG_SHAREABLE && decstate->reflist) {
-    fprintf(stderr, "shareable (%d so far)\n", decstate->reflistlen);
-    fprintf(stderr, "growing\n");
+    //fprintf(stderr, "shareable (%d so far)\n", decstate->reflistlen);
+    //fprintf(stderr, "growing\n");
                     ++decstate->reflistlen;
                     Renew( decstate->reflist, decstate->reflistlen, void * );
-    fprintf(stderr, "storing\n");
+    //fprintf(stderr, "storing\n");
 
                     decstate->reflist[ decstate->reflistlen - 1 ] = (SV *) ret;
-    fprintf(stderr, "stored (%d so far)\n", decstate->reflistlen);
+    //fprintf(stderr, "stored (%d so far)\n", decstate->reflistlen);
                 }
 
                 else if (decstate->tag_handler) {
