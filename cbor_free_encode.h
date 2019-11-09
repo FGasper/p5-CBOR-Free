@@ -1,6 +1,8 @@
 #ifndef CBOR_FREE_ENCODE
 #define CBOR_FREE_ENCODE
 
+#include <stdbool.h>
+
 #include "cbor_free_common.h"
 #include "cbor_free_boolean.h"
 
