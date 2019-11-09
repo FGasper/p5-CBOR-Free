@@ -107,7 +107,13 @@ decode( SV *selfref, SV *cbor )
             tag_handler = (HV *)SvRV(*tag_handler_hr);
         }
 
-        RETVAL = cbf_decode( aTHX_ cbor, tag_handler );
+        SV **preserve_refs = hv_fetchs(self, "_preserve_references", 0);
+
+        RETVAL = cbf_decode( aTHX_
+            cbor,
+            tag_handler,
+            preserve_refs && *preserve_refs && SvTRUE(*preserve_refs)
+        );
 
     OUTPUT:
         RETVAL

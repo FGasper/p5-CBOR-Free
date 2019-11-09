@@ -49,6 +49,16 @@ otherwise ignored.
 
 #----------------------------------------------------------------------
 
+=head2 $enabled_yn = I<OBJ>->preserve_references( [$ENABLE] )
+
+=cut
+
+sub preserve_references {
+    return $_[0]{'_preserve_references'} = (@_ > 1 ? !!$_[1] : 1);
+}
+
+#----------------------------------------------------------------------
+
 =head2 I<OBJ>->set_tag_handlers( %TAG_CALLBACK )
 
 Takes a list of key/value pairs where each key is a tag (i.e., number)
