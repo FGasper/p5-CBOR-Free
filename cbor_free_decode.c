@@ -586,36 +586,12 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             U8 value_major_type = ((union control_byte *) decstate->curbyte)->pieces.major_type;
 
-            ret = _decode( aTHX_ decstate );
-
-            if (tagnum == CBOR_TAG_INDIRECTION) {
-                ret = newRV_inc(ret);
-            }
-            else if (tagnum == CBOR_TAG_SHAREABLE) {
-fprintf(stderr, "shareable\n");
-                if (decstate->reflistlen++) {
-fprintf(stderr, "growing\n");
-                    Renew( decstate->reflist, decstate->reflistlen, void * );
-                }
-                else {
-fprintf(stderr, "starting\n");
-                    Newxz( decstate->reflist, decstate->reflistlen, void * );
-                }
-fprintf(stderr, "storing\n");
-
-                decstate->reflist[ decstate->reflistlen - 1 ] = (SV *) ret;
-fprintf(stderr, "stored\n");
-            }
-
-            // TODO: This should be parsed to aggressively reject non-UV
-            else if (tagnum == CBOR_TAG_SHAREDREF) {
-                if (SvIOK(ret) && !SvIOK_notUV(ret)) {
-// sv_dump(ret);
-                    // TODO: croak
-                    _croak("Gotta be UV");
+            if (tagnum == CBOR_TAG_SHAREDREF) {
+                if (value_major_type != CBOR_TYPE_UINT) {
+                    _croak("Gotta be UV");  // TODO: croak better
                 }
 
-                UV refnum = SvUV(ret);
+                UV refnum = _parse_for_uint_len2( aTHX_ decstate );
 
                 if (refnum >= decstate->reflistlen) {
                     _croak("Missing shareable!");
@@ -625,20 +601,43 @@ fprintf(stderr, "recalling %u (%u total)\n", refnum, decstate->reflistlen);
                 ret = newRV_inc( decstate->reflist[refnum] );
 fprintf(stderr, "recalled\n");
             }
-            else if (decstate->tag_handler) {
-                HV *my_tag_handler = decstate->tag_handler;
+            else {
+                ret = _decode( aTHX_ decstate );
 
-                SV **handler_cr = hv_fetch( my_tag_handler, (char *) &tagnum, sizeof(UV), 0 );
+                if (tagnum == CBOR_TAG_INDIRECTION) {
+                    ret = newRV_inc(ret);
+                }
+                else if (tagnum == CBOR_TAG_SHAREABLE) {
+    fprintf(stderr, "shareable\n");
+                    if (decstate->reflistlen++) {
+    fprintf(stderr, "growing\n");
+                        Renew( decstate->reflist, decstate->reflistlen, void * );
+                    }
+                    else {
+    fprintf(stderr, "starting\n");
+                        Newxz( decstate->reflist, decstate->reflistlen, void * );
+                    }
+    fprintf(stderr, "storing\n");
 
-                if (handler_cr && *handler_cr && SvOK(*handler_cr)) {
-                    ret = _call_with_argument( aTHX_ *handler_cr, ret );
+                    decstate->reflist[ decstate->reflistlen - 1 ] = (SV *) ret;
+    fprintf(stderr, "stored\n");
+                }
+
+                else if (decstate->tag_handler) {
+                    HV *my_tag_handler = decstate->tag_handler;
+
+                    SV **handler_cr = hv_fetch( my_tag_handler, (char *) &tagnum, sizeof(UV), 0 );
+
+                    if (handler_cr && *handler_cr && SvOK(*handler_cr)) {
+                        ret = _call_with_argument( aTHX_ *handler_cr, ret );
+                    }
+                    else {
+                        _warn_unhandled_tag( aTHX_ tagnum, value_major_type );
+                    }
                 }
                 else {
                     _warn_unhandled_tag( aTHX_ tagnum, value_major_type );
                 }
-            }
-            else {
-                _warn_unhandled_tag( aTHX_ tagnum, value_major_type );
             }
 
             break;
