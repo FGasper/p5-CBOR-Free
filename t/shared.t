@@ -20,7 +20,10 @@ my $string_r = \$string;
 
 my $out;
 
-$out = CBOR::Free::encode( [ $plain_array, $plain_hash, $plain_array, $plain_hash, $string_r, $string_r ] );
+$out = CBOR::Free::encode(
+    [ $plain_array, $plain_hash, $plain_array, $plain_hash, $string_r, $string_r ],
+    preserve_references => 1,
+);
 
 use Text::Control;
 #print Text::Control::to_hex($out) . $/;
