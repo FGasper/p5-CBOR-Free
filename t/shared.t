@@ -25,4 +25,13 @@ use Text::Control;
 printf "%v.02x\n", $out;
 #$out = CBOR::Free::encode( [ $string = 'hello', $string_r ] );
 
+my $rt = CBOR::Free::decode($out);
+
+use Devel::Peek;
+Dump($rt);
+
+use Data::Dumper;
+$Data::Dumper::Useqq = 1;
+print Dumper($rt);
+
 done_testing;

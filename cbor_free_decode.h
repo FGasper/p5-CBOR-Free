@@ -15,6 +15,9 @@ typedef struct {
 
     HV * tag_handler;
 
+    void **reflist;
+    UV reflistlen;
+
     union {
         uint8_t bytes[30];  // used for num -> key conversions
         float as_float;

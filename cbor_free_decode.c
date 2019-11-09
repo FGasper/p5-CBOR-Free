@@ -591,6 +591,40 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             if (tagnum == CBOR_TAG_INDIRECTION) {
                 ret = newRV_inc(ret);
             }
+            else if (tagnum == CBOR_TAG_SHAREABLE) {
+fprintf(stderr, "shareable\n");
+                if (decstate->reflistlen++) {
+fprintf(stderr, "growing\n");
+                    Renew( decstate->reflist, decstate->reflistlen, void * );
+                }
+                else {
+fprintf(stderr, "starting\n");
+                    Newxz( decstate->reflist, decstate->reflistlen, void * );
+                }
+fprintf(stderr, "storing\n");
+
+                decstate->reflist[ decstate->reflistlen - 1 ] = (SV *) ret;
+fprintf(stderr, "stored\n");
+            }
+
+            // TODO: This should be parsed to aggressively reject non-UV
+            else if (tagnum == CBOR_TAG_SHAREDREF) {
+                if (SvIOK(ret) && !SvIOK_notUV(ret)) {
+// sv_dump(ret);
+                    // TODO: croak
+                    _croak("Gotta be UV");
+                }
+
+                UV refnum = SvUV(ret);
+
+                if (refnum >= decstate->reflistlen) {
+                    _croak("Missing shareable!");
+                }
+fprintf(stderr, "recalling %u (%u total)\n", refnum, decstate->reflistlen);
+
+                ret = newRV_inc( decstate->reflist[refnum] );
+fprintf(stderr, "recalled\n");
+            }
             else if (decstate->tag_handler) {
                 HV *my_tag_handler = decstate->tag_handler;
 
@@ -690,6 +724,8 @@ SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler ) {
         cborstr,
         cborstr + cborlen,
         tag_handler,
+        NULL,
+        0,
     };
 
     SV *RETVAL = _decode( aTHX_ &decode_state );
