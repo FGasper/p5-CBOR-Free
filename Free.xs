@@ -19,6 +19,9 @@
 
 #define _PACKAGE "CBOR::Free"
 
+#define CANONICAL_OPT "canonical"
+#define PRESERVE_REFS_OPT "preserve_references"
+
 HV *cbf_stash = NULL;
 
 //----------------------------------------------------------------------
@@ -47,7 +50,6 @@ encode( SV * value, ... )
         encode_state->is_canonical = false;
 
         encode_state->reftracker = NULL;
-        Newxz( encode_state->reftracker, 1, void * );
 
         U8 i;
         for (i=1; i<items; i++) {
@@ -56,7 +58,13 @@ encode( SV * value, ... )
             if ((SvCUR(ST(i)) == 9) && memEQ( SvPV_nolen(ST(i)), "canonical", 9)) {
                 ++i;
                 if (i<items) encode_state->is_canonical = SvTRUE(ST(i));
-                break;
+            }
+
+            if ((SvCUR(ST(i)) == sizeof(PRESERVE_REFS_OPT) - 1) && memEQ( SvPV_nolen(ST(i)), PRESERVE_REFS_OPT, sizeof(PRESERVE_REFS_OPT) - 1)) {
+                ++i;
+                if (i<items) {
+                    Newxz( encode_state->reftracker, 1, void * );
+                }
             }
         }
 
