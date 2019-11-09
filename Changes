@@ -1,7 +1,7 @@
 Revision history for Perl module CBOR::Free
 
-0.13
-- Support for the “indirection” tag.
+0.13 8 Nov 2019
+- Add (automatic) support for the “indirection” tag.
 
 0.12 30 Jun 2019
 - BREAKING CHANGE (minor): Unrecognized tagged values now prompt a warning.
