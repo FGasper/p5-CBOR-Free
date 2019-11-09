@@ -136,7 +136,7 @@ static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_s
 
 // Return indicates to encode the actual value.
 bool _check_reference( pTHX_ SV *varref, encode_ctx *encode_state ) {
-    if ( SvREFCNT(varref) > 1 ) {
+    if ( encode_state->reftracker && SvREFCNT(varref) > 1 ) {
         void *this_ref;
 fprintf(stderr, "refcount > 1\n");
 fprintf(stderr, "ref is %llu\n", encode_state->reftracker);
@@ -390,13 +390,6 @@ static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_s
 }
 
 SV *cbf_encode( pTHX_ SV *value, encode_ctx *encode_state, SV *RETVAL ) {
-/*
-        encode_state->reftracker = NULL;
-// fprintf(stderr, "before alloc: %llu\n", encode_state->reftracker);
-        Newx( encode_state->reftracker, 1, void * );
-        encode_state->reftracker[0] = NULL;
-// fprintf(stderr, "after alloc: %llu\n", encode_state->reftracker);
-*/
     _encode(aTHX_ value, encode_state);
 
     // Ensure that there’s a trailing NUL:
