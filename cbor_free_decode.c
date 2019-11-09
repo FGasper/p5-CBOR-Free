@@ -586,7 +586,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
 
             U8 value_major_type = ((union control_byte *) decstate->curbyte)->pieces.major_type;
 
-            if (tagnum == CBOR_TAG_SHAREDREF) {
+            if (tagnum == CBOR_TAG_SHAREDREF && decstate->reflist) {
                 if (value_major_type != CBOR_TYPE_UINT) {
                     _croak("Gotta be UV");  // TODO: croak better
                 }
@@ -607,20 +607,15 @@ fprintf(stderr, "recalled\n");
                 if (tagnum == CBOR_TAG_INDIRECTION) {
                     ret = newRV_inc(ret);
                 }
-                else if (tagnum == CBOR_TAG_SHAREABLE) {
-    fprintf(stderr, "shareable\n");
-                    if (decstate->reflistlen++) {
+                else if (tagnum == CBOR_TAG_SHAREABLE && decstate->reflist) {
+    fprintf(stderr, "shareable (%d so far)\n", decstate->reflistlen);
     fprintf(stderr, "growing\n");
-                        Renew( decstate->reflist, decstate->reflistlen, void * );
-                    }
-                    else {
-    fprintf(stderr, "starting\n");
-                        Newxz( decstate->reflist, decstate->reflistlen, void * );
-                    }
+                    ++decstate->reflistlen;
+                    Renew( decstate->reflist, decstate->reflistlen, void * );
     fprintf(stderr, "storing\n");
 
                     decstate->reflist[ decstate->reflistlen - 1 ] = (SV *) ret;
-    fprintf(stderr, "stored\n");
+    fprintf(stderr, "stored (%d so far)\n", decstate->reflistlen);
                 }
 
                 else if (decstate->tag_handler) {
@@ -712,7 +707,7 @@ fprintf(stderr, "recalled\n");
     return ret;
 }
 
-SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler ) {
+SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, bool preserve_refs ) {
     STRLEN cborlen;
 
     char *cborstr = SvPV(cbor, cborlen);
@@ -727,7 +722,15 @@ SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler ) {
         0,
     };
 
+    if (preserve_refs) {
+        Newx( decode_state.reflist, 0, void * );
+    }
+
     SV *RETVAL = _decode( aTHX_ &decode_state );
+
+    if (preserve_refs) {
+        Safefree(decode_state.reflist);
+    }
 
     if (decode_state.curbyte != decode_state.end) {
         STRLEN bytes_count = decode_state.end - decode_state.curbyte;

@@ -83,7 +83,7 @@ encode( SV * value, ... )
 SV *
 decode( SV *cbor )
     CODE:
-        RETVAL = cbf_decode( aTHX_ cbor, NULL );
+        RETVAL = cbf_decode( aTHX_ cbor, NULL, false );
 
     OUTPUT:
         RETVAL

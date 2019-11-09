@@ -37,6 +37,6 @@ struct numbuf {
 
 //----------------------------------------------------------------------
 
-SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler );
+SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, bool preserve_refs );
 
 #endif

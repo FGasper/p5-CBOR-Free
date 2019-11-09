@@ -10,6 +10,8 @@ use Data::Dumper;
 
 use_ok('CBOR::Free');
 
+use CBOR::Free::Decoder;
+
 my $plain_array = [];
 my $plain_hash = {};
 
@@ -25,7 +27,9 @@ use Text::Control;
 printf "%v.02x\n", $out;
 #$out = CBOR::Free::encode( [ $string = 'hello', $string_r ] );
 
-my $rt = CBOR::Free::decode($out);
+my $dec = CBOR::Free::Decoder->new();
+$dec->preserve_references();
+my $rt = $dec->decode($out);
 
 use Devel::Peek;
 Dump($rt);
