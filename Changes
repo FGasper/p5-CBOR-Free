@@ -1,5 +1,8 @@
 Revision history for Perl module CBOR::Free
 
+0.14 9 Nov 2019
+- Accommodate quadmath builds in tests.
+
 0.13 8 Nov 2019
 - Add (automatic) support for the “indirection” tag.
 
