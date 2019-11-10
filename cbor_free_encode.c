@@ -61,11 +61,6 @@ void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
     _die( G_DISCARD, words );
 }
 
-void _croak_encode( pTHX_ encode_ctx* encode_state, void *arg ) {
-    cbf_encode_ctx_free_all(encode_state);
-    _croak(arg);
-}
-
 //----------------------------------------------------------------------
 
 // NOTE: Contrary to what we’d ordinarily expect, for canonical CBOR
@@ -175,7 +170,8 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
         static char * words[] = { NULL };
         call_argv("CBOR::Free::_die_recursion", G_EVAL|G_DISCARD, words);
 
-        _croak_encode(aTHX_ encode_state, NULL);
+        cbf_encode_ctx_free_all(encode_state);
+        _croak(NULL);
     }
 
     if (!SvROK(value)) {

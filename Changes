@@ -1,6 +1,7 @@
 Revision history for Perl module CBOR::Free
 
 0.15
+- BUG FIX: Several memory leaks on error conditions are fixed.
 - Add optional preserve/shared references support.
 
 0.14 9 Nov 2019
