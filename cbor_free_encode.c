@@ -313,7 +313,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             }
         }
     }
-    else if (IS_SCALAR_REFERENCE(value)) {
+    else if (encode_state->encode_scalar_refs && IS_SCALAR_REFERENCE(value)) {
         SV *referent = SvRV(value);
 
         _encode_tag( aTHX_ CBOR_TAG_INDIRECTION, referent, encode_state );
