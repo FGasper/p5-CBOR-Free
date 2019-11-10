@@ -64,6 +64,10 @@ The encoder currently does not handle any other blessed references.
 =item * C<canonical> - A boolean that makes the function output
 CBOR in L<canonical form|https://tools.ietf.org/html/rfc7049#section-3.9>.
 
+=item * C<preserve_references> - A boolean that causes CBOR::Free to encode
+multi-referenced values via L<CBOR’s “shared references” tags|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>. This will incur a mild performance
+penalty but, on the other hand, allows encoding of circular references.
+
 =back
 
 Notes on mapping Perl to CBOR:
@@ -79,6 +83,10 @@ Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
 
 =item * Scalar references are encoded via L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>.
+
+=item * Via the optional C<preserve_references> flag, circular and shared
+references may be preserved. Without this flag, shared references are not
+preserved, and circular references cause an exception.
 
 =item * Instances of L<CBOR::Free::Tagged> are encoded as tagged values.
 
@@ -109,6 +117,9 @@ An exception is thrown if the decoder finds anything else as a map key.
 Both CBOR null and undefined become Perl undef.
 
 =item * L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml> is interpreted as a scalar reference.
+
+=item * C<preserve_references()> mode complements the same flag
+given to the encoder.
 
 =item * This function does not interpret any other tags. If you need to
 decode other tags, look at L<CBOR::Free::Decoder>. Any unhandled tags that

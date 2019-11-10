@@ -40,6 +40,9 @@ The encoder currently does not handle any other blessed references.
 
 - `canonical` - A boolean that makes the function output
 CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
+- `preserve_references` - A boolean that causes CBOR::Free to encode
+multi-referenced values via [CBOR’s “shared references” tags](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml). This will incur a mild performance
+penalty but, on the other hand, allows encoding of circular references.
 
 Notes on mapping Perl to CBOR:
 
@@ -50,6 +53,9 @@ encoding.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
 - Scalar references are encoded via [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml).
+- Via the optional `preserve_references` flag, circular and shared
+references may be preserved. Without this flag, shared references are not
+preserved, and circular references cause an exception.
 - Instances of [CBOR::Free::Tagged](https://metacpan.org/pod/CBOR::Free::Tagged) are encoded as tagged values.
 
 An error is thrown on excess recursion or an unrecognized object.
@@ -73,6 +79,8 @@ An exception is thrown if the decoder finds anything else as a map key.
 - CBOR booleans become the corresponding [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) values.
 Both CBOR null and undefined become Perl undef.
 - [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml) is interpreted as a scalar reference.
+- `preserve_references()` mode complements the same flag
+given to the encoder.
 - This function does not interpret any other tags. If you need to
 decode other tags, look at [CBOR::Free::Decoder](https://metacpan.org/pod/CBOR::Free::Decoder). Any unhandled tags that
 this function sees prompt a warning but are otherwise ignored.
