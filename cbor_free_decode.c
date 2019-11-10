@@ -600,7 +600,8 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 }
 //fprintf(stderr, "recalling %u (%u total)\n", refnum, decstate->reflistlen);
 
-                ret = newRV_inc( decstate->reflist[refnum] );
+                ret = decstate->reflist[refnum];
+                SvREFCNT_inc(ret);
 //fprintf(stderr, "recalled\n");
             }
             else {
