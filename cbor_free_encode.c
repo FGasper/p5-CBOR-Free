@@ -53,10 +53,17 @@ static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
 //----------------------------------------------------------------------
 // Croakers
 
-void _croak_unrecognized(pTHX_ SV *value) {
+void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
     char * words[3] = { "Unrecognized", SvPV_nolen(value), NULL };
 
+    cbf_encode_ctx_free_all(encode_state);
+
     _die( G_DISCARD, words );
+}
+
+void _croak_encode( pTHX_ encode_ctx* encode_state, void *arg ) {
+    cbf_encode_ctx_free_all(encode_state);
+    _croak(arg);
 }
 
 //----------------------------------------------------------------------
@@ -138,27 +145,20 @@ static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_s
 bool _check_reference( pTHX_ SV *varref, encode_ctx *encode_state ) {
     if ( SvREFCNT(varref) > 1 ) {
         void *this_ref;
-//fprintf(stderr, "refcount > 1\n");
-//fprintf(stderr, "ref is %llu\n", encode_state->reftracker);
 
         IV r = 0;
 
         while ( this_ref = encode_state->reftracker[r++] ) {
-//fprintf(stderr, "this_ref: %llu\n", this_ref);
             if (this_ref == varref) {
-//fprintf(stderr, "Match!\n");
                 _init_length_buffer( aTHX_ CBOR_TAG_SHAREDREF, CBOR_TYPE_TAG, encode_state );
                 _init_length_buffer( aTHX_ r - 1, CBOR_TYPE_UINT, encode_state );
                 return false;
             }
         }
-//fprintf(stderr, "No match in reflist; make a new entry\n");
 
         Renew( encode_state->reftracker, 1 + r, void * );
-//fprintf(stderr, "Grew the list\n");
         encode_state->reftracker[r - 1] = varref;
         encode_state->reftracker[r] = NULL;
-//fprintf(stderr, "Assigned into the list (%llu)\n", varref);
 
         _init_length_buffer( aTHX_ CBOR_TAG_SHAREABLE, CBOR_TYPE_TAG, encode_state );
     }
@@ -166,21 +166,8 @@ bool _check_reference( pTHX_ SV *varref, encode_ctx *encode_state ) {
     return true;
 }
 
-// static inline void* _
-
 void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
     ++encode_state->recurse_count;
-//fprintf(stderr, "sizeof encode_ctx: %d\n", sizeof(encode_ctx));
-//fprintf(stderr, "sizeof bool: %d\n", sizeof(bool));
-//fprintf(stderr, "sizeof STRLEN: %d\n", sizeof(STRLEN));
-/*
-if (encode_state->reftracker[0]) {
-fprintf(stderr, "got a reftrack!\n");
-}
-else {
-fprintf(stderr, "no reftrack here!\n");
-}
-*/
 
     if (encode_state->recurse_count > MAX_ENCODE_RECURSE) {
 
@@ -188,11 +175,8 @@ fprintf(stderr, "no reftrack here!\n");
         static char * words[] = { NULL };
         call_argv("CBOR::Free::_die_recursion", G_EVAL|G_DISCARD, words);
 
-        _croak(NULL);
+        _croak_encode(aTHX_ encode_state, NULL);
     }
-
-//printf("refcount: %d\n", SvREFCNT(value));
-// sv_dump(value);
 
     if (!SvROK(value)) {
 
@@ -299,7 +283,7 @@ fprintf(stderr, "no reftrack here!\n");
 
         // TODO: Support TO_JSON() or TO_CBOR() method?
 
-        else _croak_unrecognized(aTHX_ value);
+        else _croak_unrecognized(aTHX_ encode_state, value);
     }
     else if (SVt_PVAV == SvTYPE(SvRV(value))) {
         AV *array = (AV *)SvRV(value);
@@ -370,7 +354,7 @@ fprintf(stderr, "no reftrack here!\n");
             }
         }
     }
-    else if (IS_SCALAR_REFERENCE(value)) {
+    else if (encode_state->encode_scalar_refs && IS_SCALAR_REFERENCE(value)) {
         SV *referent = SvRV(value);
 
         if (!encode_state->reftracker || _check_reference( aTHX_ referent, encode_state)) {
@@ -378,7 +362,7 @@ fprintf(stderr, "no reftrack here!\n");
         }
     }
     else {
-        _croak_unrecognized(aTHX_ value);
+        _croak_unrecognized(aTHX_ encode_state, value);
     }
 
     --encode_state->recurse_count;
@@ -387,6 +371,41 @@ fprintf(stderr, "no reftrack here!\n");
 static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_state ) {
     _init_length_buffer( aTHX_ tagnum, CBOR_TYPE_TAG, encode_state );
     _encode( aTHX_ value, encode_state );
+}
+
+//----------------------------------------------------------------------
+
+encode_ctx cbf_encode_ctx_create(uint8_t flags) {
+    encode_ctx encode_state;
+
+    encode_state.buffer = NULL;
+    Newx( encode_state.buffer, ENCODE_ALLOC_CHUNK_SIZE, char );
+
+    encode_state.buflen = ENCODE_ALLOC_CHUNK_SIZE;
+    encode_state.len = 0;
+    encode_state.recurse_count = 0;
+
+    encode_state.is_canonical = !!(flags & ENCODE_FLAG_CANONICAL);
+
+    encode_state.encode_scalar_refs = !!(flags & ENCODE_FLAG_SCALAR_REFS);
+
+    if (flags & ENCODE_FLAG_PRESERVE_REFS) {
+        Newxz( encode_state.reftracker, 1, void * );
+    }
+    else {
+        encode_state.reftracker = NULL;
+    }
+
+    return encode_state;
+}
+
+void cbf_encode_ctx_free_reftracker(encode_ctx* encode_state) {
+    Safefree( encode_state->reftracker );
+}
+
+void cbf_encode_ctx_free_all(encode_ctx* encode_state) {
+    cbf_encode_ctx_free_reftracker(encode_state);
+    Safefree( encode_state->buffer );
 }
 
 SV *cbf_encode( pTHX_ SV *value, encode_ctx *encode_state, SV *RETVAL ) {

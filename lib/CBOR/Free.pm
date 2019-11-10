@@ -11,7 +11,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.13';
+    $VERSION = '0.15';
     XSLoader::load();
 }
 
@@ -65,8 +65,19 @@ The encoder currently does not handle any other blessed references.
 CBOR in L<canonical form|https://tools.ietf.org/html/rfc7049#section-3.9>.
 
 =item * C<preserve_references> - A boolean that causes CBOR::Free to encode
-multi-referenced values via L<CBOR’s “shared references” tags|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>. This will incur a mild performance
-penalty but, on the other hand, allows encoding of circular references.
+multi-referenced values via L<CBOR’s “shared references” tags|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>. This allows encoding of shared
+and circular references. It also incurs a performance penalty.
+
+(Take care that any circular references in your application don’t cause
+memory leaks!)
+
+=item * C<scalar_references> - Tells the encoder to accept scalar references
+(rather than reject them) and encode them via
+L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>.
+Most languages don’t use references as Perl does, so this option seems of
+little use outside all-Perl IPC contexts; it is arguably more useful, then,
+to have the encoder reject data structures that most other languages cannot
+represent.
 
 =back
 
@@ -82,7 +93,9 @@ encoding.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
 
-=item * Scalar references are encoded via L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>.
+=item * Scalar references (including references to other references) are
+unhandled by default, which makes them trigger an exception. You can
+optionally tell CBOR::Free to encode them via the C<scalar_references> flag.
 
 =item * Via the optional C<preserve_references> flag, circular and shared
 references may be preserved. Without this flag, shared references are not
@@ -116,7 +129,8 @@ An exception is thrown if the decoder finds anything else as a map key.
 =item * CBOR booleans become the corresponding L<Types::Serialiser> values.
 Both CBOR null and undefined become Perl undef.
 
-=item * L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml> is interpreted as a scalar reference.
+=item * L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml> is interpreted as a scalar reference. This behavior is always
+active; unlike with the encoder, there is no need to enable it manually.
 
 =item * C<preserve_references()> mode complements the same flag
 given to the encoder.
@@ -142,11 +156,12 @@ convenience aliases for the equivalent L<Types::Serialiser> functions.
 =head1 FRACTIONAL (FLOATING-POINT) NUMBERS
 
 Floating-point numbers are encoded in CBOR as IEEE 754 half-, single-,
-or double-precision. If your Perl is compiled to use “long double”
-floating-point numbers, you may see rounding errors when converting
-to/from CBOR. If that’s a problem for you, append an empty string to
-your floating-point numbers, which will cause CBOR::Free to encode
-them as strings.
+or double-precision. If your Perl is compiled to use anything besides
+IEEE 754 double-precision to represent floating-point values (e.g.,
+“long double” or “quadmath” compilation options), you may see rounding
+errors when converting to/from CBOR. If that’s a problem for you, append
+an empty string to your floating-point numbers, which will cause CBOR::Free
+to encode them as strings.
 
 =head1 INTEGER LIMITS
 

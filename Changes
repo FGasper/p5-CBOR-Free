@@ -1,5 +1,14 @@
 Revision history for Perl module CBOR::Free
 
+0.15
+- Add optional preserve/shared references support.
+
+0.14 9 Nov 2019
+- BREAKING CHANGE: The encoder now requires a flag to encode scalar references.
+  (The decoder still handles them all the time.)
+- Accommodate quadmath builds in tests, and mention them in documentation
+  regarding rounding.
+
 0.13 8 Nov 2019
 - Add (automatic) support for the “indirection” tag.
 

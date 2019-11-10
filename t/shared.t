@@ -5,6 +5,7 @@ use warnings;
 
 use Test::More;
 use Test::FailWarnings;
+use Test::Deep;
 
 use Data::Dumper;
 
@@ -23,22 +24,25 @@ my $out;
 $out = CBOR::Free::encode(
     [ $plain_array, $plain_hash, $plain_array, $plain_hash, $string_r, $string_r ],
     preserve_references => 1,
+    scalar_references => 1,
 );
 
-use Text::Control;
-#print Text::Control::to_hex($out) . $/;
-printf "%v.02x\n", $out;
-#$out = CBOR::Free::encode( [ $string = 'hello', $string_r ] );
 
 my $dec = CBOR::Free::Decoder->new();
 $dec->preserve_references();
 my $rt = $dec->decode($out);
 
-use Devel::Peek;
-Dump($rt);
-
-use Data::Dumper;
-$Data::Dumper::Useqq = 1;
-print Dumper($rt);
+cmp_deeply(
+    $rt,
+    [
+        [],
+        {},
+        shallow( $rt->[0] ),
+        shallow( $rt->[1] ),
+        \undef,
+        shallow( $rt->[4] ),
+    ],
+    'references are preserved',
+);
 
 done_testing;

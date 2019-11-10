@@ -40,9 +40,19 @@ The encoder currently does not handle any other blessed references.
 
 - `canonical` - A boolean that makes the function output
 CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
+<<<<<<< HEAD
 - `preserve_references` - A boolean that causes CBOR::Free to encode
 multi-referenced values via [CBOR’s “shared references” tags](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml). This will incur a mild performance
 penalty but, on the other hand, allows encoding of circular references.
+=======
+- `scalar_references` - Tells the encoder to accept scalar references
+(rather than reject them) and encode them via
+[CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml).
+Most languages don’t use references as Perl does, so this option seems of
+little use outside all-Perl IPC contexts; it is arguably more useful, then,
+to have the encoder reject data structures that most other languages cannot
+represent.
+>>>>>>> master
 
 Notes on mapping Perl to CBOR:
 
@@ -52,10 +62,16 @@ encoding.
 - [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) booleans are encoded as CBOR booleans.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
+<<<<<<< HEAD
 - Scalar references are encoded via [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml).
 - Via the optional `preserve_references` flag, circular and shared
 references may be preserved. Without this flag, shared references are not
 preserved, and circular references cause an exception.
+=======
+- Scalar references (including references to other references) are
+unhandled by default, which makes them trigger an exception. You can
+optionally tell CBOR::Free to encode them via the `scalar_references` flag.
+>>>>>>> master
 - Instances of [CBOR::Free::Tagged](https://metacpan.org/pod/CBOR::Free::Tagged) are encoded as tagged values.
 
 An error is thrown on excess recursion or an unrecognized object.
@@ -78,9 +94,14 @@ become Perl byte strings. (This may become configurable later.)
 An exception is thrown if the decoder finds anything else as a map key.
 - CBOR booleans become the corresponding [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) values.
 Both CBOR null and undefined become Perl undef.
+<<<<<<< HEAD
 - [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml) is interpreted as a scalar reference.
 - `preserve_references()` mode complements the same flag
 given to the encoder.
+=======
+- [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml) is interpreted as a scalar reference. This behavior is always
+active; unlike with the encoder, there is no need to enable it manually.
+>>>>>>> master
 - This function does not interpret any other tags. If you need to
 decode other tags, look at [CBOR::Free::Decoder](https://metacpan.org/pod/CBOR::Free::Decoder). Any unhandled tags that
 this function sees prompt a warning but are otherwise ignored.
@@ -100,11 +121,12 @@ convenience aliases for the equivalent [Types::Serialiser](https://metacpan.org/
 # FRACTIONAL (FLOATING-POINT) NUMBERS
 
 Floating-point numbers are encoded in CBOR as IEEE 754 half-, single-,
-or double-precision. If your Perl is compiled to use “long double”
-floating-point numbers, you may see rounding errors when converting
-to/from CBOR. If that’s a problem for you, append an empty string to
-your floating-point numbers, which will cause CBOR::Free to encode
-them as strings.
+or double-precision. If your Perl is compiled to use anything besides
+IEEE 754 double-precision to represent floating-point values (e.g.,
+“long double” or “quadmath” compilation options), you may see rounding
+errors when converting to/from CBOR. If that’s a problem for you, append
+an empty string to your floating-point numbers, which will cause CBOR::Free
+to encode them as strings.
 
 # INTEGER LIMITS
 
