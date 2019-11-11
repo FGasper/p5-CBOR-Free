@@ -61,23 +61,24 @@ The encoder currently does not handle any other blessed references.
 
 =over
 
-=item * C<canonical> - A boolean that makes the function output
+=item * C<canonical> - A boolean that makes the encoder output
 CBOR in L<canonical form|https://tools.ietf.org/html/rfc7049#section-3.9>.
 
-=item * C<preserve_references> - A boolean that causes CBOR::Free to encode
+=item * C<preserve_references> - A boolean that makes the encoder encode
 multi-referenced values via L<CBOR’s “shared references” tags|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>. This allows encoding of shared
 and circular references. It also incurs a performance penalty.
 
 (Take care that any circular references in your application don’t cause
 memory leaks!)
 
-=item * C<scalar_references> - Tells the encoder to accept scalar references
+=item * C<scalar_references> - A boolean that makes the encoder accept
+scalar references
 (rather than reject them) and encode them via
 L<CBOR’s “indirection” tag|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>.
 Most languages don’t use references as Perl does, so this option seems of
 little use outside all-Perl IPC contexts; it is arguably more useful, then,
-to have the encoder reject data structures that most other languages cannot
-represent.
+for general use to have the encoder reject data structures that most other
+languages cannot represent.
 
 =back
 
@@ -98,8 +99,8 @@ unhandled by default, which makes them trigger an exception. You can
 optionally tell CBOR::Free to encode them via the C<scalar_references> flag.
 
 =item * Via the optional C<preserve_references> flag, circular and shared
-references may be preserved. Without this flag, shared references are not
-preserved, and circular references cause an exception.
+references may be preserved. Without this flag, circular references cause an
+exception, and other shared references are not preserved.
 
 =item * Instances of L<CBOR::Free::Tagged> are encoded as tagged values.
 

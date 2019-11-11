@@ -44,6 +44,7 @@ t/fuzzed.t
 t/fuzzed/a
 t/hash.t
 t/negint.t
+t/pod.t
 t/scalar_ref.t
 t/shared.t
 t/string.t

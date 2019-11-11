@@ -38,22 +38,23 @@ The encoder currently does not handle any other blessed references.
 
 %OPTS may be:
 
-- `canonical` - A boolean that makes the function output
+- `canonical` - A boolean that makes the encoder output
 CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
-- `preserve_references` - A boolean that causes CBOR::Free to encode
+- `preserve_references` - A boolean that makes the encoder encode
 multi-referenced values via [CBOR’s “shared references” tags](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml). This allows encoding of shared
 and circular references. It also incurs a performance penalty.
 
     (Take care that any circular references in your application don’t cause
     memory leaks!)
 
-- `scalar_references` - Tells the encoder to accept scalar references
+- `scalar_references` - A boolean that makes the encoder accept
+scalar references
 (rather than reject them) and encode them via
 [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml).
 Most languages don’t use references as Perl does, so this option seems of
 little use outside all-Perl IPC contexts; it is arguably more useful, then,
-to have the encoder reject data structures that most other languages cannot
-represent.
+for general use to have the encoder reject data structures that most other
+languages cannot represent.
 
 Notes on mapping Perl to CBOR:
 
@@ -67,8 +68,8 @@ undefined.)
 unhandled by default, which makes them trigger an exception. You can
 optionally tell CBOR::Free to encode them via the `scalar_references` flag.
 - Via the optional `preserve_references` flag, circular and shared
-references may be preserved. Without this flag, shared references are not
-preserved, and circular references cause an exception.
+references may be preserved. Without this flag, circular references cause an
+exception, and other shared references are not preserved.
 - Instances of [CBOR::Free::Tagged](https://metacpan.org/pod/CBOR::Free::Tagged) are encoded as tagged values.
 
 An error is thrown on excess recursion or an unrecognized object.
