@@ -61,6 +61,11 @@ void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
     _die( G_DISCARD, words );
 }
 
+// This has to be a macro because _croak() needs a string literal.
+#define _croak_encode(encode_state, str) \
+    cbf_encode_ctx_free_all(encode_state); \
+    _croak(str);
+
 //----------------------------------------------------------------------
 
 // NOTE: Contrary to what we’d ordinarily expect, for canonical CBOR
@@ -143,7 +148,7 @@ bool _check_reference( pTHX_ SV *varref, encode_ctx *encode_state ) {
 
         IV r = 0;
 
-        while ( this_ref = encode_state->reftracker[r++] ) {
+        while ( (this_ref = encode_state->reftracker[r++]) ) {
             if (this_ref == varref) {
                 _init_length_buffer( aTHX_ CBOR_TAG_SHAREDREF, CBOR_TYPE_TAG, encode_state );
                 _init_length_buffer( aTHX_ r - 1, CBOR_TYPE_UINT, encode_state );
@@ -170,8 +175,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
         static char * words[] = { NULL };
         call_argv("CBOR::Free::_die_recursion", G_EVAL|G_DISCARD, words);
 
-        cbf_encode_ctx_free_all(encode_state);
-        _croak(NULL);
+        _croak_encode( encode_state, NULL );
     }
 
     if (!SvROK(value)) {
