@@ -4,7 +4,7 @@ CBOR::Free - Fast CBOR for everyone
 
 # SYNOPSIS
 
-    $cbor = CBOR::Free::encode( $scalar_or_ar_or_hr );
+    $cbor = CBOR::Free::encode( $some_data_structure );
 
     $thing = CBOR::Free::decode( $cbor )
 
