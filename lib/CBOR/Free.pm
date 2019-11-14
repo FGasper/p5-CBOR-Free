@@ -82,6 +82,8 @@ Notes on mapping Perl to CBOR:
 integer, float, byte string, or character string) determines its CBOR
 encoding.
 
+=item * Perl hash keys become CBOR binary strings.
+
 =item * L<Types::Serialiser> booleans are encoded as CBOR booleans.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)

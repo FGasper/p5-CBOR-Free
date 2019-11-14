@@ -18,6 +18,11 @@ typedef struct {
     bool encode_scalar_refs;
 } encode_ctx;
 
+struct string_and_length {
+    char *buffer;
+    I32 length;
+};
+
 SV * cbf_encode( pTHX_ SV *value, encode_ctx *encode_state, SV *RETVAL );
 
 #endif

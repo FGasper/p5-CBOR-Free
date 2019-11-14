@@ -53,6 +53,7 @@ Notes on mapping Perl to CBOR:
 - The internal state of a defined Perl scalar (e.g., whether it’s an
 integer, float, byte string, or character string) determines its CBOR
 encoding.
+- Perl hash keys become CBOR binary strings.
 - [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) booleans are encoded as CBOR booleans.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
