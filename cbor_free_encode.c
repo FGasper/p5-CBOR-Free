@@ -4,6 +4,8 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#include <stdlib.h>
+
 #include "cbor_free_encode.h"
 
 #define TAGGED_CLASS    "CBOR::Free::Tagged"
@@ -68,11 +70,16 @@ void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
 
 //----------------------------------------------------------------------
 
-// NOTE: Contrary to what we’d ordinarily expect, for canonical CBOR
+// NOTE: Contrary to JSON’s “canonical” order, for canonical CBOR
 // keys are only byte-sorted if their lengths are identical. Thus,
 // “z” sorts EARLIER than “aa”. (cf. section 3.9 of the RFC)
-static I32 _sortstring( pTHX_ SV *a, SV *b ) {
-    return (SvCUR(a) < SvCUR(b)) ? -1 : (SvCUR(a) > SvCUR(b)) ? 1 : memcmp( SvPV_nolen(a), SvPV_nolen(b), SvCUR(a) );
+
+int _sort_string_and_length( const void* a, const void* b ) {
+    return (
+        ((struct string_and_length *)a)->length < ((struct string_and_length *)b)->length ? -1
+        : ((struct string_and_length *)a)->length > ((struct string_and_length *)b)->length ? 1
+        : memcmp( ((struct string_and_length *)a)->buffer, ((struct string_and_length *)b)->buffer, ((struct string_and_length *)a)->length )
+    );
 }
 
 //----------------------------------------------------------------------
@@ -307,49 +314,62 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
         HV *hash = (HV *)SvRV(value);
 
         if (!encode_state->reftracker || _check_reference( aTHX_ (SV *)hash, encode_state)) {
+            SV *cur_sv;
             char *key;
             I32 key_length;
-            SV *cur;
 
             I32 keyscount = hv_iterinit(hash);
 
             _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
 
             if (encode_state->is_canonical) {
-                SV *keys[keyscount];
+
+                // The CBOR RFC defines canonical sorting such that the
+                // *encoded* keys are what gets sorted; however, since Perl hash
+                // keys are always (binary) strings, and since a lexicographical
+                // sort of encoded CBOR uints yields the same order as encoding
+                // that same list of uints pre-sorted, we can sort the keys
+                // prior to insertion into the output buffer.
+                //
+                // It may be faster to sort encoded keys (as the RFC envisions),
+                // but this works for now.
+
+                struct string_and_length cur;
+                struct string_and_length strings[keyscount];
 
                 I32 curkey = 0;
 
                 while (hv_iternextsv(hash, &key, &key_length)) {
-                    keys[curkey] = newSVpvn(key, key_length);
+                    strings[curkey].buffer = key;
+                    strings[curkey].length = key_length;
                     ++curkey;
                 }
 
-                sortsv(keys, keyscount, _sortstring);
+                qsort(strings, keyscount, sizeof(struct string_and_length), _sort_string_and_length);
 
                 for (curkey=0; curkey < keyscount; ++curkey) {
-                    cur = keys[curkey];
-                    key = SvPV_nolen(cur);
-                    key_length = SvCUR(cur);
+                    cur = strings[curkey];
+                    key = cur.buffer;
+                    key_length = cur.length;
 
                     // Store the key.
                     _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
                     _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
 
-                    cur = *( hv_fetch(hash, key, key_length, 0) );
+                    cur_sv = *( hv_fetch(hash, key, key_length, 0) );
 
-                    _encode( aTHX_ cur, encode_state );
+                    _encode( aTHX_ cur_sv, encode_state );
                 }
             }
             else {
-                while ((cur = hv_iternextsv(hash, &key, &key_length))) {
+                while ((cur_sv = hv_iternextsv(hash, &key, &key_length))) {
 
                     // Store the key.
                     _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
 
                     _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
 
-                    _encode( aTHX_ cur, encode_state );
+                    _encode( aTHX_ cur_sv, encode_state );
                 }
             }
         }
