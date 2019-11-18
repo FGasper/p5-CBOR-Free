@@ -54,6 +54,12 @@ otherwise ignored.
 
 =head2 $enabled_yn = I<OBJ>->preserve_references( [$ENABLE] )
 
+Enables/disables recognition of CBOR’s shared references. (If no
+argument is given, shared references wil be enabled.)
+
+B<HANDLE WITH CARE.> This option can cause CBOR::Free to create circular
+references, which can cause memory leaks if not handled properly.
+
 =cut
 
 sub preserve_references {
