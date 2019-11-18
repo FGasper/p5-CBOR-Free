@@ -57,14 +57,14 @@ encode( SV * value, ... )
                 }
             }
 
-            if ((SvCUR(ST(i)) == PRESERVE_REFS_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), PRESERVE_REFS_OPT, PRESERVE_REFS_OPT_LEN)) {
+            else if ((SvCUR(ST(i)) == PRESERVE_REFS_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), PRESERVE_REFS_OPT, PRESERVE_REFS_OPT_LEN)) {
                 ++i;
-                if (i<items) {
+                if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_PRESERVE_REFS;
                 }
             }
 
-            if ((SvCUR(ST(i)) == SCALAR_REFS_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), SCALAR_REFS_OPT, SCALAR_REFS_OPT_LEN)) {
+            else if ((SvCUR(ST(i)) == SCALAR_REFS_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), SCALAR_REFS_OPT, SCALAR_REFS_OPT_LEN)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_SCALAR_REFS;
