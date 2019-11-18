@@ -12,6 +12,9 @@ CBOR::Free::Decoder
         2 => sub { DateTime->from_epoch( epoch => shift() ) },
     );
 
+    # Enable shared/circular references:
+    $decoder->preserve_references();
+
 =head1 DESCRIPTION
 
 This class provides an object-oriented interface to L<CBOR::Free>’s
