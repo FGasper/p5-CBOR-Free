@@ -11,7 +11,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.15';
+    $VERSION = '0.16';
     XSLoader::load();
 }
 
@@ -202,11 +202,6 @@ It’s also quite light. Its only “heavy” dependency is
 L<Types::Serialiser>, which is only loaded when you actually need it.
 This keeps memory usage low for when, e.g., you’re using CBOR for
 IPC between Perl processes and have no need for true booleans.
-
-=head1 TODO
-
-Some of the Windows tests fail regularly in older Perl versions.
-It would be nice to have those fixed.
 
 =head1 AUTHOR
 

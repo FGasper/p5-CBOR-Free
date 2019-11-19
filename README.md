@@ -155,6 +155,11 @@ It’s also quite light. Its only “heavy” dependency is
 This keeps memory usage low for when, e.g., you’re using CBOR for
 IPC between Perl processes and have no need for true booleans.
 
+# TODO
+
+Some of the Windows tests fail regularly in older Perl versions.
+It would be nice to have those fixed.
+
 # AUTHOR
 
 [Gasper Software Consulting](http://gaspersoftware.com) (FELIPE)
