@@ -582,6 +582,11 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                 if ( !sv_utf8_decode(ret) ) {
                     _croak_invalid_utf8( aTHX_ decstate, SvPV_nolen(ret) );
                 }
+
+                // Always set the UTF8 flag, even if it’s not needed.
+                // This helps ensure that text strings will round-trip
+                // through Perl.
+                SvUTF8_on(ret);
             }
 
             break;

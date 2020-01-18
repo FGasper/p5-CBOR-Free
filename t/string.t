@@ -40,4 +40,15 @@ sub _cmpbin {
     return is( $got, $expect, $label );
 }
 
+#----------------------------------------------------------------------
+
+{
+    my $cbor_text = "cabc";
+
+    my $dec = CBOR::Free::decode($cbor_text);
+    my $cbor2 = CBOR::Free::encode($dec);
+
+    is( $cbor2, $cbor_text, 'text string round-trips, even if all code points are ASCII' );
+}
+
 done_testing;

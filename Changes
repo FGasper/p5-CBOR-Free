@@ -1,5 +1,12 @@
 Revision history for Perl module CBOR::Free
 
+0.18
+- Make CBOR text strings always decode to UTF8-flaged Perl strings. This is an
+  admittedly-imperfect attempt to preserve distinctly-typed text strings
+  in Perl (a language that, by design, doesn’t distinguish text vs. binary).
+  The POD has described this behavior for some time; it just was never
+  implemented correctly until now.
+
 0.17 17 Jan 2020
 - Make documentation more accurate regarding Perl strings.
 
