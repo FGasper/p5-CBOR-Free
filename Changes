@@ -6,6 +6,7 @@ Revision history for Perl module CBOR::Free
   in Perl (a language that, by design, doesn’t distinguish text vs. binary).
   The POD has described this behavior for some time; it just was never
   implemented correctly until now.
+- Teach CBOR::Free to encode UTF8-flagged hash keys as CBOR text.
 
 0.17 17 Jan 2020
 - Make documentation more accurate regarding Perl strings.
