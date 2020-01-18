@@ -76,7 +76,7 @@ void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
 
 #define _SORT(x) ((struct sortable_hash_entry *)x)
 
-int _sort_hash_keys( const void* a, const void* b ) {
+int _sort_map_keys( const void* a, const void* b ) {
     return (
         _SORT(a)->is_utf8 < _SORT(b)->is_utf8 ? -1
         : _SORT(a)->is_utf8 > _SORT(b)->is_utf8 ? 1
@@ -351,7 +351,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                     curkey++;
                 }
 
-                qsort(sortables, keyscount, sizeof(struct sortable_hash_entry), _sort_hash_keys);
+                qsort(sortables, keyscount, sizeof(struct sortable_hash_entry), _sort_map_keys);
 
                 for (curkey=0; curkey < keyscount; ++curkey) {
                     _init_length_buffer( aTHX_ sortables[curkey].length, sortables[curkey].is_utf8 ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
