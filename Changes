@@ -7,6 +7,7 @@ Revision history for Perl module CBOR::Free
   The POD has described this behavior for some time; it just was never
   implemented correctly until now.
 - Teach CBOR::Free to encode UTF8-flagged hash keys as CBOR text.
+- Build fix: Require a reasonably recent ExtUtils::MakeMaker.
 
 0.17 17 Jan 2020
 - Make documentation more accurate regarding Perl strings.
