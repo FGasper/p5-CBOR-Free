@@ -82,6 +82,44 @@ int _sort_string_and_length( const void* a, const void* b ) {
     );
 }
 
+#define _SORT_KEY(x) ((struct key_for_sort *)x)
+#define _SORT_KEY_SV(x) ((struct key_for_sort *)x)->data.sv
+#define _SORT_KEY_PTR(x) ((struct key_for_sort *)x)->data.raw.buffer
+#define _SORT_KEY_LEN(x) ((struct key_for_sort *)x)->data.raw.length
+
+int _sort_keys( const void* a, const void* b ) {
+    dTHX;
+    if ( _SORT_KEY(a)->is_sv ) {
+        if ( !_SORT_KEY(b)->is_sv ) {
+
+            // First is an SV, 2nd isn’t: 2nd sorts first.
+            return 1;
+        }
+
+        // They’re both SVs.
+
+        return (SvUTF8( _SORT_KEY_SV(a) ) < SvUTF8(_SORT_KEY_SV(b))) ? -1
+            : (SvUTF8( _SORT_KEY_SV(a) ) > SvUTF8(_SORT_KEY_SV(b))) ? 1
+            : (SvCUR( _SORT_KEY_SV(a) ) < SvCUR(_SORT_KEY_SV(b))) ? -1
+            : (SvCUR( _SORT_KEY_SV(a) ) > SvCUR(_SORT_KEY_SV(b))) ? 1
+            : memcmp( SvPV_nolen(_SORT_KEY_SV(a)), SvPV_nolen(_SORT_KEY_SV(b)), SvCUR(_SORT_KEY_SV(a)) )
+        ;
+    }
+    else if ( _SORT_KEY(b)->is_sv ) {
+
+        // First isn’t an SV, 2nd is: 1st sorts first.
+        return -1;
+    }
+
+    // Neither is an SV.
+
+    return (
+        _SORT_KEY_LEN(a) < _SORT_KEY_LEN(b) ? -1
+        : _SORT_KEY_LEN(a) > _SORT_KEY_LEN(b) ? 1
+        : memcmp( _SORT_KEY_PTR(a), _SORT_KEY_PTR(b), _SORT_KEY_LEN(a) )
+    );
+}
+
 //----------------------------------------------------------------------
 
 static inline HV *_get_tagged_stash() {
@@ -318,6 +356,9 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             char *key;
             I32 key_length;
 
+            HE* h_entry;
+            SV* svkey;
+
             I32 keyscount = hv_iterinit(hash);
 
             _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
@@ -334,11 +375,43 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 // It may be faster to sort encoded keys (as the RFC envisions),
                 // but this works for now.
 
-                struct string_and_length cur;
-                struct string_and_length strings[keyscount];
+                struct key_for_sort cur;
+                struct key_for_sort keys[keyscount];
 
                 I32 curkey = 0;
 
+                while ( (h_entry = hv_iternext(hash)) ) {
+                    keys[curkey].value = hv_iterval(hash, h_entry);
+
+                    if ( (svkey = HeSVKEY(h_entry)) ) {
+                        keys[curkey].is_sv = true;
+                        keys[curkey].data.sv = svkey;
+                    }
+                    else {
+                        key = HePV(h_entry, key_length);
+                        keys[curkey].is_sv = false;
+                        keys[curkey].data.raw.buffer = key;
+                        keys[curkey].data.raw.length = key_length;
+                    }
+
+                    ++curkey;
+                }
+
+                qsort(keys, keyscount, sizeof(struct key_for_sort), _sort_keys);
+
+                for (curkey=0; curkey < keyscount; ++curkey) {
+                    if (keys[curkey].is_sv) {
+                        _encode( aTHX_ keys[curkey].data.sv, encode_state );
+                    }
+                    else {
+                        _init_length_buffer( aTHX_ keys[curkey].data.raw.length, CBOR_TYPE_BINARY, encode_state );
+                        _COPY_INTO_ENCODE( encode_state, keys[curkey].data.raw.buffer, keys[curkey].data.raw.length );
+                    }
+
+                    _encode( aTHX_ keys[curkey].value, encode_state );
+                }
+
+/*
                 while (hv_iternextsv(hash, &key, &key_length)) {
                     strings[curkey].buffer = key;
                     strings[curkey].length = key_length;
@@ -360,12 +433,22 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
                     _encode( aTHX_ cur_sv, encode_state );
                 }
+*/
             }
             else {
-                HE* h_entry;
-
                 while ( (h_entry = hv_iternext(hash)) ) {
-                    _encode( aTHX_ hv_iterkeysv(h_entry), encode_state );
+                    if ( (svkey = HeSVKEY(h_entry)) ) {
+sv_dump(svkey);
+                        _encode( aTHX_ svkey, encode_state );
+                    }
+                    else {
+fprintf(stderr, "no sv\n");
+                        key = HePV(h_entry, key_length);
+
+                        _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
+                        _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                    }
+
                     _encode( aTHX_ hv_iterval(hash, h_entry), encode_state );
                 }
             }

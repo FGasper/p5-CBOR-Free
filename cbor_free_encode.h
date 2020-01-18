@@ -30,6 +30,21 @@ struct string_and_length {
     I32 length;
 };
 
+struct key_for_sort {
+    bool is_sv;
+
+    SV* value;
+
+    union {
+        SV* sv;
+
+        struct {
+            char* buffer;
+            I32 length;
+        } raw;
+    } data;
+};
+
 SV * cbf_encode( pTHX_ SV *value, encode_ctx *encode_state, SV *RETVAL );
 
 encode_ctx cbf_encode_ctx_create( uint8_t flags );
