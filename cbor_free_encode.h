@@ -14,6 +14,10 @@
 #define ENCODE_FLAG_PRESERVE_REFS   2
 #define ENCODE_FLAG_SCALAR_REFS     4
 
+// HeKWASUTF8(he) is undocumented, but the UTF8 flag can be stored
+// there as well as in HeUTF8().
+#define CBF_HeUTF8(h_entry) (HeUTF8(h_entry) || (!HeSVKEY(h_entry) && HeKWASUTF8(h_entry)))
+
 typedef struct {
     STRLEN buflen;
     STRLEN len;
@@ -25,24 +29,11 @@ typedef struct {
     bool encode_scalar_refs;
 } encode_ctx;
 
-struct string_and_length {
+struct sortable_hash_entry {
+    bool is_utf8;
     char *buffer;
-    I32 length;
-};
-
-struct key_for_sort {
-    bool is_sv;
-
-    SV* value;
-
-    union {
-        SV* sv;
-
-        struct {
-            char* buffer;
-            I32 length;
-        } raw;
-    } data;
+    STRLEN length;
+    SV *value;
 };
 
 SV * cbf_encode( pTHX_ SV *value, encode_ctx *encode_state, SV *RETVAL );

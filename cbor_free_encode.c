@@ -74,49 +74,15 @@ void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
 // keys are only byte-sorted if their lengths are identical. Thus,
 // “z” sorts EARLIER than “aa”. (cf. section 3.9 of the RFC)
 
-int _sort_string_and_length( const void* a, const void* b ) {
+#define _SORT(x) ((struct sortable_hash_entry *)x)
+
+int _sort_hash_keys( const void* a, const void* b ) {
     return (
-        ((struct string_and_length *)a)->length < ((struct string_and_length *)b)->length ? -1
-        : ((struct string_and_length *)a)->length > ((struct string_and_length *)b)->length ? 1
-        : memcmp( ((struct string_and_length *)a)->buffer, ((struct string_and_length *)b)->buffer, ((struct string_and_length *)a)->length )
-    );
-}
-
-#define _SORT_KEY(x) ((struct key_for_sort *)x)
-#define _SORT_KEY_SV(x) ((struct key_for_sort *)x)->data.sv
-#define _SORT_KEY_PTR(x) ((struct key_for_sort *)x)->data.raw.buffer
-#define _SORT_KEY_LEN(x) ((struct key_for_sort *)x)->data.raw.length
-
-int _sort_keys( const void* a, const void* b ) {
-    dTHX;
-    if ( _SORT_KEY(a)->is_sv ) {
-        if ( !_SORT_KEY(b)->is_sv ) {
-
-            // First is an SV, 2nd isn’t: 2nd sorts first.
-            return 1;
-        }
-
-        // They’re both SVs.
-
-        return (SvUTF8( _SORT_KEY_SV(a) ) < SvUTF8(_SORT_KEY_SV(b))) ? -1
-            : (SvUTF8( _SORT_KEY_SV(a) ) > SvUTF8(_SORT_KEY_SV(b))) ? 1
-            : (SvCUR( _SORT_KEY_SV(a) ) < SvCUR(_SORT_KEY_SV(b))) ? -1
-            : (SvCUR( _SORT_KEY_SV(a) ) > SvCUR(_SORT_KEY_SV(b))) ? 1
-            : memcmp( SvPV_nolen(_SORT_KEY_SV(a)), SvPV_nolen(_SORT_KEY_SV(b)), SvCUR(_SORT_KEY_SV(a)) )
-        ;
-    }
-    else if ( _SORT_KEY(b)->is_sv ) {
-
-        // First isn’t an SV, 2nd is: 1st sorts first.
-        return -1;
-    }
-
-    // Neither is an SV.
-
-    return (
-        _SORT_KEY_LEN(a) < _SORT_KEY_LEN(b) ? -1
-        : _SORT_KEY_LEN(a) > _SORT_KEY_LEN(b) ? 1
-        : memcmp( _SORT_KEY_PTR(a), _SORT_KEY_PTR(b), _SORT_KEY_LEN(a) )
+        _SORT(a)->is_utf8 < _SORT(b)->is_utf8 ? -1
+        : _SORT(a)->is_utf8 > _SORT(b)->is_utf8 ? 1
+        : _SORT(a)->length < _SORT(b)->length ? -1
+        : _SORT(a)->length > _SORT(b)->length ? 1
+        : memcmp( _SORT(a)->buffer, _SORT(b)->buffer, _SORT(a)->length )
     );
 }
 
@@ -143,21 +109,17 @@ static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, const unsigned c
 
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
 static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type, encode_ctx *encode_state ) {
-//fprintf(stderr, "_init_length_buffer(%llu)\n", num);
     union control_byte *scratch0 = (void *) encode_state->scratch;
     scratch0->pieces.major_type = major_type;
 
     if ( num < CBOR_LENGTH_SMALL ) {
-//fprintf(stderr, "size tiny\n");
         scratch0->pieces.length_type = (uint8_t) num;
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 1);
     }
     else if ( num <= 0xff ) {
-//fprintf(stderr, "size small\n");
         scratch0->pieces.length_type = CBOR_LENGTH_SMALL;
         encode_state->scratch[1] = (uint8_t) num;
-//fprintf(stderr, "uint8: %02x,%02x\n", encode_state->scratch[0], encode_state->scratch[1]);
 
         _COPY_INTO_ENCODE(encode_state, encode_state->scratch, 2);
     }
@@ -354,7 +316,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
         if (!encode_state->reftracker || _check_reference( aTHX_ (SV *)hash, encode_state)) {
             SV *cur_sv;
             char *key;
-            I32 key_length;
+            STRLEN key_length;
 
             HE* h_entry;
             SV* svkey;
@@ -375,81 +337,37 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 // It may be faster to sort encoded keys (as the RFC envisions),
                 // but this works for now.
 
-                struct key_for_sort cur;
-                struct key_for_sort keys[keyscount];
-
                 I32 curkey = 0;
 
+                struct sortable_hash_entry sortables[keyscount];
+
                 while ( (h_entry = hv_iternext(hash)) ) {
-                    keys[curkey].value = hv_iterval(hash, h_entry);
+                    key = HePV(h_entry, key_length);
+                    sortables[curkey].is_utf8 = !!CBF_HeUTF8(h_entry);
+                    sortables[curkey].buffer = key;
+                    sortables[curkey].length = key_length;
+                    sortables[curkey].value = HeVAL(h_entry);
 
-                    if ( (svkey = HeSVKEY(h_entry)) ) {
-                        keys[curkey].is_sv = true;
-                        keys[curkey].data.sv = svkey;
-                    }
-                    else {
-                        key = HePV(h_entry, key_length);
-                        keys[curkey].is_sv = false;
-                        keys[curkey].data.raw.buffer = key;
-                        keys[curkey].data.raw.length = key_length;
-                    }
-
-                    ++curkey;
+                    curkey++;
                 }
 
-                qsort(keys, keyscount, sizeof(struct key_for_sort), _sort_keys);
+                qsort(sortables, keyscount, sizeof(struct sortable_hash_entry), _sort_hash_keys);
 
                 for (curkey=0; curkey < keyscount; ++curkey) {
-                    if (keys[curkey].is_sv) {
-                        _encode( aTHX_ keys[curkey].data.sv, encode_state );
-                    }
-                    else {
-                        _init_length_buffer( aTHX_ keys[curkey].data.raw.length, CBOR_TYPE_BINARY, encode_state );
-                        _COPY_INTO_ENCODE( encode_state, keys[curkey].data.raw.buffer, keys[curkey].data.raw.length );
-                    }
+                    _init_length_buffer( aTHX_ sortables[curkey].length, sortables[curkey].is_utf8 ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
+                    _COPY_INTO_ENCODE( encode_state, (unsigned char *) sortables[curkey].buffer, sortables[curkey].length );
 
-                    _encode( aTHX_ keys[curkey].value, encode_state );
+                    _encode( aTHX_ sortables[curkey].value, encode_state );
                 }
-
-/*
-                while (hv_iternextsv(hash, &key, &key_length)) {
-                    strings[curkey].buffer = key;
-                    strings[curkey].length = key_length;
-                    ++curkey;
-                }
-
-                qsort(strings, keyscount, sizeof(struct string_and_length), _sort_string_and_length);
-
-                for (curkey=0; curkey < keyscount; ++curkey) {
-                    cur = strings[curkey];
-                    key = cur.buffer;
-                    key_length = cur.length;
-
-                    // Store the key.
-                    _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-                    _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-
-                    cur_sv = *( hv_fetch(hash, key, key_length, 0) );
-
-                    _encode( aTHX_ cur_sv, encode_state );
-                }
-*/
             }
             else {
                 while ( (h_entry = hv_iternext(hash)) ) {
-                    if ( (svkey = HeSVKEY(h_entry)) ) {
-sv_dump(svkey);
-                        _encode( aTHX_ svkey, encode_state );
-                    }
-                    else {
-fprintf(stderr, "no sv\n");
-                        key = HePV(h_entry, key_length);
+                    key = HePV(h_entry, key_length);
 
-                        _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-                        _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-                    }
+                    _init_length_buffer( aTHX_ key_length, CBF_HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
+                    _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
 
-                    _encode( aTHX_ hv_iterval(hash, h_entry), encode_state );
+                    _encode( aTHX_ HeVAL(h_entry), encode_state );
                 }
             }
         }

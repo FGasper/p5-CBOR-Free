@@ -28,11 +28,11 @@ for my $t (@tests) {
 
 #----------------------------------------------------------------------
 
-my $empty_upgraded = "";
-utf8::upgrade($empty_upgraded);
+my $a_upgraded = "0";
+utf8::upgrade($a_upgraded);
 
-my $nul_upgraded = "\0";
-utf8::upgrade($nul_upgraded);
+my $b_upgraded = "1";
+utf8::upgrade($b_upgraded);
 
 my @canonical_tests = (
     [
@@ -44,10 +44,10 @@ my @canonical_tests = (
         "\xa4 \x41\0 \0 \x42\0\0 \0 \x43a\0a \0 \x43a\0b \1",
     ],
     [
-        { q<1> => 1, "2" => 2, "\xff" => 3,
-            $empty_upgraded => 4, $nul_upgraded => 5,
+        { q<x> => 1, "y" => 2, "z" => 3,
+            $a_upgraded => 4, $b_upgraded => 5,
         },
-        "\xa5 \x41 1 \1 \x41 2 \2 \x41 \xff \3 \x60 \4 \x61\0 \5",
+        "\xa5 \x41x \1 \x41y \2 \x41z \3 \x61 0 \4 \x61 1 \5",
     ],
 );
 
