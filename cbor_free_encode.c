@@ -74,13 +74,12 @@ void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
 // keys are only byte-sorted if their lengths are identical. Thus,
 // “z” sorts EARLIER than “aa”. (cf. section 3.9 of the RFC)
 
-static I32 _sort_key_svs( pTHX_ SV *a, SV *b ) {
-    return (SvUTF8(a) < SvUTF8(b)) ? -1
-        : (SvUTF8(a) > SvUTF8(b)) ? 1
-        : (SvCUR(a) < SvCUR(b)) ? -1
-        : (SvCUR(a) > SvCUR(b)) ? 1
-        : memcmp( SvPV_nolen(a), SvPV_nolen(b), SvCUR(a) )
-    ;
+int _sort_string_and_length( const void* a, const void* b ) {
+    return (
+        ((struct string_and_length *)a)->length < ((struct string_and_length *)b)->length ? -1
+        : ((struct string_and_length *)a)->length > ((struct string_and_length *)b)->length ? 1
+        : memcmp( ((struct string_and_length *)a)->buffer, ((struct string_and_length *)b)->buffer, ((struct string_and_length *)a)->length )
+    );
 }
 
 //----------------------------------------------------------------------
@@ -321,8 +320,6 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
             I32 keyscount = hv_iterinit(hash);
 
-            HE* h_entry;
-
             _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
 
             if (encode_state->is_canonical) {
@@ -337,23 +334,31 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 // It may be faster to sort encoded keys (as the RFC envisions),
                 // but this works for now.
 
-                SV* key_sv[keyscount];
+                struct string_and_length cur;
+                struct string_and_length strings[keyscount];
 
                 I32 curkey = 0;
 
-                while ( (h_entry = hv_iternext(hash)) ) {
-                    key_sv[curkey] = hv_iterkeysv(h_entry);
+                while (hv_iternextsv(hash, &key, &key_length)) {
+                    strings[curkey].buffer = key;
+                    strings[curkey].length = key_length;
                     ++curkey;
                 }
 
-                sortsv(key_sv, keyscount, _sort_key_svs);
+                qsort(strings, keyscount, sizeof(struct string_and_length), _sort_string_and_length);
 
                 for (curkey=0; curkey < keyscount; ++curkey) {
-                    _encode( aTHX_ key_sv[curkey], encode_state );
+                    cur = strings[curkey];
+                    key = cur.buffer;
+                    key_length = cur.length;
 
-                    h_entry = hv_fetch_ent(hash, key_sv[curkey], 0, 0);
+                    // Store the key.
+                    _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
+                    _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
 
-                    _encode( aTHX_ hv_iterval(hash, h_entry), encode_state);
+                    cur_sv = *( hv_fetch(hash, key, key_length, 0) );
+
+                    _encode( aTHX_ cur_sv, encode_state );
                 }
             }
             else {

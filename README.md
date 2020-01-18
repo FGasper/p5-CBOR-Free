@@ -61,7 +61,7 @@ Notes on mapping Perl to CBOR:
 - The internal state of a defined Perl scalar (e.g., whether it’s an
 integer, float, string, etc.) determines its CBOR encoding.
 - Perl doesn’t currently provide reliable binary/character string types.
-CBOR::Free tries to distinguish anyway by look at a string’s UTF8 flag: if
+CBOR::Free tries to distinguish anyway by looking at a string’s UTF8 flag: if
 set, then the string becomes CBOR text; otherwise, it’ll be CBOR binary.
 That’s not always going to work, though. A trivial example:
 
@@ -70,13 +70,14 @@ That’s not always going to work, though. A trivial example:
     Since `utf8::decode()` doesn’t set the UTF8 flag unless it “has to”
     (see [utf8](https://metacpan.org/pod/utf8)), that function is a no-op in the above.
 
-    The above _will_ work if you use [Unicode::UTF8](https://metacpan.org/pod/Unicode::UTF8) instead:
+    The above _will_ produce a CBOR text string, though, if you use
+    [Unicode::UTF8](https://metacpan.org/pod/Unicode::UTF8) instead of [utf8](https://metacpan.org/pod/utf8):
 
         perl -MUnicode::UTF8 -MCBOR::Free -e'print CBOR::Free::encode(Unicode::UTF8::decode_utf8("abc"))'
 
-    … but even then, this merely _happens_ to work. Perl itself does not, and
-    cannot, reliably distinguish a text string from a binary string via
-    introspection.
+    The crucial point, though, is that, because Perl itself doesn’t guarantee
+    the reliable string types that CBOR recognizes, any heuristics we apply
+    to distinguish one from the other are a “best-guess” merely.
 
     **IMPORTANT:** Whatever consumes your Perl-sourced CBOR **MUST** account
     for the prospect of an incorrectly-typed string.
@@ -84,7 +85,8 @@ That’s not always going to work, though. A trivial example:
 - The above applies also to strings vs. numbers: whatever consumes
 your Perl-sourced CBOR **MUST** account for the prospect of numbers that
 are in CBOR as strings, or vice-versa.
-- Perl hash keys become CBOR binary strings.
+- Perl hash keys are serialized as strings, either binary or text
+(following the algorithm described above).
 - [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) booleans are encoded as CBOR booleans.
 Perl undef is encoded as CBOR null. (NB: No Perl value encodes as CBOR
 undefined.)
@@ -116,6 +118,9 @@ separate byte/character string types, but it’s at least something similar.
 
 - The only map keys that `decode()` accepts are integers and strings.
 An exception is thrown if the decoder finds anything else as a map key.
+Note that, because Perl does not distinguish between binary and text strings,
+if two keys of the same map contain the same bytes, Perl will consider these
+a duplicate key and prefer the latter.
 - CBOR booleans become the corresponding [Types::Serialiser](https://metacpan.org/pod/Types::Serialiser) values.
 Both CBOR null and undefined become Perl undef.
 - [CBOR’s “indirection” tag](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml) is interpreted as a scalar reference. This behavior is always
