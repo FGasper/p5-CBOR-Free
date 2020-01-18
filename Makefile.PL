@@ -44,6 +44,12 @@ WriteMakefile1(
     # Because of X::Tiny
     MIN_PERL_VERSION => 5.010000,
 
+    BUILD_REQUIRES => {
+
+        # In order to specify OBJECT as an array.
+        'ExtUtils::MakeMaker' => 6.84,
+    },
+
     PREREQ_PM    => {
         'parent'    => 0,
         'X::Tiny'   => 0,
