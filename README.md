@@ -40,6 +40,17 @@ The encoder currently does not handle any other blessed references.
 
 - `canonical` - A boolean that makes the encoder output
 CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
+- `text_keys` - EXPERIMENTAL. Encodes all Perl hash keys as CBOR text.
+If you use this mode then your strings **must** be properly decoded, or else
+the output CBOR may mangle your string.
+
+    For example, this:
+
+        CBOR::Free::encode( { "\xc3\xa9" => 1 }, text_keys => 1 )
+
+    … will create a CBOR map with key `"\xc3\x83\xc2\xa9"` because the key
+    in the hash that was sent to `encode()` was not properly decoded.
+
 - `preserve_references` - A boolean that makes the encoder encode
 multi-referenced values via [CBOR’s “shared references” tags](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml). This allows encoding of shared
 and circular references. It also incurs a performance penalty.

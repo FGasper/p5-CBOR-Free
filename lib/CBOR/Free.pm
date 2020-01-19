@@ -64,6 +64,17 @@ The encoder currently does not handle any other blessed references.
 =item * C<canonical> - A boolean that makes the encoder output
 CBOR in L<canonical form|https://tools.ietf.org/html/rfc7049#section-3.9>.
 
+=item * C<text_keys> - EXPERIMENTAL. Encodes all Perl hash keys as CBOR text.
+If you use this mode then your strings B<must> be properly decoded, or else
+the output CBOR may mangle your string.
+
+For example, this:
+
+    CBOR::Free::encode( { "\xc3\xa9" => 1 }, text_keys => 1 )
+
+… will create a CBOR map with key C<"\xc3\x83\xc2\xa9"> because the key
+in the hash that was sent to C<encode()> was not properly decoded.
+
 =item * C<preserve_references> - A boolean that makes the encoder encode
 multi-referenced values via L<CBOR’s “shared references” tags|https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml>. This allows encoding of shared
 and circular references. It also incurs a performance penalty.

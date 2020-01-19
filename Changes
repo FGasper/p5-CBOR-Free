@@ -1,11 +1,15 @@
 Revision history for Perl module CBOR::Free
 
 0.18
+- BUG FIX: Properly decoded hash keys that contain code points 128-255 were
+  previously mangled. This release fixes that.
 - Make CBOR text strings always decode to UTF8-flaged Perl strings. This is an
   admittedly-imperfect attempt to preserve distinctly-typed text strings
   in Perl (a language that, by design, doesn’t distinguish text vs. binary).
   The POD has described this behavior for some time; it just was never
   implemented correctly until now.
+- Add “text_keys” encode mode, which causes all CBOR map keys to be text.
+- Add native_utf8() decode mode, which skips UTF-8 validation in decoding.
 - Teach CBOR::Free to encode UTF8-flagged hash keys as CBOR text.
 - Build fix: Require a reasonably recent ExtUtils::MakeMaker.
 

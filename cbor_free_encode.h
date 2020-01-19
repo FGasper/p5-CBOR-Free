@@ -13,6 +13,7 @@
 #define ENCODE_FLAG_CANONICAL       1
 #define ENCODE_FLAG_PRESERVE_REFS   2
 #define ENCODE_FLAG_SCALAR_REFS     4
+#define ENCODE_FLAG_TEXT_KEYS       8
 
 // HeKWASUTF8(he) is undocumented, but the UTF8 flag can be stored
 // there as well as in HeUTF8().
@@ -26,6 +27,7 @@ typedef struct {
     uint8_t recurse_count;
     uint8_t scratch[9];
     bool is_canonical;
+    bool text_keys;
     bool encode_scalar_refs;
 } encode_ctx;
 

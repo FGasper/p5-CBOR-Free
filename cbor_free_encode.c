@@ -77,6 +77,15 @@ void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
 #define _SORT(x) ((struct sortable_hash_entry *)x)
 
 int _sort_map_keys( const void* a, const void* b ) {
+
+    // The CBOR RFC defines canonical sorting such that the
+    // *encoded* keys are what gets sorted; however, it’s easier to
+    // anticipate the sort order algorithmically rather than to
+    // create the encoded keys *then* sort those. Since Perl hash keys
+    // are always strings (either with or without the UTF8 flag), we
+    // only have 2 CBOR types to deal with (text & binary strings) and
+    // can sort accordingly.
+
     return (
         _SORT(a)->is_utf8 < _SORT(b)->is_utf8 ? -1
         : _SORT(a)->is_utf8 > _SORT(b)->is_utf8 ? 1
@@ -326,26 +335,25 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
 
             if (encode_state->is_canonical) {
-
-                // The CBOR RFC defines canonical sorting such that the
-                // *encoded* keys are what gets sorted; however, since Perl hash
-                // keys are always (binary) strings, and since a lexicographical
-                // sort of encoded CBOR uints yields the same order as encoding
-                // that same list of uints pre-sorted, we can sort the keys
-                // prior to insertion into the output buffer.
-                //
-                // It may be faster to sort encoded keys (as the RFC envisions),
-                // but this works for now.
-
                 I32 curkey = 0;
 
                 struct sortable_hash_entry sortables[keyscount];
 
                 while ( (h_entry = hv_iternext(hash)) ) {
-                    key = HePV(h_entry, key_length);
-                    sortables[curkey].is_utf8 = !!CBF_HeUTF8(h_entry);
-                    sortables[curkey].buffer = key;
-                    sortables[curkey].length = key_length;
+                    if (HeUTF8(h_entry) || (!encode_state->text_keys && !CBF_HeUTF8(h_entry))) {
+                        key = HePV(h_entry, key_length);
+                        sortables[curkey].is_utf8 = !!HeUTF8(h_entry);
+                        sortables[curkey].buffer = key;
+                        sortables[curkey].length = key_length;
+                    }
+                    else {
+                        SV* key_sv = HeSVKEY_force(h_entry);
+                        sv_utf8_upgrade(key_sv);
+                        sortables[curkey].is_utf8 = true;
+
+                        sortables[curkey].buffer = SvPV(key_sv, sortables[curkey].length);
+                    }
+
                     sortables[curkey].value = HeVAL(h_entry);
 
                     curkey++;
@@ -362,10 +370,31 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             }
             else {
                 while ( (h_entry = hv_iternext(hash)) ) {
-                    key = HePV(h_entry, key_length);
 
-                    _init_length_buffer( aTHX_ key_length, CBF_HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
-                    _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                    // If the key is HeUTF8, then we can use it as-is.
+                    // (This will yield a CBOR text key.)
+                    //
+                    // If the key is !CBF_HeUTF8 and we aren’t in text-keys
+                    // mode, then use the key as-is.
+                    // (This will yield a CBOR binary key.)
+                    //
+                    // If the key is !HeUTF8 but IS CBF_HeUTF8, then we
+                    // force an SV conversion and upgrade to UTF-8.
+                    //
+                    // Likewise, if the key is !HeUTF8 but we are in text-keys
+                    // mode, we need the same conversion.
+
+                    if (HeUTF8(h_entry) || (!encode_state->text_keys && !CBF_HeUTF8(h_entry))) {
+                        key = HePV(h_entry, key_length);
+
+                        _init_length_buffer( aTHX_ key_length, HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
+                        _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                    }
+                    else {
+                        SV* key_sv = HeSVKEY_force(h_entry);
+                        sv_utf8_upgrade(key_sv);
+                        _encode( aTHX_ key_sv, encode_state );
+                    }
 
                     _encode( aTHX_ HeVAL(h_entry), encode_state );
                 }
@@ -404,6 +433,8 @@ encode_ctx cbf_encode_ctx_create(uint8_t flags) {
     encode_state.recurse_count = 0;
 
     encode_state.is_canonical = !!(flags & ENCODE_FLAG_CANONICAL);
+
+    encode_state.text_keys = !!(flags & ENCODE_FLAG_TEXT_KEYS);
 
     encode_state.encode_scalar_refs = !!(flags & ENCODE_FLAG_SCALAR_REFS);
 
