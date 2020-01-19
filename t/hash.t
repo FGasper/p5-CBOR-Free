@@ -90,8 +90,23 @@ sub T1_text_key {
 
 #----------------------------------------------------------------------
 
+sub T1_decoded_high_bit_key {
+    my $eacute_utf8 = "é";
+
+    my $eacute = $eacute_utf8;
+    utf8::decode($eacute);
+
+    my $cbor = CBOR::Free::encode( { $eacute => 1 } );
+
+    _cmpbin(
+        $cbor,
+        "\xa1" . "\x62$eacute_utf8" . "\1",
+        'decoded UTF-8 e-acute encodes correctly',
+    );
+}
+
 sub T2_encode_text_keys__utf8_decode {
-    my $eacute_utf8 = "\xc3\xa9";
+    my $eacute_utf8 = "é";
 
     my $cbor = CBOR::Free::encode( { $eacute_utf8 => 2 }, text_keys => 1 );
 
