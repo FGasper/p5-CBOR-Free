@@ -37,18 +37,14 @@ WriteMakefile1(
     ],
 
     CONFIGURE_REQUIRES => {
-        # 'ExtUtils::MakeMaker' => 7.12,
+
+        # In order to specify OBJECT as an array.
+        'ExtUtils::MakeMaker' => 6.84,
         'Devel::PPPort' => 0,
     },
 
     # Because of X::Tiny
     MIN_PERL_VERSION => 5.010000,
-
-    BUILD_REQUIRES => {
-
-        # In order to specify OBJECT as an array.
-        'ExtUtils::MakeMaker' => 6.84,
-    },
 
     PREREQ_PM    => {
         'parent'    => 0,
