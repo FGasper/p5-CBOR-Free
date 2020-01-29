@@ -98,7 +98,7 @@ sub T2_text_key {
 }
 
 sub T4_invalid_text_key {
-    my $cbor = "\xa1\x62\xff\x80C123";
+    my $cbor = "\xa1\x63\0\xff\x80C123";
 
     throws_ok(
         sub { CBOR::Free::decode("$cbor") },
@@ -107,7 +107,7 @@ sub T4_invalid_text_key {
     );
 
     my $str = "$@";
-    like($str, qr<\\xff\\x80C123>, 'string is hex-escaped as part of error' );
+    like($str, qr<\\x00\\xff\\x80(?!=C)>, 'string is hex-escaped as part of error' );
 
     require CBOR::Free::Decoder;
     my $decoder = CBOR::Free::Decoder->new();

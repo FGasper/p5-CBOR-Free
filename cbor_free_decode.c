@@ -69,6 +69,33 @@ const char *MAJOR_TYPE_DESCRIPTION[] = {
 void _free_decode_state(decode_ctx* decode_state);
 
 //----------------------------------------------------------------------
+
+SV *_call_with_arguments( pTHX_ SV* cb, U8 count, SV** args ) {
+    // --- Almost all copy-paste from “perlcall” … blegh!
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    PUSHMARK(SP);
+    EXTEND(SP, count);
+
+    U8 i;
+    for (i=0; i<count; i++) PUSHs( sv_2mortal(args[i]) );
+
+    PUTBACK;
+
+    call_sv(cb, G_SCALAR);
+
+    SV *ret = newSVsv(POPs);
+
+    FREETMPS;
+    LEAVE;
+
+    return ret;
+}
+
+//----------------------------------------------------------------------
 // Croakers
 
 static const char* UV_TO_STR_TMPL = (sizeof(UV) == 8 ? "%llu" : "%lu");
@@ -113,10 +140,19 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
 void _croak_invalid_utf8( pTHX_ decode_ctx* decstate, char *string, STRLEN len ) {
     _free_decode_state(decstate);
 
-    // TODO: Send the full string, not just up to the first NUL.
-    char * words[3] = { "InvalidUTF8", string, NULL };
+    SV* args[2] = {
+        newSVpvs("InvalidUTF8"),
+        newSVpvn(string, len),
+    };
 
-    _die( G_DISCARD, words);
+    _call_with_arguments(
+        aTHX_
+        newSVpvs("CBOR::Free::_die"),
+        2,
+        args
+    );
+
+    assert(0);
 }
 
 void _croak_invalid_map_key( pTHX_ decode_ctx* decstate, const uint8_t byte, STRLEN offset ) {
@@ -205,15 +241,6 @@ static inline void _validate_utf8_string_if_needed( pTHX_ decode_ctx* decstate, 
     if (!decstate->naive_utf8 && !is_utf8_string( (U8 *)buffer, len)) {
         _croak_invalid_utf8( aTHX_ decstate, buffer, len );
     }
-}
-
-static inline void _validate_utf8_sv_if_needed( pTHX_ decode_ctx* decstate, SV* ret ) {
-    _validate_utf8_string_if_needed( aTHX_ decstate, SvPV_nolen(ret), SvCUR(ret));
-
-    // Always set the UTF8 flag, even if it’s not needed.
-    // This helps ensure that text strings will round-trip
-    // through Perl.
-    SvUTF8_on(ret);
 }
 
 //----------------------------------------------------------------------
@@ -550,29 +577,6 @@ static inline SV *_decode_str_to_sv( pTHX_ decode_ctx* decstate ) {
     return newSVpvn( decoded_str.buffer, decoded_str.num.uv );
 }
 
-SV *_call_with_argument( pTHX_ SV* cb, SV* arg ) {
-    // --- Almost all copy-paste from “perlcall” … blegh!
-    dSP;
-
-    ENTER;
-    SAVETMPS;
-
-    PUSHMARK(SP);
-    EXTEND(SP, 1);
-
-    PUSHs( sv_2mortal(arg) );
-    PUTBACK;
-
-    call_sv(cb, G_SCALAR);
-
-    SV *ret = newSVsv(POPs);
-
-    FREETMPS;
-    LEAVE;
-
-    return ret;
-}
-
 SV *_decode( pTHX_ decode_ctx* decstate ) {
     SV *ret = NULL;
 
@@ -594,7 +598,12 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             ret = _decode_str_to_sv( aTHX_ decstate );
 
             if (CBOR_TYPE_UTF8 == control->pieces.major_type) {
-                _validate_utf8_sv_if_needed( aTHX_ decstate, ret );
+                _validate_utf8_string_if_needed( aTHX_ decstate, SvPV_nolen(ret), SvCUR(ret));
+
+                // Always set the UTF8 flag, even if it’s not needed.
+                // This helps ensure that text strings will round-trip
+                // through Perl.
+                SvUTF8_on(ret);
             }
 
             break;
@@ -651,7 +660,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
                     SV **handler_cr = hv_fetch( my_tag_handler, (char *) &tagnum, sizeof(UV), 0 );
 
                     if (handler_cr && *handler_cr && SvOK(*handler_cr)) {
-                        ret = _call_with_argument( aTHX_ *handler_cr, ret );
+                        ret = _call_with_arguments( aTHX_ *handler_cr, 1, &ret );
                     }
                     else {
                         _warn_unhandled_tag( aTHX_ tagnum, value_major_type );
