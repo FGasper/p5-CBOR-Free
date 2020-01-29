@@ -110,9 +110,10 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     _die( G_DISCARD, words );
 }
 
-void _croak_invalid_utf8( pTHX_ decode_ctx* decstate, char *string ) {
+void _croak_invalid_utf8( pTHX_ decode_ctx* decstate, char *string, STRLEN len ) {
     _free_decode_state(decstate);
 
+    // TODO: Send the full string, not just up to the first NUL.
     char * words[3] = { "InvalidUTF8", string, NULL };
 
     _die( G_DISCARD, words);
@@ -195,6 +196,24 @@ void _warn_unhandled_tag( pTHX_ UV tagnum, U8 value_major_type ) {
     my_snprintf( tmpl, sizeof(tmpl), "Ignoring unrecognized CBOR tag #%s (major type %%u, %%s)!", UV_TO_STR_TMPL );
 
     warn(tmpl, tagnum, value_major_type, MAJOR_TYPE_DESCRIPTION[value_major_type]);
+}
+
+//----------------------------------------------------------------------
+
+static inline void _validate_utf8_string_if_needed( pTHX_ decode_ctx* decstate, char *buffer, STRLEN len ) {
+
+    if (!decstate->naive_utf8 && !is_utf8_string( (U8 *)buffer, len)) {
+        _croak_invalid_utf8( aTHX_ decstate, buffer, len );
+    }
+}
+
+static inline void _validate_utf8_sv_if_needed( pTHX_ decode_ctx* decstate, SV* ret ) {
+    _validate_utf8_string_if_needed( aTHX_ decstate, SvPV_nolen(ret), SvCUR(ret));
+
+    // Always set the UTF8 flag, even if it’s not needed.
+    // This helps ensure that text strings will round-trip
+    // through Perl.
+    SvUTF8_on(ret);
 }
 
 //----------------------------------------------------------------------
@@ -400,7 +419,7 @@ struct numbuf _decode_str( pTHX_ decode_ctx* decstate ) {
     return ret;
 }
 
-void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
+void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
     _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
 
     union control_byte *control = (union control_byte *) decstate->curbyte;
@@ -441,6 +460,8 @@ void _decode_to_hash( pTHX_ decode_ctx* decstate, HV *hash ) {
             keystr = my_key.buffer;
 
             if (control->pieces.major_type == CBOR_TYPE_UTF8) {
+                _validate_utf8_string_if_needed( aTHX_ decstate, keystr, my_key.num.uv );
+
                 keylen = -my_key.num.uv;
             }
             else {
@@ -467,7 +488,7 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
         ++decstate->curbyte;
 
         while (decstate->curbyte[0] != '\xff') {
-            _decode_to_hash( aTHX_ decstate, hash );
+            _decode_hash_entry( aTHX_ decstate, hash );
         }
 
         _DECODE_CHECK_FOR_OVERAGE( decstate, 1 );
@@ -479,7 +500,7 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
 
         if (keycount) {
             while (keycount > 0) {
-                _decode_to_hash( aTHX_ decstate, hash );
+                _decode_hash_entry( aTHX_ decstate, hash );
                 --keycount;
             }
         }
@@ -573,20 +594,7 @@ SV *_decode( pTHX_ decode_ctx* decstate ) {
             ret = _decode_str_to_sv( aTHX_ decstate );
 
             if (CBOR_TYPE_UTF8 == control->pieces.major_type) {
-
-                // XXX: “perldoc perlapi” says this function is experimental.
-                // Its use here is a calculated risk; the alternatives are
-                // to invoke utf8::decode() via call_pv(), which is ugly,
-                // or just to assume the UTF-8 is valid, which is wrong.
-                //
-                if ( !decstate->naive_utf8 && !sv_utf8_decode(ret) ) {
-                    _croak_invalid_utf8( aTHX_ decstate, SvPV_nolen(ret) );
-                }
-
-                // Always set the UTF8 flag, even if it’s not needed.
-                // This helps ensure that text strings will round-trip
-                // through Perl.
-                SvUTF8_on(ret);
+                _validate_utf8_sv_if_needed( aTHX_ decstate, ret );
             }
 
             break;
