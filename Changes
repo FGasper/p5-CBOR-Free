@@ -1,8 +1,8 @@
 Revision history for Perl module CBOR::Free
 
-0.19
+0.19 30 Jan 2020
 - BUG FIX: Properly validate UTF-8 map keys when decoding.
-- InvalidUTF8 errors now correctly handle NULs.
+- InvalidUTF8 errors now correctly handle NULs in the invalid string.
 
 0.18 19 Jan 2020
 - BREAKING CHANGE: Encode UTF8-flagged hash keys as CBOR text.
