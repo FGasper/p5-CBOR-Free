@@ -323,12 +323,10 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
         HV *hash = (HV *)SvRV(value);
 
         if (!encode_state->reftracker || _check_reference( aTHX_ (SV *)hash, encode_state)) {
-            SV *cur_sv;
             char *key;
             STRLEN key_length;
 
             HE* h_entry;
-            SV* svkey;
 
             I32 keyscount = hv_iterinit(hash);
 
