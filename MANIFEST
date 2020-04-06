@@ -1,12 +1,3 @@
-.appveyor.yml
-.gitignore
-.travis.yml
-Changes
-Free.xs
-LICENSE
-MANIFEST
-Makefile.PL
-README.md
 cbor_free_boolean.c
 cbor_free_boolean.h
 cbor_free_common.h
@@ -14,6 +5,8 @@ cbor_free_decode.c
 cbor_free_decode.h
 cbor_free_encode.c
 cbor_free_encode.h
+Changes
+Free.xs
 lib/CBOR/Free.pm
 lib/CBOR/Free/AddOne.pm
 lib/CBOR/Free/Decoder.pm
@@ -28,7 +21,13 @@ lib/CBOR/Free/X/InvalidUTF8.pm
 lib/CBOR/Free/X/NegativeIntTooLow.pm
 lib/CBOR/Free/X/Recursion.pm
 lib/CBOR/Free/X/Unrecognized.pm
+LICENSE
+Makefile
+Makefile.PL
+MANIFEST
+MANIFEST.SKIP
 ppport.h
+README.md
 t/32bit.t
 t/add_one.t
 t/against_cbor_xs.t
