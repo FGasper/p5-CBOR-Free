@@ -382,19 +382,15 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                     // Likewise, if the key is !HeUTF8 but we are in text-keys
                     // mode, we need the same conversion.
 
-                    if (HeUTF8(h_entry) || (!encode_state->text_keys && !CBF_HeUTF8(h_entry))) {
-                        key = HePV(h_entry, key_length);
+                    SV* const key_sv = hv_iterkeysv(h_entry);
+                    SV *val          = hv_iterval(hash, h_entry);
 
-                        _init_length_buffer( aTHX_ key_length, HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
-                        _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-                    }
-                    else {
-                        SV* key_sv = HeSVKEY_force(h_entry);
-                        sv_utf8_upgrade(key_sv);
-                        _encode( aTHX_ key_sv, encode_state );
-                    }
+                    if (!HeUTF8(h_entry) && (encode_state->text_keys || CBF_HeUTF8(h_entry))) {
+                         sv_utf8_upgrade(key_sv);
+                     }
 
-                    _encode( aTHX_ HeVAL(h_entry), encode_state );
+                    _encode( aTHX_ key_sv, encode_state );
+                    _encode( aTHX_ val, encode_state );
                 }
             }
         }
