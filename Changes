@@ -1,6 +1,8 @@
 Revision history for Perl module CBOR::Free
 
 0.23
+- Fix encoding of “magical” scalars and hashes.
+  (Thanks to ATOOMIC for identifying the issue!)
 - Silence a few inconsequential compiler warnings.
 
 0.22 11 Feb 2020
