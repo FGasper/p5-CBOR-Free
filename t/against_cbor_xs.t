@@ -101,6 +101,20 @@ SKIP: {
             sprintf( "CBOR::XS decodes what we encoded (%d bytes)", length $cbor),
         ) or diag sprintf('CBOR: %v.02x', $cbor);
     }
+
+    #----------------------------------------------------------------------
+
+    use Config;
+
+    for my $key (keys %Config::Config) {
+        my $cbxs = CBOR::XS::encode_cbor($Config::Config{$key});
+        my $cbf = CBOR::Free::encode($Config::Config{$key});
+
+        is(
+            _dump_string($cbf), _dump_string($cbxs),
+            "\$Config{$key}",
+        );
+    }
 }
 
 sub _dump_string {
@@ -111,20 +125,6 @@ sub _dump_string {
     local $Data::Dumper::Indent = 0;
 
     return Data::Dumper::Dumper($item);
-}
-
-#----------------------------------------------------------------------
-
-use Config;
-
-for my $key (keys %Config::Config) {
-    my $cbxs = CBOR::XS::encode_cbor($Config::Config{$key});
-    my $cbf = CBOR::Free::encode($Config::Config{$key});
-
-    is(
-        _dump_string($cbf), _dump_string($cbxs),
-        "\$Config{$key}",
-    );
 }
 
 done_testing;
