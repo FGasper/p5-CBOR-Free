@@ -182,7 +182,7 @@ bool _check_reference( pTHX_ SV *varref, encode_ctx *encode_state ) {
     return true;
 }
 
-I32 magic_safe_hv_iterinit( pTHX_ HV* hash ) {
+static inline I32 _magic_safe_hv_iterinit( pTHX_ HV* hash ) {
     I32 count;
 
     if (SvMAGICAL(hash)) {
@@ -347,7 +347,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
 
             HE* h_entry;
 
-            I32 keyscount = magic_safe_hv_iterinit(aTHX_ hash);
+            I32 keyscount = _magic_safe_hv_iterinit(aTHX_ hash);
 
             _init_length_buffer( aTHX_ keyscount, CBOR_TYPE_MAP, encode_state );
 

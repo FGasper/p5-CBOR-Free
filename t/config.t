@@ -15,12 +15,8 @@ my $encoded = CBOR::Free::encode( \%Config );
 
 ok $encoded, 'encoded to CBOR as expected';
 
-TODO: {
-    local $TODO = 'We’re unsure why this fails.';
+my $roundtrip = CBOR::Free::decode($encoded);
 
-    my $roundtrip = CBOR::Free::decode($encoded);
-
-    is_deeply( $roundtrip, \%Config, q[%Config roundtrip] ) or diag explain $roundtrip;
-}
+is_deeply( $roundtrip, \%Config, q[%Config roundtrip] ) or diag explain $roundtrip;
 
 done_testing;
