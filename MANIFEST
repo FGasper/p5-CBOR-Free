@@ -1,14 +1,7 @@
-.appveyor.yml
-.github/workflows/linux.yml
-.github/workflows/macos.yml
-.github/workflows/windows.yml
-.gitignore
-.travis.yml
 Changes
 Free.xs
 LICENSE
 MANIFEST
-MANIFEST.SKIP
 Makefile.PL
 README.md
 cbor_free_boolean.c
