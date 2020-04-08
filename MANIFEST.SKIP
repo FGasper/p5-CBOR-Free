@@ -1,8 +1,0 @@
-.appveyor.yml
-.git
-.gitignore
-.github
-.travis.yml
-MANIFEST.bak
-MYMETA.json
-MYMETA.yml
