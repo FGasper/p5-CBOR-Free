@@ -154,3 +154,57 @@ decode( SV *selfref, SV *cbor )
 
     OUTPUT:
         RETVAL
+
+# ----------------------------------------------------------------------
+
+MODULE = CBOR::Free     PACKAGE = CBOR::Free::SequenceDecoder
+
+PROTOTYPES: DISABLE
+
+seqdecode_ctx*
+_create_seqdecode(SV *cbor)
+    CODE:
+        decode_ctx* decode_state = create_decode_state( aTHX_ cbor, NULL, CBF_FLAG_SEQUENCE_MODE);
+
+        seqdecode_ctx* seqdecode;
+
+        Newx( seqdecode, 1, seqdecode_ctx );
+
+        seqdecode->decode_state = decode_state;
+
+        SvREFCNT_inc(cbor);
+        seqdecode->cbor = cbor;
+
+        RETVAL = seqdecode;
+
+    OUTPUT:
+        RETVAL
+
+void
+_give(seqdecode_ctx* seqdecode, SV* addend)
+    CODE:
+        sv_catsv( seqdecode->cbor, addend );
+
+        renew_decode_state_buffer( aTHX_ seqdecode->decode_state, seqdecode->cbor );
+
+SV *
+_parse_one(seqdecode_ctx* seqdecode)
+    CODE:
+        decode_ctx* decode_state = seqdecode->decode_state;
+
+        RETVAL = cbf_decode_one( aTHX_ seqdecode->decode_state );
+
+        sv_chop( seqdecode->cbor, decode_state->curbyte );
+
+        advance_decode_state_buffer( aTHX_ decode_state );
+
+    OUTPUT:
+        RETVAL
+
+void
+_free_seqdecode(seqdecode_ctx* seqdecode)
+    CODE:
+        free_decode_state( aTHX_ seqdecode->decode_state);
+        SvREFCNT_dec(seqdecode->cbor);
+
+        Safefree(seqdecode);
