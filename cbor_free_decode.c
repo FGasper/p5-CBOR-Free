@@ -182,7 +182,10 @@ void _croak_invalid_utf8( pTHX_ decode_ctx* decstate, char *string, STRLEN len )
     assert(0);
 }
 
-void _croak_invalid_map_key( pTHX_ decode_ctx* decstate, const uint8_t byte, STRLEN offset ) {
+void _croak_invalid_map_key( pTHX_ decode_ctx* decstate ) {
+    const uint8_t byte = decstate->curbyte[0];
+    STRLEN offset = decstate->curbyte - decstate->start;
+
     _free_decode_state_if_not_sequence(aTHX_ decstate);
 
     char bytebuf[5];
@@ -232,12 +235,14 @@ void _croak_invalid_map_key( pTHX_ decode_ctx* decstate, const uint8_t byte, STR
     assert(0);
 }
 
-void _croak_cannot_decode_64bit( pTHX_ decode_ctx* decstate, const uint8_t *u64bytes, STRLEN offset ) {
+void _croak_cannot_decode_64bit( pTHX_ decode_ctx* decstate ) {
     _free_decode_state_if_not_sequence(aTHX_ decstate);
+
+    STRLEN offset = decstate->curbyte - decstate->start;
 
     SV* args[3] = {
         newSVpvs("CannotDecode64Bit"),
-        newSVpvn( (const char *)u64bytes, 8),
+        newSVpvn( decstate->curbyte, 8),
         newSVuv(offset),
     };
 
@@ -339,7 +344,7 @@ static inline UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate ) {
 #if !IS_64_BIT
 
             if (decstate->curbyte[0] || decstate->curbyte[1] || decstate->curbyte[2] || decstate->curbyte[3]) {
-                _croak_cannot_decode_64bit( aTHX_ decstate, (const uint8_t *) decstate->curbyte, decstate->curbyte - decstate->start );
+                _croak_cannot_decode_64bit( aTHX_ decstate );
             }
 #endif
             ret = _buffer_u64_to_uv( (uint8_t *) decstate->curbyte );
@@ -565,7 +570,7 @@ void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
             break;
 
         default:
-            _croak_invalid_map_key( aTHX_ decstate, decstate->curbyte[0], decstate->curbyte - decstate->start );
+            _croak_invalid_map_key( aTHX_ decstate);
             return; // Silence compiler warning.
     }
 
