@@ -14,6 +14,7 @@ cbor_free_encode.h
 lib/CBOR/Free.pm
 lib/CBOR/Free/AddOne.pm
 lib/CBOR/Free/Decoder.pm
+lib/CBOR/Free/SequenceDecoder.pm
 lib/CBOR/Free/Tagged.pm
 lib/CBOR/Free/X.pm
 lib/CBOR/Free/X/Base.pm
@@ -45,6 +46,7 @@ t/hash.t
 t/negint.t
 t/pod.t
 t/scalar_ref.t
+t/sequence_decoder.t
 t/shared.t
 t/string.t
 t/tag.t

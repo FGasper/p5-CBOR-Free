@@ -192,6 +192,8 @@ _parse_one(seqdecode_ctx* seqdecode)
     CODE:
         decode_ctx* decode_state = seqdecode->decode_state;
 
+        decode_state->curbyte = decode_state->start;
+
         RETVAL = cbf_decode_one( aTHX_ seqdecode->decode_state );
 
         sv_chop( seqdecode->cbor, decode_state->curbyte );

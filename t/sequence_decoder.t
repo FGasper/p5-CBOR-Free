@@ -47,4 +47,21 @@ sub T3_multiple {
     is( $decoder->get(), undef, 'get() returned undef when there’s nothing more' );
 }
 
+sub T4_partial {
+    my $decoder = CBOR::Free::SequenceDecoder->new();
+    my $got = $decoder->give(qq<\x81>);
+
+    is( $got, undef, 'give() returns incomplete if incomplete' );
+
+    $got = $decoder->give(qq<\x41>);
+
+    is( $got, undef, 'give() returns incomplete if (still) incomplete' );
+
+    $got = $decoder->give(qq<a\xf6>);
+
+    is_deeply( $got, \['a'], 'give() returned first document' );
+
+    is_deeply( $decoder->get(), \undef, 'get() returned reference' );
+}
+
 1;

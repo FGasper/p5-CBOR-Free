@@ -612,6 +612,8 @@ SV *cbf_decode_one( pTHX_ decode_ctx* decstate ) {
 
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
+    // fprintf(stderr, "major type: %d\n", control->pieces.major_type);
+
     switch (control->pieces.major_type) {
         case CBOR_TYPE_UINT:
             ret = newSVuv( _decode_uint( aTHX_ decstate ) );
