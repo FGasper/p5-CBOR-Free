@@ -489,6 +489,8 @@ bool _decode_str( pTHX_ decode_ctx* decstate, union numbuf_or_sv* string_u ) {
 
             _RETURN_IF_SET_INCOMPLETE( decstate, false );
 
+            sv_2mortal(cur);
+
             sv_catsv(string, cur);
         }
 
@@ -594,18 +596,16 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
     HV *hash = newHV();
+    sv_2mortal( (SV *) hash );
 
     if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
         ++decstate->curbyte;
 
         while (1) {
-            if ( _IS_INCOMPLETE( decstate, 1 ) ) {
-                _SET_INCOMPLETE(decstate, 1);
-                SvREFCNT_dec( (SV *) hash );
-                return NULL;
-            }
+            _RETURN_IF_INCOMPLETE( decstate, 1, NULL );
 
             if (decstate->curbyte[0] == '\xff') {
+                ++decstate->curbyte;
                 break;
             }
 
@@ -613,17 +613,13 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
 
             // TODO: Recursively decref all hash members.
             if ( decstate->incomplete_by ) {
-                SvREFCNT_dec( (SV *) hash );
                 return NULL;
             }
         }
-
-        ++decstate->curbyte;
     }
     else {
         SSize_t keycount = _parse_for_uint_len2( aTHX_ decstate );
         if ( decstate->incomplete_by ) {
-            SvREFCNT_dec( (SV *) hash );
             return NULL;
         }
 
@@ -633,7 +629,6 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
 
                 // TODO: Recursively decref all hash members.
                 if ( decstate->incomplete_by ) {
-                    SvREFCNT_dec( (SV *) hash );
                     return NULL;
                 }
 
@@ -642,7 +637,7 @@ SV *_decode_map( pTHX_ decode_ctx* decstate ) {
         }
     }
 
-    return newRV_noinc( (SV *) hash);
+    return newRV_inc( (SV *) hash);
 }
 
 //----------------------------------------------------------------------
