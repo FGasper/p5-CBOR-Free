@@ -50,6 +50,11 @@ struct numbuf {
     char *buffer;
 };
 
+union numbuf_or_sv {
+    SV *sv;
+    struct numbuf numbuf;
+};
+
 //----------------------------------------------------------------------
 
 SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, UV flags );
