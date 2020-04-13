@@ -944,8 +944,6 @@ SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
         _croak_incomplete( aTHX_ decode_state );
     }
 
-    free_decode_state( aTHX_ decode_state);
-
     if (decode_state->curbyte != decode_state->end) {
         STRLEN bytes_count = decode_state->end - decode_state->curbyte;
 
@@ -956,6 +954,8 @@ SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
 
         call_argv("CBOR::Free::_warn_decode_leftover", G_DISCARD, words);
     }
+
+    free_decode_state( aTHX_ decode_state);
 
     return RETVAL;
 }
