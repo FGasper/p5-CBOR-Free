@@ -74,7 +74,7 @@ stream to be array references, you could do:
 sub give {
     _give( $_[0][0], $_[1] );
 
-    return $_[0]->_parse_one_wrap();
+    return _parse_one( $_[0][0] );
 }
 
 =head2 $got_sr = I<CLASS>->get();
@@ -84,30 +84,10 @@ Like C<give()> but doesn’t append onto the internal CBOR buffer.
 =cut
 
 sub get {
-    return $_[0]->_parse_one_wrap();
+    return _parse_one( $_[0][0] );
 }
 
 #----------------------------------------------------------------------
-
-sub _parse_one_wrap {
-    my $got;
-
-    my $ok = eval {
-        $got = _parse_one( $_[0][0] );
-        1;
-    };
-
-    if (!$ok) {
-        my $err = $@;
-
-        return undef if eval { $err->isa('CBOR::Free::X::Incomplete') };
-
-        local $@ = $err;
-        die;
-    }
-
-    return \$got;
-}
 
 sub DESTROY {
     my ($self) = @_;

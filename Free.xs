@@ -194,11 +194,19 @@ _parse_one(seqdecode_ctx* seqdecode)
 
         decode_state->curbyte = decode_state->start;
 
-        RETVAL = cbf_decode_one( aTHX_ seqdecode->decode_state );
+        SV *referent = cbf_decode_one( aTHX_ seqdecode->decode_state );
 
-        sv_chop( seqdecode->cbor, decode_state->curbyte );
+        if (seqdecode->decode_state->incomplete_by) {
+            seqdecode->decode_state->incomplete_by = 0;
+            RETVAL = &PL_sv_undef;
+        }
+        else {
+            RETVAL = newRV_noinc(referent);
 
-        advance_decode_state_buffer( aTHX_ decode_state );
+            sv_chop( seqdecode->cbor, decode_state->curbyte );
+
+            advance_decode_state_buffer( aTHX_ decode_state );
+        }
 
     OUTPUT:
         RETVAL

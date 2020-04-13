@@ -24,6 +24,8 @@ typedef struct {
 
     UV flags;
 
+    STRLEN incomplete_by;
+
     union {
         uint8_t bytes[30];  // used for num -> key conversions
         float as_float;
@@ -37,11 +39,13 @@ typedef struct {
     SV* cbor;
 } seqdecode_ctx;
 
+union uviv {
+    UV uv;
+    IV iv;
+};
+
 struct numbuf {
-    union {
-        UV uv;
-        IV iv;
-    } num;
+    union uviv num;
 
     char *buffer;
 };
