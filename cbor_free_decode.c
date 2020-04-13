@@ -371,22 +371,27 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
     union control_byte *control = (union control_byte *) decstate->curbyte;
 
     AV *array = newAV();
+    sv_2mortal( (SV *) array );
+
     SV *cur = NULL;
 
     if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
         ++decstate->curbyte;
 
-        while (*(decstate->curbyte) != '\xff') {
+        while (1) {
+            _RETURN_IF_INCOMPLETE( decstate, 1, NULL );
+
+            if ( decstate->curbyte[0] == '\xff') {
+                ++decstate->curbyte;
+                break;
+            }
 
             cur = cbf_decode_one( aTHX_ decstate );
+
             _RETURN_IF_SET_INCOMPLETE(decstate, NULL);
 
             av_push(array, cur);
         }
-
-        _RETURN_IF_INCOMPLETE( decstate, 1, NULL );
-
-        ++decstate->curbyte;
     }
     else {
         SSize_t array_length = _parse_for_uint_len2( aTHX_ decstate );
@@ -407,7 +412,7 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
         }
     }
 
-    return newRV_noinc( (SV *) array);
+    return newRV_inc( (SV *) array );
 }
 
 // Sets incomplete_by.
@@ -462,16 +467,11 @@ bool _decode_str( pTHX_ decode_ctx* decstate, union numbuf_or_sv* string_u ) {
     if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
         ++decstate->curbyte;
 
-        SV *string = newSVpvs("");
+        SV *string = newSVpvs_flags("", SVs_TEMP);
         string_u->sv = string;
 
         while (1) {
-            if ( _IS_INCOMPLETE( decstate, 1 ) ) {
-                _SET_INCOMPLETE(decstate,  1);
-//fprintf(stderr, "incomplete 1 (%lu)\n", decstate->incomplete_by);
-                SvREFCNT_dec(string);
-                return false;
-            }
+            _RETURN_IF_INCOMPLETE( decstate, 1, false );
 
             if (decstate->curbyte[0] == '\xff') {
                 ++decstate->curbyte;
@@ -481,14 +481,13 @@ bool _decode_str( pTHX_ decode_ctx* decstate, union numbuf_or_sv* string_u ) {
             //TODO: Require the same major type.
 
             SV *cur = cbf_decode_one( aTHX_ decstate );
-            if ( decstate->incomplete_by ) {
-//fprintf(stderr, "incomplete 2\n");
-                SvREFCNT_dec(string);
-                return false;
-            }
+
+            _RETURN_IF_SET_INCOMPLETE( decstate, false );
 
             sv_catsv(string, cur);
         }
+
+        SvREFCNT_inc(string);
 
         return true;
     }
@@ -546,10 +545,7 @@ void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
             my_key_has_sv = _decode_str( aTHX_ decstate, &my_key );
             _RETURN_IF_SET_INCOMPLETE(decstate, );
 
-            if (my_key_has_sv) {
-                keystr = SvPV( my_key.sv, keylen );
-            }
-            else {
+            if (!my_key_has_sv) {
                 if (my_key.numbuf.num.uv > 0x7fffffffU) {
                     _croak("key too long!");
                 }
@@ -575,12 +571,16 @@ void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
 
     SV *curval = cbf_decode_one( aTHX_ decstate );
 
-    if (!decstate->incomplete_by) {
-        hv_store(hash, keystr, keylen, curval, 0);
+    if (decstate->incomplete_by) {
+        if (my_key_has_sv) {
+            SvREFCNT_dec( my_key.sv );
+        }
     }
-
-    if (my_key_has_sv) {
-        SvREFCNT_dec( my_key.sv );
+    else if (my_key_has_sv) {
+        hv_store_ent(hash, my_key.sv, curval, 0);
+    }
+    else {
+        hv_store(hash, keystr, keylen, curval, 0);
     }
 }
 
