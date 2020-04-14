@@ -8,6 +8,7 @@
 #include "cbor_free_decode.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 // For ntohs and ntohl
 #include <arpa/inet.h>
