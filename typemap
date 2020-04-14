@@ -1,2 +1,15 @@
 TYPEMAP
-seqdecode_ctx*  T_PTROBJ
+seqdecode_ctx*  T_PTROBJ_SEQDECODER
+
+INPUT
+T_PTROBJ_SEQDECODER
+    if (sv_derived_from($arg, \"CBOR::Free::SequenceDecoder\")) {
+        IV tmp = SvIV((SV*)SvRV($arg));
+        $var = INT2PTR($type, tmp);
+    }
+    else
+        croak(\"$var is not of type CBOR::Free::SequenceDecoder\")
+
+OUTPUT
+T_PTROBJ_SEQDECODER
+    sv_setref_pv($arg, \"CBOR::Free::SequenceDecoder\", (void*)$var);

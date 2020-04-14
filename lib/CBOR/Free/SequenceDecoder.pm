@@ -35,15 +35,6 @@ This module implements a parser for CBOR Sequences
 
 Initializes a decoder.
 
-=cut
-
-sub new {
-    my $cbor = q<>;
-    my $decoder = _create_seqdecode($cbor);
-
-    return bless [ $decoder, \$cbor ], shift;
-}
-
 =head2 $got_sr = I<CLASS>->give( $CBOR );
 
 Adds some bytes ($CBOR) to the decoder’s internal CBOR buffer.
@@ -69,30 +60,10 @@ stream to be array references, you could do:
         # …
     }
 
-=cut
-
-sub give {
-    _give( $_[0][0], $_[1] );
-
-    return _parse_one( $_[0][0] );
-}
-
 =head2 $got_sr = I<CLASS>->get();
 
 Like C<give()> but doesn’t append onto the internal CBOR buffer.
 
 =cut
-
-sub get {
-    return _parse_one( $_[0][0] );
-}
-
-#----------------------------------------------------------------------
-
-sub DESTROY {
-    my ($self) = @_;
-
-    _free_seqdecode($self->[0]);
-}
 
 1;

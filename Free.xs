@@ -30,7 +30,30 @@
 #define TEXT_KEYS_OPT "text_keys"
 #define TEXT_KEYS_OPT_LEN (sizeof(TEXT_KEYS_OPT) - 1)
 
+#define UNUSED(x) (void)(x)
+
 HV *cbf_stash = NULL;
+
+SV* _seqdecode_get( pTHX_ seqdecode_ctx* seqdecode) {
+    decode_ctx* decode_state = seqdecode->decode_state;
+
+    decode_state->curbyte = decode_state->start;
+
+    SV *referent = cbf_decode_one( aTHX_ seqdecode->decode_state );
+
+    if (seqdecode->decode_state->incomplete_by) {
+        seqdecode->decode_state->incomplete_by = 0;
+        return &PL_sv_undef;
+    }
+
+    // TODO: Once the lead offset gets big enough,
+    // recreate this buffer.
+    sv_chop( seqdecode->cbor, decode_state->curbyte );
+
+    advance_decode_state_buffer( aTHX_ decode_state );
+
+    return newRV_noinc(referent);
+}
 
 //----------------------------------------------------------------------
 
@@ -162,8 +185,12 @@ MODULE = CBOR::Free     PACKAGE = CBOR::Free::SequenceDecoder
 PROTOTYPES: DISABLE
 
 seqdecode_ctx*
-_create_seqdecode(SV *cbor)
+new(...)
     CODE:
+        UNUSED(items);
+
+        SV* cbor = newSVpvs("");
+
         decode_ctx* decode_state = create_decode_state( aTHX_ cbor, NULL, CBF_FLAG_SEQUENCE_MODE);
 
         seqdecode_ctx* seqdecode;
@@ -171,8 +198,6 @@ _create_seqdecode(SV *cbor)
         Newx( seqdecode, 1, seqdecode_ctx );
 
         seqdecode->decode_state = decode_state;
-
-        SvREFCNT_inc(cbor);
         seqdecode->cbor = cbor;
 
         RETVAL = seqdecode;
@@ -180,39 +205,28 @@ _create_seqdecode(SV *cbor)
     OUTPUT:
         RETVAL
 
-void
-_give(seqdecode_ctx* seqdecode, SV* addend)
+SV *
+give(seqdecode_ctx* seqdecode, SV* addend)
     CODE:
         sv_catsv( seqdecode->cbor, addend );
 
         renew_decode_state_buffer( aTHX_ seqdecode->decode_state, seqdecode->cbor );
 
+        RETVAL = _seqdecode_get( aTHX_ seqdecode);
+
+    OUTPUT:
+        RETVAL
+
 SV *
-_parse_one(seqdecode_ctx* seqdecode)
+get(seqdecode_ctx* seqdecode)
     CODE:
-        decode_ctx* decode_state = seqdecode->decode_state;
-
-        decode_state->curbyte = decode_state->start;
-
-        SV *referent = cbf_decode_one( aTHX_ seqdecode->decode_state );
-
-        if (seqdecode->decode_state->incomplete_by) {
-            seqdecode->decode_state->incomplete_by = 0;
-            RETVAL = &PL_sv_undef;
-        }
-        else {
-            RETVAL = newRV_noinc(referent);
-
-            sv_chop( seqdecode->cbor, decode_state->curbyte );
-
-            advance_decode_state_buffer( aTHX_ decode_state );
-        }
+        RETVAL = _seqdecode_get( aTHX_ seqdecode);
 
     OUTPUT:
         RETVAL
 
 void
-_free_seqdecode(seqdecode_ctx* seqdecode)
+DESTROY(seqdecode_ctx* seqdecode)
     CODE:
         free_decode_state( aTHX_ seqdecode->decode_state);
         SvREFCNT_dec(seqdecode->cbor);
