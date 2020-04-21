@@ -201,8 +201,8 @@ naive_utf8(decode_ctx* decode_state, SV* new_setting = NULL)
     OUTPUT:
         RETVAL
 
-decode_ctx*
-set_tag_handlers(decode_ctx* decode_state, ...)
+void
+_set_tag_handlers_backend(decode_ctx* decode_state, ...)
     CODE:
         if (NULL == decode_state->tag_handler) {
             decode_state->tag_handler = newHV();
@@ -234,11 +234,6 @@ set_tag_handlers(decode_ctx* decode_state, ...)
                 SvREFCNT_inc(tagcb_sv);
             }
         }
-
-        RETVAL = decode_state;
-
-    OUTPUT:
-        RETVAL
 
 # ----------------------------------------------------------------------
 

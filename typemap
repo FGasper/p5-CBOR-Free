@@ -17,10 +17,3 @@ T_PTROBJ_SEQDECODER
     }
     else
         croak(\"$var is not of type CBOR::Free::SequenceDecoder\")
-
-OUTPUT
-T_PTROBJ_DECODER
-    sv_dump($arg);
-    sv_setref_pv($arg, \"CBOR::Free::Decoder\", (void*)$var);
-T_PTROBJ_SEQDECODER
-    sv_setref_pv($arg, \"CBOR::Free::SequenceDecoder\", (void*)$var);
