@@ -20,6 +20,7 @@ T_PTROBJ_SEQDECODER
 
 OUTPUT
 T_PTROBJ_DECODER
+    sv_dump($arg);
     sv_setref_pv($arg, \"CBOR::Free::Decoder\", (void*)$var);
 T_PTROBJ_SEQDECODER
     sv_setref_pv($arg, \"CBOR::Free::SequenceDecoder\", (void*)$var);

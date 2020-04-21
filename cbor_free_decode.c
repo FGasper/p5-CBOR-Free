@@ -925,16 +925,27 @@ decode_ctx* create_decode_state( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
     decode_state->incomplete_by = 0;
 
     if (flags & CBF_FLAG_PRESERVE_REFERENCES) {
-        Newx( decode_state->reflist, 0, void * );
+        ensure_reflist_exists( aTHX_ decode_state );
     }
 
     return decode_state;
 }
 
-void free_decode_state( pTHX_ decode_ctx* decode_state) {
-    if (decode_state->reflist) {
-        Safefree(decode_state->reflist);
+void ensure_reflist_exists( pTHX_ decode_ctx* decode_state) {
+    if (NULL == decode_state->reflist) {
+        Newx( decode_state->reflist, 0, void * );
     }
+}
+
+void delete_reflist( pTHX_ decode_ctx* decode_state) {
+    if (NULL != decode_state->reflist) {
+        Safefree(decode_state->reflist);
+        decode_state->reflistlen = 0;
+    }
+}
+
+void free_decode_state( pTHX_ decode_ctx* decode_state) {
+    delete_reflist( aTHX_ decode_state );
 
     if (decode_state->tag_handler) {
         SvREFCNT_dec((SV *) decode_state->tag_handler);

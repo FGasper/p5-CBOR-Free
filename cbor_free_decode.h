@@ -62,6 +62,9 @@ SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, UV flags );
 SV *cbf_decode_one( pTHX_ decode_ctx* decstate );
 SV *cbf_decode_document( pTHX_ decode_ctx *decode_state );
 
+void ensure_reflist_exists( pTHX_ decode_ctx* decode_state);
+void delete_reflist( pTHX_ decode_ctx* decode_state);
+
 decode_ctx* create_decode_state( pTHX_ SV *cbor, HV *tag_handler, UV flags );
 void free_decode_state( pTHX_ decode_ctx* decode_state);
 

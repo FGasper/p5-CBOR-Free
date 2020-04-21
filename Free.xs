@@ -55,8 +55,7 @@ SV* _seqdecode_get( pTHX_ seqdecode_ctx* seqdecode) {
     return newRV_noinc(referent);
 }
 
-bool
-_handle_flag_call( pTHX_ decode_ctx* decode_state, SV* new_setting, U8 flagval ) {
+bool _handle_flag_call( pTHX_ decode_ctx* decode_state, SV* new_setting, U8 flagval ) {
     if (new_setting == NULL || sv_true(new_setting)) {
         decode_state->flags |= flagval;
     }
@@ -65,6 +64,13 @@ _handle_flag_call( pTHX_ decode_ctx* decode_state, SV* new_setting, U8 flagval )
     }
 
     return( (bool) decode_state->flags & flagval );
+}
+
+SV * _bless_to_sv( pTHX_ SV *class, void* ptr ) {
+    SV *RETVAL = newSV(0);
+    sv_setref_pv(RETVAL, SvPV_nolen(class), ptr);
+
+    return RETVAL;
 }
 
 //----------------------------------------------------------------------
@@ -152,10 +158,12 @@ MODULE = CBOR::Free     PACKAGE = CBOR::Free::Decoder
 
 PROTOTYPES: DISABLE
 
-decode_ctx*
-new(...)
+SV*
+new(SV *class)
     CODE:
-        RETVAL = create_decode_state( aTHX_ NULL, NULL, CBF_FLAG_SEQUENCE_MODE);
+        decode_ctx* decode_state = create_decode_state( aTHX_ NULL, NULL, CBF_FLAG_SEQUENCE_MODE);
+
+        RETVAL = _bless_to_sv( aTHX_ class, (void*)decode_state);
 
     OUTPUT:
         RETVAL
@@ -164,7 +172,6 @@ SV*
 decode(decode_ctx* decode_state, SV* cbor)
     CODE:
         renew_decode_state_buffer( aTHX_ decode_state, cbor );
-        fprintf(stderr, "decoding; preserve refs? %d\n", decode_state->flags & CBF_FLAG_PRESERVE_REFERENCES);
 
         RETVAL = cbf_decode_document( aTHX_ decode_state );
 
@@ -175,6 +182,13 @@ bool
 preserve_references(decode_ctx* decode_state, SV* new_setting = NULL)
     CODE:
         RETVAL = _handle_flag_call( aTHX_ decode_state, new_setting, CBF_FLAG_PRESERVE_REFERENCES );
+
+        if (RETVAL) {
+            ensure_reflist_exists( aTHX_ decode_state );
+        }
+        else if (NULL != decode_state->reflist) {
+            delete_reflist( aTHX_ decode_state );
+        }
 
     OUTPUT:
         RETVAL
@@ -232,10 +246,9 @@ MODULE = CBOR::Free     PACKAGE = CBOR::Free::SequenceDecoder
 
 PROTOTYPES: DISABLE
 
-seqdecode_ctx*
-new(...)
+SV *
+new(SV *class)
     CODE:
-        UNUSED(items);
 
         SV* cbor = newSVpvs("");
 
@@ -248,7 +261,7 @@ new(...)
         seqdecode->decode_state = decode_state;
         seqdecode->cbor = cbor;
 
-        RETVAL = seqdecode;
+        RETVAL = _bless_to_sv( aTHX_ class, (void*)seqdecode);
 
     OUTPUT:
         RETVAL
