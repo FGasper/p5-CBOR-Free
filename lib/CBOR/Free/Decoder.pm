@@ -36,8 +36,6 @@ Creates a new CBOR decoder object.
 
 =cut
 
-sub new { bless { _flags => 0 } }    # TODO: implement in XS, and store a context.
-
 #----------------------------------------------------------------------
 
 =head2 $data = I<OBJ>->decode( $CBOR )
@@ -62,14 +60,6 @@ references, which can cause memory leaks if not handled properly.
 
 =cut
 
-sub preserve_references {
-    if (@_ < 2 || !!$_[1]) {
-        $_[0]{'_flags'} |= _FLAG_PRESERVE_REFERENCES();
-    }
-
-    return !!($_[0]{'_flags'} & _FLAG_PRESERVE_REFERENCES());
-}
-
 #----------------------------------------------------------------------
 
 =head2 $enabled_yn = I<OBJ>->naive_utf8( [$ENABLE] )
@@ -85,14 +75,6 @@ serialization and can thus ensure validity of the encoded text.
 If in doubt, leave this off.
 
 =cut
-
-sub naive_utf8 {
-    if (@_ < 2 || !!$_[1]) {
-        $_[0]{'_flags'} |= _FLAG_NAIVE_UTF8();
-    }
-
-    return !!($_[0]{'_flags'} & _FLAG_NAIVE_UTF8());
-}
 
 #----------------------------------------------------------------------
 
@@ -112,17 +94,5 @@ doesn’t decode the tag. For example, a handler for the “indirection” tag
 here will be ignored.
 
 =cut
-
-use constant _TAG_PACK_TMPL => eval { pack 'Q' } ? 'Q' : 'L';
-
-sub set_tag_handlers {
-    my ($self, @tag_cb) = @_;
-
-    while (my ($tag, $cb) = splice @tag_cb, 0, 2) {
-        $self->{'_tag_decode_callback'}{ pack( _TAG_PACK_TMPL(), $tag ) } = $cb;
-    }
-
-    return $self;
-}
 
 1;

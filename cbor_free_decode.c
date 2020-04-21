@@ -912,9 +912,13 @@ decode_ctx* create_decode_state( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
 
     decode_state->curbyte = NULL;
 
-    renew_decode_state_buffer( aTHX_ decode_state, cbor );
+    if (cbor) {
+        renew_decode_state_buffer( aTHX_ decode_state, cbor );
+    }
 
+    SvREFCNT_inc((SV *) tag_handler);
     decode_state->tag_handler = tag_handler;
+
     decode_state->reflist = NULL;
     decode_state->reflistlen = 0;
     decode_state->flags = flags;
@@ -932,13 +936,14 @@ void free_decode_state( pTHX_ decode_ctx* decode_state) {
         Safefree(decode_state->reflist);
     }
 
+    if (decode_state->tag_handler) {
+        SvREFCNT_dec((SV *) decode_state->tag_handler);
+    }
+
     Safefree(decode_state);
 }
 
-SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
-
-    decode_ctx *decode_state = create_decode_state( aTHX_ cbor, tag_handler, flags);
-
+SV *cbf_decode_document( pTHX_ decode_ctx *decode_state ) {
     SV *RETVAL = cbf_decode_one( aTHX_ decode_state );
 
     if (decode_state->incomplete_by) {
@@ -955,6 +960,15 @@ SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
 
         call_argv("CBOR::Free::_warn_decode_leftover", G_DISCARD, words);
     }
+
+    return RETVAL;
+}
+
+SV *cbf_decode( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
+
+    decode_ctx *decode_state = create_decode_state( aTHX_ cbor, tag_handler, flags);
+
+    SV *RETVAL = cbf_decode_document( aTHX_ decode_state );
 
     free_decode_state( aTHX_ decode_state);
 

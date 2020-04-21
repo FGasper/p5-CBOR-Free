@@ -55,6 +55,18 @@ SV* _seqdecode_get( pTHX_ seqdecode_ctx* seqdecode) {
     return newRV_noinc(referent);
 }
 
+bool
+_handle_flag_call( pTHX_ decode_ctx* decode_state, SV* new_setting, U8 flagval ) {
+    if (new_setting == NULL || sv_true(new_setting)) {
+        decode_state->flags |= flagval;
+    }
+    else {
+        decode_state->flags ^= flagval;
+    }
+
+    return( (bool) decode_state->flags & flagval );
+}
+
 //----------------------------------------------------------------------
 
 MODULE = CBOR::Free           PACKAGE = CBOR::Free
@@ -140,40 +152,76 @@ MODULE = CBOR::Free     PACKAGE = CBOR::Free::Decoder
 
 PROTOTYPES: DISABLE
 
-BOOT:
-    HV *stash = gv_stashpvn("CBOR::Free::Decoder", 19, FALSE);
-    newCONSTSUB(stash, "_FLAG_PRESERVE_REFERENCES", newSVuv(CBF_FLAG_PRESERVE_REFERENCES));
-    newCONSTSUB(stash, "_FLAG_NAIVE_UTF8", newSVuv(CBF_FLAG_NAIVE_UTF8));
-
-SV *
-decode( SV *selfref, SV *cbor )
+decode_ctx*
+new(...)
     CODE:
-        HV *self = (HV *)SvRV(selfref);
+        RETVAL = create_decode_state( aTHX_ NULL, NULL, CBF_FLAG_SEQUENCE_MODE);
 
-        HV *tag_handler = NULL;
+    OUTPUT:
+        RETVAL
 
-        UV flags_uv;
+SV*
+decode(decode_ctx* decode_state, SV* cbor)
+    CODE:
+        renew_decode_state_buffer( aTHX_ decode_state, cbor );
+        fprintf(stderr, "decoding; preserve refs? %d\n", decode_state->flags & CBF_FLAG_PRESERVE_REFERENCES);
 
-        SV **tag_handler_hr = hv_fetchs(self, "_tag_decode_callback", 0);
+        RETVAL = cbf_decode_document( aTHX_ decode_state );
 
-        if (tag_handler_hr && *tag_handler_hr && SvOK(*tag_handler_hr)) {
-            tag_handler = (HV *)SvRV(*tag_handler_hr);
+    OUTPUT:
+        RETVAL
+
+bool
+preserve_references(decode_ctx* decode_state, SV* new_setting = NULL)
+    CODE:
+        RETVAL = _handle_flag_call( aTHX_ decode_state, new_setting, CBF_FLAG_PRESERVE_REFERENCES );
+
+    OUTPUT:
+        RETVAL
+
+bool
+naive_utf8(decode_ctx* decode_state, SV* new_setting = NULL)
+    CODE:
+        RETVAL = _handle_flag_call( aTHX_ decode_state, new_setting, CBF_FLAG_NAIVE_UTF8 );
+
+    OUTPUT:
+        RETVAL
+
+decode_ctx*
+set_tag_handlers(decode_ctx* decode_state, ...)
+    CODE:
+        if (NULL == decode_state->tag_handler) {
+            decode_state->tag_handler = newHV();
         }
 
-        SV **flags = hv_fetchs(self, "_flags", 0);
-
-        if (flags && *flags) {
-            flags_uv = SvUV(*flags);
-        }
-        else {
-            flags_uv = 0;
+        if (!(items % 2)) {
+            croak("Odd key-value pair given!");
         }
 
-        RETVAL = cbf_decode( aTHX_
-            cbor,
-            tag_handler,
-            flags_uv
-        );
+        UV i;
+        for (i=1; i<items; i += 2) {
+            HV* tag_handler = decode_state->tag_handler;
+
+            SV* tagnum_sv = ST(i);
+            UV tagnum = SvUV(tagnum_sv);
+
+            i++;
+            if (i<items) {
+                SV* tagcb_sv = ST(i);
+
+                hv_store(
+                    tag_handler,
+                    (const char *) &tagnum,
+                    sizeof(UV),
+                    tagcb_sv,
+                    0
+                );
+
+                SvREFCNT_inc(tagcb_sv);
+            }
+        }
+
+        RETVAL = decode_state;
 
     OUTPUT:
         RETVAL

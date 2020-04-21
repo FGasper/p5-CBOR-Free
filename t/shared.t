@@ -29,7 +29,7 @@ $out = CBOR::Free::encode(
 
 
 my $dec = CBOR::Free::Decoder->new();
-$dec->preserve_references();
+diag( 'preserving references: ' . $dec->preserve_references() );
 my $rt = $dec->decode($out);
 
 cmp_deeply(

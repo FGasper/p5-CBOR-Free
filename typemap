@@ -1,7 +1,15 @@
 TYPEMAP
+decode_ctx*     T_PTROBJ_DECODER
 seqdecode_ctx*  T_PTROBJ_SEQDECODER
 
 INPUT
+T_PTROBJ_DECODER
+    if (sv_derived_from($arg, \"CBOR::Free::Decoder\")) {
+        IV tmp = SvIV((SV*)SvRV($arg));
+        $var = INT2PTR($type, tmp);
+    }
+    else
+        croak(\"$var is not of type CBOR::Free::Decoder\")
 T_PTROBJ_SEQDECODER
     if (sv_derived_from($arg, \"CBOR::Free::SequenceDecoder\")) {
         IV tmp = SvIV((SV*)SvRV($arg));
@@ -11,5 +19,7 @@ T_PTROBJ_SEQDECODER
         croak(\"$var is not of type CBOR::Free::SequenceDecoder\")
 
 OUTPUT
+T_PTROBJ_DECODER
+    sv_setref_pv($arg, \"CBOR::Free::Decoder\", (void*)$var);
 T_PTROBJ_SEQDECODER
     sv_setref_pv($arg, \"CBOR::Free::SequenceDecoder\", (void*)$var);
