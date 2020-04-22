@@ -77,7 +77,7 @@ bool _handle_flag_call( pTHX_ decode_ctx* decode_state, SV* new_setting, U8 flag
         decode_state->flags ^= flagval;
     }
 
-    return( (bool) decode_state->flags & flagval );
+    return( !!(decode_state->flags & flagval) );
 }
 
 SV * _bless_to_sv( pTHX_ SV *class, void* ptr ) {
