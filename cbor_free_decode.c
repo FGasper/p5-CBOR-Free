@@ -80,33 +80,6 @@ const char *MAJOR_TYPE_DESCRIPTION[] = {
 };
 
 //----------------------------------------------------------------------
-
-SV *_call_with_arguments( pTHX_ SV* cb, const U8 count, SV** args ) {
-    // --- Almost all copy-paste from “perlcall” … blegh!
-    dSP;
-
-    ENTER;
-    SAVETMPS;
-
-    PUSHMARK(SP);
-    EXTEND(SP, count);
-
-    U8 i;
-    for (i=0; i<count; i++) PUSHs( sv_2mortal(args[i]) );
-
-    PUTBACK;
-
-    call_sv(cb, G_SCALAR);
-
-    SV *ret = newSVsv(POPs);
-
-    FREETMPS;
-    LEAVE;
-
-    return ret;
-}
-
-//----------------------------------------------------------------------
 // Croakers
 
 static const char* UV_TO_STR_TMPL = (sizeof(UV) == 8 ? "%llu" : "%lu");
@@ -126,7 +99,7 @@ void _free_decode_state_if_not_sequence( pTHX_ decode_ctx* decstate ) {
     }
 }
 
-void _croak_incomplete( pTHX_ decode_ctx* decstate ) {
+static inline void _croak_incomplete( pTHX_ decode_ctx* decstate ) {
 
     // We never call this function in sequence mode, so we can just
     // free the decode state without concern.
@@ -137,17 +110,10 @@ void _croak_incomplete( pTHX_ decode_ctx* decstate ) {
         newSVuv(decstate->incomplete_by),
     };
 
-    _call_with_arguments(
-        aTHX_
-        newSVpvs("CBOR::Free::_die"),
-        2,
-        args
-    );
-
-    assert(0);
+    cbf_die_with_arguments( aTHX_ 2, args );
 }
 
-void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
+static inline void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     const uint8_t ord = (uint8_t) *(decstate->curbyte);
     STRLEN offset = decstate->curbyte - decstate->start;
 
@@ -159,12 +125,7 @@ void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
         newSVuv(offset),
     };
 
-    _call_with_arguments(
-        aTHX_
-        newSVpvs("CBOR::Free::_die"),
-        3,
-        args
-    );
+    cbf_die_with_arguments( aTHX_ 3, args );
 
     assert(0);
 }
@@ -177,12 +138,7 @@ void _croak_invalid_utf8( pTHX_ decode_ctx* decstate, char *string, STRLEN len )
         newSVpvn(string, len),
     };
 
-    _call_with_arguments(
-        aTHX_
-        newSVpvs("CBOR::Free::_die"),
-        2,
-        args
-    );
+    cbf_die_with_arguments( aTHX_ 2, args );
 
     assert(0);
 }
@@ -230,12 +186,7 @@ void _croak_invalid_map_key( pTHX_ decode_ctx* decstate ) {
         newSVuv(offset),
     };
 
-    _call_with_arguments(
-        aTHX_
-        newSVpvs("CBOR::Free::_die"),
-        3,
-        args
-    );
+    cbf_die_with_arguments( aTHX_ 3, args );
 
     assert(0);
 }
@@ -251,12 +202,7 @@ void _croak_cannot_decode_64bit( pTHX_ decode_ctx* decstate ) {
         newSVuv(offset),
     };
 
-    _call_with_arguments(
-        aTHX_
-        newSVpvs("CBOR::Free::_die"),
-        3,
-        args
-    );
+    cbf_die_with_arguments( aTHX_ 3, args );
 
     assert(0);
 }
@@ -270,12 +216,7 @@ void _croak_cannot_decode_negative( pTHX_ decode_ctx* decstate, UV abs, STRLEN o
         newSVuv(offset),
     };
 
-    _call_with_arguments(
-        aTHX_
-        newSVpvs("CBOR::Free::_die"),
-        3,
-        args
-    );
+    cbf_die_with_arguments( aTHX_ 3, args );
 
     assert(0);
 }
@@ -793,7 +734,7 @@ SV *cbf_decode_one( pTHX_ decode_ctx* decstate ) {
                     SV **handler_cr = hv_fetch( my_tag_handler, (char *) &tagnum, sizeof(UV), 0 );
 
                     if (handler_cr && *handler_cr && SvOK(*handler_cr)) {
-                        ret = _call_with_arguments( aTHX_ *handler_cr, 1, &ret );
+                        ret = cbf_call_scalar_with_arguments( aTHX_ *handler_cr, 1, &ret );
                     }
                     else {
                         _warn_unhandled_tag( aTHX_ tagnum, value_major_type );

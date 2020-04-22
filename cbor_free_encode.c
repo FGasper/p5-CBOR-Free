@@ -23,6 +23,13 @@ static const unsigned char CBOR_NEGINF_SHORT[3] = { 0xf9, 0xfc, 0x00 };
 
 static HV *tagged_stash = NULL;
 
+#define UTF8_DOWNGRADE_IF_NEEDED(encode_state, to_encode) \
+    if (SvUTF8(to_encode)) { \
+        if (!sv_utf8_downgrade(to_encode, true)) { \
+            _croak_wide_character( aTHX_ encode_state, to_encode ); \
+        } \
+    }
+
 //----------------------------------------------------------------------
 
 // These encode num as big-endian into buffer.
@@ -55,12 +62,23 @@ static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
 //----------------------------------------------------------------------
 // Croakers
 
-void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
+static inline void _croak_unrecognized(pTHX_ encode_ctx *encode_state, SV *value) {
     char * words[3] = { "Unrecognized", SvPV_nolen(value), NULL };
 
     cbf_encode_ctx_free_all(encode_state);
 
     _die( G_DISCARD, words );
+}
+
+static inline void _croak_wide_character(pTHX_ encode_ctx *encode_state, SV *value) {
+    SV* args[2] = {
+        newSVpvs("WideCharacter"),
+        newSVsv(value),
+    };
+
+    cbf_encode_ctx_free_all(encode_state);
+
+    cbf_die_with_arguments( aTHX_ 2, args );
 }
 
 // This has to be a macro because _croak() needs a string literal.
@@ -199,6 +217,70 @@ static inline I32 _magic_safe_hv_iterinit( pTHX_ HV* hash ) {
     return count;
 }
 
+static inline void _encode_string_sv( pTHX_ encode_ctx* encode_state, SV* value ) {
+    char *val = SvPOK(value) ? SvPVX(value) : SvPV_nolen(value);
+
+    STRLEN len = SvCUR(value);
+
+    bool encode_as_text = !!SvUTF8(value);
+
+    /*
+    if (!encode_as_text) {
+        STRLEN i;
+        for (i=0; i<len; i++) {
+            if (val[i] & 0x80) break;
+        }
+
+        // Encode as text if there were no high-bit octets.
+        encode_as_text = (i == len);
+    }
+    */
+
+    _init_length_buffer( aTHX_
+        len,
+        (encode_as_text ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY),
+        encode_state
+    );
+
+    _COPY_INTO_ENCODE( encode_state, (unsigned char *) val, len );
+}
+
+static inline void _encode_string_unicode( pTHX_ encode_ctx* encode_state, SV* value ) {
+    SV *to_encode;
+
+    if (SvUTF8(value)) {
+        to_encode = value;
+    }
+    else {
+        to_encode = newSVsv(value);
+        sv_2mortal(to_encode);
+
+        sv_utf8_upgrade(to_encode);
+    }
+
+    _encode_string_sv( aTHX_ encode_state, to_encode );
+}
+
+static inline void _encode_string_utf8( pTHX_ encode_ctx* encode_state, SV* value ) {
+    SV *to_encode = newSVsv(value);
+    sv_2mortal(to_encode);
+
+    UTF8_DOWNGRADE_IF_NEEDED(encode_state, to_encode);
+
+    SvUTF8_on(to_encode);
+
+    _encode_string_sv( aTHX_ encode_state, to_encode );
+}
+
+static inline void _encode_string_octets( pTHX_ encode_ctx* encode_state, SV* value ) {
+    SV *to_encode = newSVsv(value);
+    sv_2mortal(to_encode);
+
+    UTF8_DOWNGRADE_IF_NEEDED(encode_state, to_encode);
+
+    _encode_string_sv( aTHX_ encode_state, to_encode );
+}
+
 void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
     ++encode_state->recurse_count;
 
@@ -271,31 +353,23 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             _COPY_INTO_ENCODE(encode_state, &CBOR_NULL_U8, 1);
         }
         else {
-            char *val = SvPOK(value) ? SvPVX(value) : SvPV_nolen(value);
+            switch (encode_state->string_encode_mode) {
+                case CBF_STRING_ENCODE_SV:
+                    _encode_string_sv( aTHX_ encode_state, value );
+                    break;
+                case CBF_STRING_ENCODE_UNICODE:
+                    _encode_string_unicode( aTHX_ encode_state, value );
+                    break;
+                case CBF_STRING_ENCODE_UTF8:
+                    _encode_string_utf8( aTHX_ encode_state, value );
+                    break;
+                case CBF_STRING_ENCODE_OCTETS:
+                    _encode_string_octets( aTHX_ encode_state, value );
+                    break;
 
-            STRLEN len = SvCUR(value);
-
-            bool encode_as_text = !!SvUTF8(value);
-
-            /*
-            if (!encode_as_text) {
-                STRLEN i;
-                for (i=0; i<len; i++) {
-                    if (val[i] & 0x80) break;
-                }
-
-                // Encode as text if there were no high-bit octets.
-                encode_as_text = (i == len);
+                default:
+                    assert(0);
             }
-            */
-
-            _init_length_buffer( aTHX_
-                len,
-                (encode_as_text ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY),
-                encode_state
-            );
-
-            _COPY_INTO_ENCODE( encode_state, (unsigned char *) val, len );
         }
     }
     else if (sv_isobject(value)) {
@@ -439,7 +513,7 @@ static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_s
 
 //----------------------------------------------------------------------
 
-encode_ctx cbf_encode_ctx_create(uint8_t flags) {
+encode_ctx cbf_encode_ctx_create(uint8_t flags, enum cbf_string_encode_mode string_encode_mode) {
     encode_ctx encode_state;
 
     encode_state.buffer = NULL;
@@ -462,7 +536,7 @@ encode_ctx cbf_encode_ctx_create(uint8_t flags) {
         encode_state.reftracker = NULL;
     }
 
-    encode_state.string_encode_mode = CBF_STRING_ENCODE_SV;
+    encode_state.string_encode_mode = string_encode_mode;
 
     return encode_state;
 }

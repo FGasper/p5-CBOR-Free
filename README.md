@@ -40,6 +40,42 @@ The encoder currently does not handle any other blessed references.
 
 - `canonical` - A boolean that makes the encoder output
 CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
+- `string_encode` - Takes one of:
+    - undef: The default mode of operation. If the string’s internal UTF8
+    flag is set, it will become a CBOR text string; otherwise, it will be
+    CBOR binary. This is good for IPC with other Perl code but isn’t a very
+    friendly default for working with other languages that might expect more
+    reliably-typed strings.
+
+        This configuration is **NOT** recommended; it’s the default behavior because
+        it’s the only configuration that can reasonably fulfill that role.
+
+    - `encode_text`: Treats all strings as unencoded characters.
+    All CBOR strings will be text.
+
+        This is probably what you want if you’re
+        following the receive-decode-process-encode-output workflow that
+        [perlunitut](https://metacpan.org/pod/perlunitut) recommends (which you might be doing via `use utf8`)
+        **AND** if you intend for your CBOR to contain exclusively text.
+
+        (Perl internals note: if !SvUTF8, the CBOR will be the UTF8-encoded
+        version.)
+
+    - `as_text`: Treats all strings as octets of UTF-8.
+    Wide characters are thus invalid input. All CBOR strings will be text.
+
+        This is probably what you want if you forgo character decoding (and encoding),
+        treating all input as octets, **BUT** you still intend for your CBOR to
+        contain exclusively text.
+
+        (Perl internals note: if SvUTF8, the CBOR will be the decoded then downgraded
+        version.)
+
+    - `as_binary`: Like `as_text`, but outputs CBOR binary
+    instead of text.
+
+        This is probably what you want if your application is “all binary,
+        all the time”.
 - `text_keys` - EXPERIMENTAL. Encodes all Perl hash keys as CBOR text.
 If you use this mode then your strings **must** be properly decoded, or else
 the output CBOR may mangle your string.
@@ -72,7 +108,8 @@ Notes on mapping Perl to CBOR:
 - The internal state of a defined Perl scalar (e.g., whether it’s an
 integer, float, string, etc.) determines its CBOR encoding.
 - Perl doesn’t currently provide reliable binary/character string types.
-CBOR::Free tries to distinguish anyway by looking at a string’s UTF8 flag: if
+CBOR::Free, in its default configuration, tries to distinguish anyway by
+looking at a string’s UTF8 flag: if
 set, then the string becomes CBOR text; otherwise, it’ll be CBOR binary.
 That’s not always going to work, though. A trivial example:
 
@@ -90,8 +127,9 @@ That’s not always going to work, though. A trivial example:
     the reliable string types that CBOR recognizes, any heuristics we apply
     to distinguish one from the other are a “best-guess” merely.
 
-    **IMPORTANT:** Whatever consumes your Perl-sourced CBOR **MUST** account
-    for the prospect of an incorrectly-typed string.
+    **IMPORTANT:** If you use the default encoding configuration, whatever
+    consumes your Perl-sourced CBOR **MUST** account for the prospect of an
+    incorrectly-typed string.
 
 - The above applies also to strings vs. numbers: whatever consumes
 your Perl-sourced CBOR **MUST** account for the prospect of numbers that

@@ -30,7 +30,17 @@
 #define TEXT_KEYS_OPT "text_keys"
 #define TEXT_KEYS_OPT_LEN (sizeof(TEXT_KEYS_OPT) - 1)
 
+#define STRING_ENCODE_MODE_OPT "string_encode_mode"
+#define STRING_ENCODE_MODE_OPT_LEN (sizeof(STRING_ENCODE_MODE_OPT) - 1)
+
 #define UNUSED(x) (void)(x)
+
+const char* const cbf_string_encode_mode_options[] = {
+    "sv",
+    "encode_text",
+    "as_text",
+    "as_binary",
+};
 
 HV *cbf_stash = NULL;
 
@@ -215,41 +225,67 @@ SV *
 encode( SV * value, ... )
     CODE:
         uint8_t encode_state_flags = 0;
+        enum cbf_string_encode_mode string_encode_mode = CBF_STRING_ENCODE_SV;
 
         U8 i;
         for (i=1; i<items; i++) {
             if (!(i % 2)) continue;
 
-            if ((SvCUR(ST(i)) == CANONICAL_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), CANONICAL_OPT, CANONICAL_OPT_LEN)) {
+            if (strEQ( SvPV_nolen(ST(i)), CANONICAL_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_CANONICAL;
                 }
             }
 
-            else if ((SvCUR(ST(i)) == TEXT_KEYS_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), TEXT_KEYS_OPT, TEXT_KEYS_OPT_LEN)) {
+            else if (strEQ( SvPV_nolen(ST(i)), TEXT_KEYS_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_TEXT_KEYS;
                 }
             }
 
-            else if ((SvCUR(ST(i)) == PRESERVE_REFS_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), PRESERVE_REFS_OPT, PRESERVE_REFS_OPT_LEN)) {
+            else if (strEQ( SvPV_nolen(ST(i)), PRESERVE_REFS_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_PRESERVE_REFS;
                 }
             }
 
-            else if ((SvCUR(ST(i)) == SCALAR_REFS_OPT_LEN) && memEQ( SvPV_nolen(ST(i)), SCALAR_REFS_OPT, SCALAR_REFS_OPT_LEN)) {
+            else if (strEQ( SvPV_nolen(ST(i)), SCALAR_REFS_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_SCALAR_REFS;
                 }
             }
+
+            else if (strEQ( SvPV_nolen(ST(i)), STRING_ENCODE_MODE_OPT)) {
+                ++i;
+
+                if (i<items) {
+                    SV* opt = ST(i);
+
+                    if (SvOK(opt)) {
+                        char* optstr = SvPV_nolen(opt);
+
+                        U8 i;
+                        for (i=0; i<CBF_STRING_ENCODE__LIMIT; i++) {
+                            if (strEQ(optstr, cbf_string_encode_mode_options[i])) {
+                                string_encode_mode = i;
+                                break;
+                            }
+                        }
+
+                        if (i == CBF_STRING_ENCODE__LIMIT) {
+                            croak("Invalid " STRING_ENCODE_MODE_OPT ": %s", optstr);
+                        }
+                    }
+
+                }
+            }
         }
 
-        encode_ctx encode_state = cbf_encode_ctx_create(encode_state_flags);
+        encode_ctx encode_state = cbf_encode_ctx_create(encode_state_flags, string_encode_mode);
 
         RETVAL = newSV(0);
 

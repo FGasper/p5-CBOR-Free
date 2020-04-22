@@ -84,7 +84,7 @@ If in doubt, leave this off.
 
 This causes I<OBJ> to decode strings according to their CBOR type:
 text strings are UTF8-decoded; binary strings are left as-is. This is
-the default configuration.
+the default configuration, à la C<CBOR::Free::decode()>.
 
 =head2 $obj = I<OBJ>->string_decode_never();
 
@@ -97,7 +97,9 @@ enabled.
 
 This causes I<OBJ> to decode all CBOR strings (including binary strings)
 as UTF-8, applying appropriate pre-validation unless C<naive_utf8()> is
-enabled.
+enabled. This is useful if you expect all strings (including binary) to be
+UTF-8 and want to handle them in Perl as character strings instead of
+byte strings.
 
 #----------------------------------------------------------------------
 
