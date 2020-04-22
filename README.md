@@ -40,15 +40,16 @@ The encoder currently does not handle any other blessed references.
 
 - `canonical` - A boolean that makes the encoder output
 CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
-- `string_encode` - Takes one of:
-    - undef: The default mode of operation. If the string’s internal UTF8
-    flag is set, it will become a CBOR text string; otherwise, it will be
+- `string_encode_mode` - Takes one of:
+    - `sv`: The default mode of operation. If the string’s internal
+    UTF8 flag is set, it will become a CBOR text string; otherwise, it will be
     CBOR binary. This is good for IPC with other Perl code but isn’t a very
-    friendly default for working with other languages that might expect more
+    friendly default for working with other languages that probably expect more
     reliably-typed strings.
 
         This configuration is **NOT** recommended; it’s the default behavior because
-        it’s the only configuration that can reasonably fulfill that role.
+        it’s the only configuration that can reasonably fulfill that role. This is
+        also the only way to output text and binary strings in a single CBOR document.
 
     - `encode_text`: Treats all strings as unencoded characters.
     All CBOR strings will be text.
@@ -58,7 +59,7 @@ CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
         [perlunitut](https://metacpan.org/pod/perlunitut) recommends (which you might be doing via `use utf8`)
         **AND** if you intend for your CBOR to contain exclusively text.
 
-        (Perl internals note: if !SvUTF8, the CBOR will be the UTF8-encoded
+        (Perl internals note: if !SvUTF8, the CBOR will be the UTF8-upgraded
         version.)
 
     - `as_text`: Treats all strings as octets of UTF-8.
@@ -68,8 +69,7 @@ CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
         treating all input as octets, **BUT** you still intend for your CBOR to
         contain exclusively text.
 
-        (Perl internals note: if SvUTF8, the CBOR will be the decoded then downgraded
-        version.)
+        (Perl internals note: if SvUTF8, the CBOR will be the downgraded version.)
 
     - `as_binary`: Like `as_text`, but outputs CBOR binary
     instead of text.
@@ -157,13 +157,27 @@ for $data.
 
 Notes on mapping CBOR to Perl:
 
-- CBOR text strings become Perl strings with the internal UTF8 flag set.
-CBOR binary strings become Perl strings _without_ that flag set. This is
-a mostly-internal distinction in Perl that doesn’t actually constitute
-separate byte/character string types, but it’s at least something similar.
+- `decode()` decodes CBOR text strings as UTF-8-decoded Perl strings.
+CBOR binary strings become undecoded Perl strings.
 
-    Note that invalid UTF-8 in a CBOR text string is considered
+    (See [CBOR::Free::Decoder](https://metacpan.org/pod/CBOR::Free::Decoder) and [CBOR::Free::SequenceDecoder](https://metacpan.org/pod/CBOR::Free::SequenceDecoder) for more
+    character-decoding options.)
+
+    CBOR::Free guarantees that its UTF-8-decoding will _always_ enable the
+    resulting Perl string’s internal UTF8 flag—even for “invariant” strings
+    like `abc`. CBOR::Free also guarantees
+    the inverse: an undecoded Perl string from CBOR::Free will _never_ have
+    its internal UTF8 flag enabled.
+
+    Notes:
+
+    - Invalid UTF-8 in a CBOR text string is considered
     invalid input and will thus prompt a thrown exception.
+    - You can reliably use `utf8::is_utf8()` to determine if a given Perl
+    string came from CBOR text or binary, but **ONLY** if you test the scalar as
+    it appears in the newly-decoded data structure itself. Ordinarily you
+    should avoid `is_utf8()`, but with CBOR::Free-created strings
+    this limited use case is legitimate and potentially gainful.
 
 - The only map keys that `decode()` accepts are integers and strings.
 An exception is thrown if the decoder finds anything else as a map key.
