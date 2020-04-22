@@ -28,6 +28,10 @@
 #define _RETURN_IF_SET_INCOMPLETE(decstate, toreturn) \
     if (decstate->incomplete_by) return toreturn;
 
+#define SHOULD_VALIDATE_UTF8(decstate, major_type) \
+    major_type == CBOR_TYPE_UTF8 \
+    || decstate->string_decode_mode == CBF_STRING_DECODE_ALWAYS
+
 //----------------------------------------------------------------------
 
 // Basically ntohll(), but it accepts a pointer.
@@ -560,10 +564,10 @@ void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
 
                 keystr = my_key.numbuf.buffer;
 
-                if (control->pieces.major_type == CBOR_TYPE_UTF8) {
+                if (SHOULD_VALIDATE_UTF8(decstate, control->pieces.major_type)) {
                     _validate_utf8_string_if_needed( aTHX_ decstate, keystr, my_key.numbuf.num.uv );
 
-                    keylen = -my_key.numbuf.num.uv;
+                    keylen = decstate->string_decode_mode == CBF_STRING_DECODE_NEVER ? my_key.numbuf.num.uv : -my_key.numbuf.num.uv;
                 }
                 else {
                     keylen = my_key.numbuf.num.uv;
@@ -721,13 +725,13 @@ SV *cbf_decode_one( pTHX_ decode_ctx* decstate ) {
             ret = _decode_str_to_sv( aTHX_ decstate );
             _RETURN_IF_SET_INCOMPLETE(decstate, NULL);
 
-            if (CBOR_TYPE_UTF8 == control->pieces.major_type) {
+            if (SHOULD_VALIDATE_UTF8(decstate, control->pieces.major_type)) {
                 _validate_utf8_string_if_needed( aTHX_ decstate, SvPV_nolen(ret), SvCUR(ret));
 
                 // Always set the UTF8 flag, even if it’s not needed.
                 // This helps ensure that text strings will round-trip
                 // through Perl.
-                SvUTF8_on(ret);
+                if (decstate->string_decode_mode != CBF_STRING_DECODE_NEVER) SvUTF8_on(ret);
             }
 
             break;
@@ -924,6 +928,8 @@ decode_ctx* create_decode_state( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
     decode_state->flags = flags;
     decode_state->incomplete_by = 0;
 
+    decode_state->string_decode_mode = CBF_STRING_DECODE_CBOR;
+
     if (flags & CBF_FLAG_PRESERVE_REFERENCES) {
         ensure_reflist_exists( aTHX_ decode_state );
     }
@@ -940,14 +946,22 @@ void ensure_reflist_exists( pTHX_ decode_ctx* decode_state) {
 void delete_reflist( pTHX_ decode_ctx* decode_state) {
     if (NULL != decode_state->reflist) {
         Safefree(decode_state->reflist);
+        decode_state->reflist = NULL;
         decode_state->reflistlen = 0;
+    }
+}
+
+void reset_reflist_if_needed( pTHX_ decode_ctx* decode_state) {
+    if (decode_state->reflistlen) {
+        delete_reflist( aTHX_ decode_state );
+        ensure_reflist_exists( aTHX_ decode_state );
     }
 }
 
 void free_decode_state( pTHX_ decode_ctx* decode_state) {
     delete_reflist( aTHX_ decode_state );
 
-    if (decode_state->tag_handler) {
+    if (NULL != decode_state->tag_handler) {
         SvREFCNT_dec((SV *) decode_state->tag_handler);
     }
 

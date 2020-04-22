@@ -39,6 +39,10 @@ SV* _seqdecode_get( pTHX_ seqdecode_ctx* seqdecode) {
 
     decode_state->curbyte = decode_state->start;
 
+    if (decode_state->flags & CBF_FLAG_PRESERVE_REFERENCES) {
+        reset_reflist_if_needed(aTHX_ decode_state);
+    }
+
     SV *referent = cbf_decode_one( aTHX_ seqdecode->decode_state );
 
     if (seqdecode->decode_state->incomplete_by) {
@@ -73,6 +77,72 @@ SV * _bless_to_sv( pTHX_ SV *class, void* ptr ) {
     return RETVAL;
 }
 
+static inline void * sv_to_ptr( pTHX_ SV *self) {
+    IV tmp = SvIV((SV*)SvRV(self));
+    return INT2PTR(void*, tmp);
+}
+
+static inline SV* _set_string_decode( pTHX_ SV* self, enum cbf_string_decode_mode new_setting ) {
+    decode_ctx* decode_state = (decode_ctx*) sv_to_ptr(aTHX_ self);
+    decode_state->string_decode_mode = new_setting;
+
+    return (GIMME_V == G_VOID) ? NULL : newSVsv(self);
+}
+
+static inline SV* _seq_set_string_decode( pTHX_ SV* self, enum cbf_string_decode_mode new_setting ) {
+    seqdecode_ctx* seqdecode = (seqdecode_ctx*) sv_to_ptr(aTHX_ self);
+    seqdecode->decode_state->string_decode_mode = new_setting;
+
+    return (GIMME_V == G_VOID) ? NULL : newSVsv(self);
+}
+
+static inline bool _handle_preserve_references( pTHX_ decode_ctx* decode_state, SV* new_setting ) {
+    bool RETVAL = _handle_flag_call( aTHX_ decode_state, new_setting, CBF_FLAG_PRESERVE_REFERENCES );
+
+    if (RETVAL) {
+        ensure_reflist_exists( aTHX_ decode_state );
+    }
+    else if (NULL != decode_state->reflist) {
+        delete_reflist( aTHX_ decode_state );
+    }
+
+    return RETVAL;
+}
+
+static inline void _set_tag_handlers( pTHX_ decode_ctx* decode_state, UV items_len, SV** args ) {
+    if (!(items_len % 2)) {
+        croak("Odd key-value pair given!");
+    }
+
+    if (NULL == decode_state->tag_handler) {
+        decode_state->tag_handler = newHV();
+    }
+
+    UV i;
+    for (i=1; i<items_len; i += 2) {
+        HV* tag_handler = decode_state->tag_handler;
+
+        SV* tagnum_sv = args[i];
+        UV tagnum = SvUV(tagnum_sv);
+
+        i++;
+        if (i<items_len) {
+            SV* tagcb_sv = args[i];
+
+            hv_store(
+                tag_handler,
+                (const char *) &tagnum,
+                sizeof(UV),
+                tagcb_sv,
+                0
+            );
+
+            SvREFCNT_inc(tagcb_sv);
+        }
+    }
+}
+
+//----------------------------------------------------------------------
 //----------------------------------------------------------------------
 
 MODULE = CBOR::Free           PACKAGE = CBOR::Free
@@ -83,6 +153,63 @@ BOOT:
     cbf_stash = gv_stashpv(_PACKAGE, FALSE);
     newCONSTSUB(cbf_stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
 
+## void
+## mutate_utf8( SV *sv)
+##     CODE:
+##         SV *copy;
+##         bool ok;
+##         STRLEN len;
+## 
+##         fprintf(stderr, "original:\n");
+##         sv_dump(sv);
+##         //----------------------------------------------------------------------
+## 
+##         fprintf(stderr, "sv_utf8_decode\n");
+##         copy = newSVsv(sv);
+##         sv_2mortal(copy);
+##         ok = sv_utf8_decode(copy);
+##         fprintf(stderr, "\tOK? %d\n", ok);
+##         if (ok) sv_dump(copy);
+## 
+##         if (ok) {
+##             fprintf(stderr, "sv_utf8_decode, then sv_utf8_downgrade\n");
+##             copy = newSVsv(copy);
+##             sv_2mortal(copy);
+##             ok = sv_utf8_downgrade(copy, 1);
+##             fprintf(stderr, "\tOK? %d\n", ok);
+##             if (ok) sv_dump(copy);
+##         }
+## 
+##         //----------------------------------------------------------------------
+##         fprintf(stderr, "sv_utf8_downgrade\n");
+##         copy = newSVsv(sv);
+##         sv_2mortal(copy);
+##         ok = sv_utf8_downgrade(copy, 1);
+##         fprintf(stderr, "\tOK? %d\n", ok);
+##         if (ok) sv_dump(copy);
+## 
+##         //----------------------------------------------------------------------
+##         fprintf(stderr, "sv_utf8_encode\n");
+##         copy = newSVsv(sv);
+##         sv_2mortal(copy);
+##         sv_utf8_encode(copy);
+##         if (ok) sv_dump(copy);
+## 
+##         //----------------------------------------------------------------------
+##         fprintf(stderr, "sv_utf8_upgrade\n");
+##         copy = newSVsv(sv);
+##         sv_2mortal(copy);
+##         len = sv_utf8_upgrade(copy);
+##         fprintf(stderr, "\tlen: %d\n", len);
+##         if (ok) sv_dump(copy);
+## 
+##         //----------------------------------------------------------------------
+##         fprintf(stderr, "sv_utf8_upgrade_flags/SV_FORCE_UTF8_UPGRADE\n");
+##         copy = newSVsv(sv);
+##         sv_2mortal(copy);
+##         len = sv_utf8_upgrade_flags(copy, SV_FORCE_UTF8_UPGRADE);
+##         fprintf(stderr, "\tlen: %d\n", len);
+##         if (ok) sv_dump(copy);
 
 SV *
 encode( SV * value, ... )
@@ -171,7 +298,12 @@ new(SV *class)
 SV*
 decode(decode_ctx* decode_state, SV* cbor)
     CODE:
+        decode_state->curbyte = 0;
         renew_decode_state_buffer( aTHX_ decode_state, cbor );
+
+        if (decode_state->flags & CBF_FLAG_PRESERVE_REFERENCES) {
+            reset_reflist_if_needed(aTHX_ decode_state);
+        }
 
         RETVAL = cbf_decode_document( aTHX_ decode_state );
 
@@ -181,14 +313,7 @@ decode(decode_ctx* decode_state, SV* cbor)
 bool
 preserve_references(decode_ctx* decode_state, SV* new_setting = NULL)
     CODE:
-        RETVAL = _handle_flag_call( aTHX_ decode_state, new_setting, CBF_FLAG_PRESERVE_REFERENCES );
-
-        if (RETVAL) {
-            ensure_reflist_exists( aTHX_ decode_state );
-        }
-        else if (NULL != decode_state->reflist) {
-            delete_reflist( aTHX_ decode_state );
-        }
+        RETVAL = _handle_preserve_references( aTHX_ decode_state, new_setting );
 
     OUTPUT:
         RETVAL
@@ -201,39 +326,35 @@ naive_utf8(decode_ctx* decode_state, SV* new_setting = NULL)
     OUTPUT:
         RETVAL
 
+SV *
+string_decode_cbor(SV* self)
+    CODE:
+        RETVAL = _set_string_decode( aTHX_ self, CBF_STRING_DECODE_CBOR );
+
+    OUTPUT:
+        RETVAL
+
+SV *
+string_decode_never(SV* self)
+    CODE:
+        RETVAL = _set_string_decode( aTHX_ self, CBF_STRING_DECODE_NEVER );
+
+    OUTPUT:
+        RETVAL
+
+SV *
+string_decode_always(SV* self)
+    CODE:
+        RETVAL = _set_string_decode( aTHX_ self, CBF_STRING_DECODE_ALWAYS );
+
+    OUTPUT:
+        RETVAL
+
 void
 _set_tag_handlers_backend(decode_ctx* decode_state, ...)
     CODE:
-        if (NULL == decode_state->tag_handler) {
-            decode_state->tag_handler = newHV();
-        }
+        _set_tag_handlers( aTHX_ decode_state, items, &ST(0) );
 
-        if (!(items % 2)) {
-            croak("Odd key-value pair given!");
-        }
-
-        UV i;
-        for (i=1; i<items; i += 2) {
-            HV* tag_handler = decode_state->tag_handler;
-
-            SV* tagnum_sv = ST(i);
-            UV tagnum = SvUV(tagnum_sv);
-
-            i++;
-            if (i<items) {
-                SV* tagcb_sv = ST(i);
-
-                hv_store(
-                    tag_handler,
-                    (const char *) &tagnum,
-                    sizeof(UV),
-                    tagcb_sv,
-                    0
-                );
-
-                SvREFCNT_inc(tagcb_sv);
-            }
-        }
 
 # ----------------------------------------------------------------------
 
@@ -280,6 +401,52 @@ get(seqdecode_ctx* seqdecode)
 
     OUTPUT:
         RETVAL
+
+bool
+preserve_references(seqdecode_ctx* seqdecode, SV* new_setting = NULL)
+    CODE:
+        RETVAL = _handle_preserve_references( aTHX_ seqdecode->decode_state, new_setting );
+
+    OUTPUT:
+        RETVAL
+
+bool
+naive_utf8(seqdecode_ctx* seqdecode, SV* new_setting = NULL)
+    CODE:
+        RETVAL = _handle_flag_call( aTHX_ seqdecode->decode_state, new_setting, CBF_FLAG_NAIVE_UTF8 );
+
+    OUTPUT:
+        RETVAL
+
+
+SV *
+string_decode_cbor(SV* self)
+    CODE:
+        RETVAL = _seq_set_string_decode( aTHX_ self, CBF_STRING_DECODE_CBOR );
+
+    OUTPUT:
+        RETVAL
+
+SV *
+string_decode_never(SV* self)
+    CODE:
+        RETVAL = _seq_set_string_decode( aTHX_ self, CBF_STRING_DECODE_NEVER );
+
+    OUTPUT:
+        RETVAL
+
+SV *
+string_decode_always(SV* self)
+    CODE:
+        RETVAL = _seq_set_string_decode( aTHX_ self, CBF_STRING_DECODE_ALWAYS );
+
+    OUTPUT:
+        RETVAL
+
+void
+_set_tag_handlers_backend(seqdecode_ctx* seqdecode, ...)
+    CODE:
+        _set_tag_handlers( aTHX_ seqdecode->decode_state, items, &ST(0) );
 
 void
 DESTROY(seqdecode_ctx* seqdecode)

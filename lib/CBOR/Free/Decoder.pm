@@ -24,6 +24,8 @@ decoder. This interface allows interpretation of tagged values.
 
 #----------------------------------------------------------------------
 
+use parent qw( CBOR::Free::Decoder::Base );
+
 use CBOR::Free ();
 
 #----------------------------------------------------------------------
@@ -78,6 +80,27 @@ If in doubt, leave this off.
 
 #----------------------------------------------------------------------
 
+=head2 $obj = I<OBJ>->string_decode_cbor();
+
+This causes I<OBJ> to decode strings according to their CBOR type:
+text strings are UTF8-decoded; binary strings are left as-is. This is
+the default configuration.
+
+=head2 $obj = I<OBJ>->string_decode_never();
+
+This causes I<OBJ> to leave all strings undecoded. This is useful for
+applications that treat all strings as octet sequences. Note that CBOR
+text strings will still be validated as UTF-8 unless C<naive_utf8()> is
+enabled.
+
+=head2 $obj = I<OBJ>->string_decode_always();
+
+This causes I<OBJ> to decode all CBOR strings (including binary strings)
+as UTF-8, applying appropriate pre-validation unless C<naive_utf8()> is
+enabled.
+
+#----------------------------------------------------------------------
+
 =head2 I<OBJ>->set_tag_handlers( %TAG_CALLBACK )
 
 Takes a list of key/value pairs where each key is a tag (i.e., number)
@@ -94,22 +117,5 @@ doesn’t decode the tag. For example, a handler for the “indirection” tag
 here will be ignored.
 
 =cut
-
-sub set_tag_handlers {
-    my ($self, @tag_kv) = @_;
-
-    die "Uneven tag handlers list given!" if @tag_kv % 2;
-
-    my @tag_kv_copy = @tag_kv;
-
-    while ( my ($tag, $cr) = splice @tag_kv ) {
-        die "Invalid tag: $tag" if $tag !~ m<\A[0-9]+\z>;
-        die "Invalid tag $tag handler: $cr" if !UNIVERSAL::isa($cr, 'CODE');
-    }
-
-    $self->_set_tag_handlers_backend(@tag_kv_copy);
-
-    return $self;
-}
 
 1;

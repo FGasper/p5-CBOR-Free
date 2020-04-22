@@ -462,6 +462,8 @@ encode_ctx cbf_encode_ctx_create(uint8_t flags) {
         encode_state.reftracker = NULL;
     }
 
+    encode_state.string_encode_mode = CBF_STRING_ENCODE_SV;
+
     return encode_state;
 }
 

@@ -19,6 +19,13 @@
 // there as well as in HeUTF8().
 #define CBF_HeUTF8(h_entry) (HeUTF8(h_entry) || (!HeSVKEY(h_entry) && HeKWASUTF8(h_entry)))
 
+enum cbf_string_encode_mode {
+    CBF_STRING_ENCODE_SV,     // i.e., is text == SvUTF8
+    CBF_STRING_ENCODE_CHARACTERS,
+    CBF_STRING_ENCODE_UTF8,
+    CBF_STRING_ENCODE_BYTES,
+};
+
 typedef struct {
     STRLEN buflen;
     STRLEN len;
@@ -29,6 +36,7 @@ typedef struct {
     bool is_canonical;
     bool text_keys;
     bool encode_scalar_refs;
+    enum cbf_string_encode_mode string_encode_mode;
 } encode_ctx;
 
 struct sortable_hash_entry {

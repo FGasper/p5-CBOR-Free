@@ -11,6 +11,12 @@
 //----------------------------------------------------------------------
 // Definitions
 
+enum cbf_string_decode_mode {
+    CBF_STRING_DECODE_CBOR,     // i.e., decode if the CBOR is text
+    CBF_STRING_DECODE_NEVER,
+    CBF_STRING_DECODE_ALWAYS
+};
+
 typedef struct {
     char* start;
     STRLEN size;
@@ -21,6 +27,8 @@ typedef struct {
 
     void **reflist;
     UV reflistlen;
+
+    enum cbf_string_decode_mode string_decode_mode;
 
     UV flags;
 
@@ -64,6 +72,7 @@ SV *cbf_decode_document( pTHX_ decode_ctx *decode_state );
 
 void ensure_reflist_exists( pTHX_ decode_ctx* decode_state);
 void delete_reflist( pTHX_ decode_ctx* decode_state);
+void reset_reflist_if_needed( pTHX_ decode_ctx* decode_state);
 
 decode_ctx* create_decode_state( pTHX_ SV *cbor, HV *tag_handler, UV flags );
 void free_decode_state( pTHX_ decode_ctx* decode_state);

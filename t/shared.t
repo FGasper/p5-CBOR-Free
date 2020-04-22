@@ -29,7 +29,7 @@ $out = CBOR::Free::encode(
 
 
 my $dec = CBOR::Free::Decoder->new();
-diag( 'preserving references: ' . $dec->preserve_references() );
+$dec->preserve_references();
 my $rt = $dec->decode($out);
 
 cmp_deeply(
@@ -43,6 +43,21 @@ cmp_deeply(
         shallow( $rt->[4] ),
     ],
     'references are preserved',
+);
+
+my $rt2 = $dec->decode($out);
+
+cmp_deeply(
+    $rt2,
+    [
+        [],
+        {},
+        shallow( $rt2->[0] ),
+        shallow( $rt2->[1] ),
+        \undef,
+        shallow( $rt2->[4] ),
+    ],
+    'references are preserved (again with the same object)',
 );
 
 done_testing;

@@ -3,8 +3,6 @@ package CBOR::Free::SequenceDecoder;
 use strict;
 use warnings;
 
-use CBOR::Free;
-
 =encoding utf-8
 
 =head1 NAME
@@ -29,11 +27,40 @@ CBOR::Free::SequenceDecoder
 This module implements a parser for CBOR Sequences
 (L<RFC 8742|https://tools.ietf.org/html/rfc8742>).
 
+=cut
+
+#----------------------------------------------------------------------
+
+use parent qw( CBOR::Free::Decoder::Base );
+
+use CBOR::Free;
+
+#----------------------------------------------------------------------
+
 =head1 METHODS
 
-=head2 $obj = I<CLASS>->new();
+This module implements the following methods in common
+with L<CBOR::Free::Decoder>:
 
-Initializes a decoder.
+=over
+
+=item * C<new()>
+
+=item * C<preserve_references()>
+
+=item * C<naive_utf8()>
+
+=item * C<string_decode_cbor()>
+
+=item * C<string_decode_never()>
+
+=item * C<string_decode_always()>
+
+=item * C<set_tag_handlers()>
+
+=back
+
+Additionally, the following exist:
 
 =head2 $got_sr = I<CLASS>->give( $CBOR );
 
