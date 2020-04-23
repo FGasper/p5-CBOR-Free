@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use Test::More;
+use Test::Deep;
 use Test::FailWarnings;
 use Test::Exception;
 
@@ -126,6 +127,28 @@ sub T4_invalid_text_key {
 
     ok( utf8::is_utf8( (keys %$dec_hr)[0] ), 'UTF8 flag is set on invalid hash key' );
     ok( !utf8::valid( (keys %$dec_hr)[0] ), '… but the actual value is invalid UTF-8' );
+}
+
+sub T2_invalid_map_key__float {
+    my $cbor_float = CBOR::Free::encode( 1.1 );
+    my $cbor = "\xa2\x41a\x41z$cbor_float\x43abc";
+
+    throws_ok(
+        sub { CBOR::Free::decode($cbor) },
+        'CBOR::Free::X::InvalidMapKey',
+        'reject float as map key',
+    );
+
+    my $err = $@;
+
+    cmp_deeply(
+        $err,
+        all(
+            re( qr<double float> ),
+            re( qr<5> ),
+        ),
+        '… with the expected error message',
+    );
 }
 
 #----------------------------------------------------------------------

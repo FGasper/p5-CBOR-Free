@@ -166,6 +166,13 @@ void _croak_invalid_map_key( pTHX_ decode_ctx* decstate ) {
         case CBOR_UNDEFINED:
             bytestr = "undefined";
             break;
+        case CBOR_HALF_FLOAT:
+            bytestr = "half-float";
+        case CBOR_FLOAT:
+            bytestr = "float";
+        case CBOR_DOUBLE:
+            bytestr = "double float";
+            break;
         default:
             switch ((byte & 0xe0) >> 5) {
                 case CBOR_TYPE_ARRAY:

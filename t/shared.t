@@ -31,22 +31,42 @@ sub T2_test_sequence_decoder {
     _test_shared($dec, $decode_cr);
 }
 
-sub _test_shared {
-    my ($dec, $decode_cr) = @_;
+sub T1_against_cbor_xs {
+    my ($self) = @_;
 
+  SKIP: {
+        skip "No CBOR::XS: $@", $self->num_tests() if !eval { require CBOR::XS };
+
+        my $cxs = CBOR::XS->new();
+        $cxs->allow_sharing();
+
+        my $cxs_cbor = $cxs->encode( _create_data_struct() );
+        is( _create_cbor(), $cxs_cbor, 'encode matches CBOR::XS' );
+    }
+}
+
+sub _create_data_struct {
     my $plain_array = [];
     my $plain_hash = {};
 
     my $string = undef;
     my $string_r = \$string;
 
-    my $out;
+    return [ $plain_array, $plain_hash, $plain_array, $plain_hash, $string_r, $string_r ];
+}
 
-    $out = CBOR::Free::encode(
-        [ $plain_array, $plain_hash, $plain_array, $plain_hash, $string_r, $string_r ],
+sub _create_cbor {
+    return CBOR::Free::encode(
+        _create_data_struct(),
         preserve_references => 1,
         scalar_references => 1,
     );
+}
+
+sub _test_shared {
+    my ($dec, $decode_cr) = @_;
+
+    my $out = _create_cbor();
 
     $dec->preserve_references();
     my $rt = $decode_cr->($out);
