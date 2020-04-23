@@ -101,12 +101,12 @@ void _free_decode_state_if_not_persistent( pTHX_ decode_ctx* decstate ) {
 
 static inline void _croak_incomplete( pTHX_ decode_ctx* decstate ) {
 
-    _free_decode_state_if_not_persistent(aTHX_ decstate);
-
     SV* args[2] = {
         newSVpvs("Incomplete"),
         newSVuv(decstate->incomplete_by),
     };
+
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     cbf_die_with_arguments( aTHX_ 2, args );
 }
