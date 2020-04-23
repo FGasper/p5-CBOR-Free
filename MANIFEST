@@ -47,6 +47,7 @@ t/float.t
 t/fuzzed.t
 t/fuzzed/a
 t/hash.t
+t/incomplete.t
 t/negint.t
 t/pod.t
 t/scalar_ref.t
