@@ -70,11 +70,11 @@ SV* _seqdecode_get( pTHX_ seqdecode_ctx* seqdecode) {
 }
 
 bool _handle_flag_call( pTHX_ decode_ctx* decode_state, SV* new_setting, U8 flagval ) {
-    if (new_setting == NULL || sv_true(new_setting)) {
+    if (new_setting == NULL || SvTRUE(new_setting)) {
         decode_state->flags |= flagval;
     }
     else {
-        decode_state->flags ^= flagval;
+        decode_state->flags &= ~flagval;
     }
 
     return( !!(decode_state->flags & flagval) );
@@ -119,7 +119,7 @@ static inline bool _handle_preserve_references( pTHX_ decode_ctx* decode_state, 
     return RETVAL;
 }
 
-static inline void _set_tag_handlers( pTHX_ decode_ctx* decode_state, UV items_len, SV** args ) {
+static inline void _set_tag_handlers( pTHX_ decode_ctx* decode_state, U8 items_len, SV** args ) {
     if (!(items_len % 2)) {
         croak("Odd key-value pair given!");
     }
@@ -128,7 +128,7 @@ static inline void _set_tag_handlers( pTHX_ decode_ctx* decode_state, UV items_l
         decode_state->tag_handler = newHV();
     }
 
-    UV i;
+    U8 i;
     for (i=1; i<items_len; i += 2) {
         HV* tag_handler = decode_state->tag_handler;
 
@@ -162,64 +162,6 @@ PROTOTYPES: DISABLE
 BOOT:
     cbf_stash = gv_stashpv(_PACKAGE, FALSE);
     newCONSTSUB(cbf_stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
-
-## void
-## mutate_utf8( SV *sv)
-##     CODE:
-##         SV *copy;
-##         bool ok;
-##         STRLEN len;
-## 
-##         fprintf(stderr, "original:\n");
-##         sv_dump(sv);
-##         //----------------------------------------------------------------------
-## 
-##         fprintf(stderr, "sv_utf8_decode\n");
-##         copy = newSVsv(sv);
-##         sv_2mortal(copy);
-##         ok = sv_utf8_decode(copy);
-##         fprintf(stderr, "\tOK? %d\n", ok);
-##         if (ok) sv_dump(copy);
-## 
-##         if (ok) {
-##             fprintf(stderr, "sv_utf8_decode, then sv_utf8_downgrade\n");
-##             copy = newSVsv(copy);
-##             sv_2mortal(copy);
-##             ok = sv_utf8_downgrade(copy, 1);
-##             fprintf(stderr, "\tOK? %d\n", ok);
-##             if (ok) sv_dump(copy);
-##         }
-## 
-##         //----------------------------------------------------------------------
-##         fprintf(stderr, "sv_utf8_downgrade\n");
-##         copy = newSVsv(sv);
-##         sv_2mortal(copy);
-##         ok = sv_utf8_downgrade(copy, 1);
-##         fprintf(stderr, "\tOK? %d\n", ok);
-##         if (ok) sv_dump(copy);
-## 
-##         //----------------------------------------------------------------------
-##         fprintf(stderr, "sv_utf8_encode\n");
-##         copy = newSVsv(sv);
-##         sv_2mortal(copy);
-##         sv_utf8_encode(copy);
-##         if (ok) sv_dump(copy);
-## 
-##         //----------------------------------------------------------------------
-##         fprintf(stderr, "sv_utf8_upgrade\n");
-##         copy = newSVsv(sv);
-##         sv_2mortal(copy);
-##         len = sv_utf8_upgrade(copy);
-##         fprintf(stderr, "\tlen: %d\n", len);
-##         if (ok) sv_dump(copy);
-## 
-##         //----------------------------------------------------------------------
-##         fprintf(stderr, "sv_utf8_upgrade_flags/SV_FORCE_UTF8_UPGRADE\n");
-##         copy = newSVsv(sv);
-##         sv_2mortal(copy);
-##         len = sv_utf8_upgrade_flags(copy, SV_FORCE_UTF8_UPGRADE);
-##         fprintf(stderr, "\tlen: %d\n", len);
-##         if (ok) sv_dump(copy);
 
 SV *
 encode( SV * value, ... )

@@ -12,7 +12,7 @@ sub set_tag_handlers {
 
     while ( my ($tag, $cr) = splice @tag_kv ) {
         die "Invalid tag: $tag" if $tag !~ m<\A[0-9]+\z>;
-        die "Invalid tag $tag handler: $cr" if !UNIVERSAL::isa($cr, 'CODE');
+        die "Invalid tag $tag handler: $cr" if defined($cr) && !UNIVERSAL::isa($cr, 'CODE');
     }
 
     $self->_set_tag_handlers_backend(@tag_kv_copy);

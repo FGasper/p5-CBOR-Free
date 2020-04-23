@@ -17,14 +17,14 @@ use CBOR::Free::SequenceDecoder;
 
 __PACKAGE__->new()->runtests() if !caller;
 
-sub T2_test_decoder {
+sub T7_test_decoder {
     my $dec = CBOR::Free::Decoder->new();
     my $decode_cr = sub { $dec->decode($_[0]) };
 
     _test_shared($dec, $decode_cr);
 }
 
-sub T2_test_sequence_decoder {
+sub T7_test_sequence_decoder {
     my $dec = CBOR::Free::SequenceDecoder->new();
     my $decode_cr = sub { ${ $dec->give($_[0]) } };
 
@@ -96,6 +96,56 @@ sub _test_shared {
             \undef,
             shallow( $rt2->[4] ),
         ],
-        ref($dec) . 'references are preserved (again with the same object)',
+        ref($dec) . ': references are preserved (again with the same object)',
     );
+
+    my $got = $dec->preserve_references(0);
+    cmp_deeply($got, bool(0), 'preserve_references() when setting falsy');
+
+    my @w;
+    my $rt3 = do {
+        local $SIG{'__WARN__'} = sub { push @w, @_ };
+        $decode_cr->($out);
+    };
+
+    cmp_deeply(
+        $rt3,
+        [
+            [],
+            {},
+            0,
+            1,
+            \undef,
+            2,
+        ],
+        ref($dec) . ': references are NOT preserved after disable',
+    ) or diag explain $rt3;
+
+    cmp_deeply(
+        \@w,
+        [
+            re( qr<28> ),
+            re( qr<28> ),
+            re( qr<29> ),
+            re( qr<29> ),
+            re( qr<28> ),
+            re( qr<29> ),
+        ],
+        'warnings are given about the shared tags',
+    ) or diag explain \@w;
+
+    # ----------------------------------------------------------------------
+
+    # Flexes redundant-disable logic:
+    $got = $dec->preserve_references(0);
+    cmp_deeply($got, bool(0), 'preserve_references() return from redundant disable');
+
+    @w = ();
+
+    my $rt4 = do {
+        local $SIG{'__WARN__'} = sub { push @w, @_ };
+        $decode_cr->($out);
+    };
+
+    is_deeply( $rt4, $rt3, 'redo of non-preserve decode' ) or diag explain $rt4;
 }
