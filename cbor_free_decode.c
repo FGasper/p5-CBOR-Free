@@ -93,17 +93,15 @@ UV _iv_to_str(IV num, char *numstr, const char strlen) {
     return my_snprintf( numstr, strlen, IV_TO_STR_TMPL, num );
 }
 
-void _free_decode_state_if_not_sequence( pTHX_ decode_ctx* decstate ) {
-    if (!(decstate->flags & CBF_FLAG_SEQUENCE_MODE)) {
+void _free_decode_state_if_not_persistent( pTHX_ decode_ctx* decstate ) {
+    if (!(decstate->flags & CBF_FLAG_PERSIST_STATE)) {
         free_decode_state(aTHX_ decstate);
     }
 }
 
 static inline void _croak_incomplete( pTHX_ decode_ctx* decstate ) {
 
-    // We never call this function in sequence mode, so we can just
-    // free the decode state without concern.
-    free_decode_state(aTHX_ decstate);
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     SV* args[2] = {
         newSVpvs("Incomplete"),
@@ -117,7 +115,7 @@ static inline void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     const uint8_t ord = (uint8_t) *(decstate->curbyte);
     STRLEN offset = decstate->curbyte - decstate->start;
 
-    _free_decode_state_if_not_sequence(aTHX_ decstate);
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     SV* args[3] = {
         newSVpvs("InvalidControl"),
@@ -131,7 +129,7 @@ static inline void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
 }
 
 void _croak_invalid_utf8( pTHX_ decode_ctx* decstate, char *string, STRLEN len ) {
-    _free_decode_state_if_not_sequence(aTHX_ decstate);
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     SV* args[2] = {
         newSVpvs("InvalidUTF8"),
@@ -147,7 +145,7 @@ void _croak_invalid_map_key( pTHX_ decode_ctx* decstate ) {
     const uint8_t byte = decstate->curbyte[0];
     STRLEN offset = decstate->curbyte - decstate->start;
 
-    _free_decode_state_if_not_sequence(aTHX_ decstate);
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     char bytebuf[5];
 
@@ -199,7 +197,7 @@ void _croak_invalid_map_key( pTHX_ decode_ctx* decstate ) {
 }
 
 void _croak_cannot_decode_64bit( pTHX_ decode_ctx* decstate ) {
-    _free_decode_state_if_not_sequence(aTHX_ decstate);
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     STRLEN offset = decstate->curbyte - decstate->start;
 
@@ -215,7 +213,7 @@ void _croak_cannot_decode_64bit( pTHX_ decode_ctx* decstate ) {
 }
 
 void _croak_cannot_decode_negative( pTHX_ decode_ctx* decstate, UV abs, STRLEN offset ) {
-    _free_decode_state_if_not_sequence(aTHX_ decstate);
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     SV* args[3] = {
         newSVpvs("NegativeIntTooLow"),
@@ -868,8 +866,10 @@ decode_ctx* create_decode_state( pTHX_ SV *cbor, HV *tag_handler, UV flags ) {
         renew_decode_state_buffer( aTHX_ decode_state, cbor );
     }
 
-    SvREFCNT_inc((SV *) tag_handler);
     decode_state->tag_handler = tag_handler;
+    if (NULL != tag_handler) {
+        SvREFCNT_inc((SV *) tag_handler);
+    }
 
     decode_state->reflist = NULL;
     decode_state->reflistlen = 0;
@@ -911,6 +911,7 @@ void free_decode_state( pTHX_ decode_ctx* decode_state) {
 
     if (NULL != decode_state->tag_handler) {
         SvREFCNT_dec((SV *) decode_state->tag_handler);
+        decode_state->tag_handler = NULL;
     }
 
     Safefree(decode_state);

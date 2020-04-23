@@ -6,7 +6,7 @@
 
 #define CBF_FLAG_PRESERVE_REFERENCES 1
 #define CBF_FLAG_NAIVE_UTF8 2
-#define CBF_FLAG_SEQUENCE_MODE 4
+#define CBF_FLAG_PERSIST_STATE 4
 
 //----------------------------------------------------------------------
 // Definitions

@@ -324,7 +324,7 @@ PROTOTYPES: DISABLE
 SV*
 new(SV *class)
     CODE:
-        decode_ctx* decode_state = create_decode_state( aTHX_ NULL, NULL, CBF_FLAG_SEQUENCE_MODE);
+        decode_ctx* decode_state = create_decode_state( aTHX_ NULL, NULL, CBF_FLAG_PERSIST_STATE);
 
         RETVAL = _bless_to_sv( aTHX_ class, (void*)decode_state);
 
@@ -391,6 +391,11 @@ _set_tag_handlers_backend(decode_ctx* decode_state, ...)
     CODE:
         _set_tag_handlers( aTHX_ decode_state, items, &ST(0) );
 
+void
+DESTROY(decode_ctx* decode_state)
+    CODE:
+        free_decode_state( aTHX_ decode_state);
+
 
 # ----------------------------------------------------------------------
 
@@ -404,7 +409,7 @@ new(SV *class)
 
         SV* cbor = newSVpvs("");
 
-        decode_ctx* decode_state = create_decode_state( aTHX_ cbor, NULL, CBF_FLAG_SEQUENCE_MODE);
+        decode_ctx* decode_state = create_decode_state( aTHX_ cbor, NULL, CBF_FLAG_PERSIST_STATE);
 
         seqdecode_ctx* seqdecode;
 
