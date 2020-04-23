@@ -113,7 +113,7 @@ static inline void _croak_incomplete( pTHX_ decode_ctx* decstate ) {
 
 static inline void _croak_invalid_control( pTHX_ decode_ctx* decstate ) {
     const uint8_t ord = (uint8_t) *(decstate->curbyte);
-    STRLEN offset = decstate->curbyte - decstate->start;
+    UV offset = decstate->curbyte - decstate->start;
 
     _free_decode_state_if_not_persistent(aTHX_ decstate);
 
@@ -143,7 +143,7 @@ void _croak_invalid_utf8( pTHX_ decode_ctx* decstate, char *string, STRLEN len )
 
 void _croak_invalid_map_key( pTHX_ decode_ctx* decstate ) {
     const uint8_t byte = decstate->curbyte[0];
-    STRLEN offset = decstate->curbyte - decstate->start;
+    UV offset = decstate->curbyte - decstate->start;
 
     _free_decode_state_if_not_persistent(aTHX_ decstate);
 
@@ -197,9 +197,9 @@ void _croak_invalid_map_key( pTHX_ decode_ctx* decstate ) {
 }
 
 void _croak_cannot_decode_64bit( pTHX_ decode_ctx* decstate ) {
-    _free_decode_state_if_not_persistent(aTHX_ decstate);
+    UV offset = decstate->curbyte - decstate->start;
 
-    STRLEN offset = decstate->curbyte - decstate->start;
+    _free_decode_state_if_not_persistent(aTHX_ decstate);
 
     SV* args[3] = {
         newSVpvs("CannotDecode64Bit"),
