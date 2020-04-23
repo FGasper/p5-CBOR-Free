@@ -173,35 +173,37 @@ encode( SV * value, ... )
         for (i=1; i<items; i++) {
             if (!(i % 2)) continue;
 
-            if (strEQ( SvPV_nolen(ST(i)), CANONICAL_OPT)) {
+            char* optname = SvPV_nolen(ST(i));
+
+            if (strEQ(optname, CANONICAL_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_CANONICAL;
                 }
             }
 
-            else if (strEQ( SvPV_nolen(ST(i)), TEXT_KEYS_OPT)) {
+            else if (strEQ(optname, TEXT_KEYS_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_TEXT_KEYS;
                 }
             }
 
-            else if (strEQ( SvPV_nolen(ST(i)), PRESERVE_REFS_OPT)) {
+            else if (strEQ(optname, PRESERVE_REFS_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_PRESERVE_REFS;
                 }
             }
 
-            else if (strEQ( SvPV_nolen(ST(i)), SCALAR_REFS_OPT)) {
+            else if (strEQ(optname, SCALAR_REFS_OPT)) {
                 ++i;
                 if (i<items && SvTRUE(ST(i))) {
                     encode_state_flags |= ENCODE_FLAG_SCALAR_REFS;
                 }
             }
 
-            else if (strEQ( SvPV_nolen(ST(i)), STRING_ENCODE_MODE_OPT)) {
+            else if (strEQ(optname, STRING_ENCODE_MODE_OPT)) {
                 ++i;
 
                 if (i<items) {
