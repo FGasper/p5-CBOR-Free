@@ -30,6 +30,7 @@ for my $t (@tests) {
 
 my @dectests = (
     [ "\x9f\x80\xff" => [ [] ] ],
+    [ "\x9f\x80\x40\xff" => [ [], q<> ] ],
 );
 
 for my $t (@dectests) {
