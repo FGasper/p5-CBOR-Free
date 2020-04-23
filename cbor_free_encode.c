@@ -49,10 +49,12 @@ static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
 }
 
 static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
+#if IS_64_BIT
     *(buffer++) = num >> 56;
     *(buffer++) = num >> 48;
     *(buffer++) = num >> 40;
     *(buffer++) = num >> 32;
+#endif
     *(buffer++) = num >> 24;
     *(buffer++) = num >> 16;
     *(buffer++) = num >> 8;
