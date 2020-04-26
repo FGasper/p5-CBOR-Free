@@ -33,6 +33,29 @@ static HV *tagged_stash = NULL;
         UTF8_DOWNGRADE_OR_CROAK(encode_state, to_encode); \
     }
 
+#define STORE_PLAIN_HASH_KEY(encode_state, h_entry, key, key_length, major_type) \
+    key = HePV(h_entry, key_length); \
+    _init_length_buffer( aTHX_ key_length, major_type, encode_state ); \
+    _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+
+#define STORE_SORTABLE_HASH_KEY(sortables_entry, h_entry, key, key_length, key_is_utf8) \
+    key = HePV(h_entry, key_length); \
+    sortables_entry.is_utf8 = key_is_utf8; \
+    sortables_entry.buffer = key; \
+    sortables_entry.length = key_length;
+
+#define STORE_UPGRADED_SORTABLE_HASH_KEY(sortables_entry, h_entry) \
+    SV* key_sv = HeSVKEY_force(h_entry); \
+    sv_utf8_upgrade(key_sv); \
+    sortables_entry.is_utf8 = true; \
+    sortables_entry.buffer = SvPV(key_sv, sortables_entry.length);
+
+#define STORE_DOWNGRADED_SORTABLE_HASH_KEY(sortables_entry, h_entry, key_is_utf8) \
+    SV* key_sv = HeSVKEY_force(h_entry); \
+    UTF8_DOWNGRADE_OR_CROAK(encode_state, key_sv); \
+    sortables_entry.is_utf8 = key_is_utf8; \
+    sortables_entry.buffer = SvPV(key_sv, sortables_entry.length);
+
 //----------------------------------------------------------------------
 
 // These encode num as big-endian into buffer.
@@ -290,27 +313,18 @@ static inline void _encode_string_octets( pTHX_ encode_ctx* encode_state, SV* va
 static inline void _upgrade_and_store_hash_key( pTHX_ HE* h_entry, encode_ctx *encode_state ) {
     SV* key_sv = HeSVKEY_force(h_entry);
     sv_utf8_upgrade(key_sv);
-    _encode( aTHX_ key_sv, encode_state );
+    _encode_string_sv( aTHX_ encode_state, key_sv );
 }
 
 static inline void _downgrade_and_store_hash_key( pTHX_ HE* h_entry, encode_ctx *encode_state, enum CBOR_TYPE string_type ) {
     SV* key_sv = HeSVKEY_force(h_entry);
     UTF8_DOWNGRADE_OR_CROAK(encode_state, key_sv);
 
-    if (string_type == CBOR_TYPE_UTF8) {
+    // We can do this without altering h_entry itself because
+    // key_sv is just a mortal copy of the key.
+    if (string_type == CBOR_TYPE_UTF8) SvUTF8_on(key_sv);
 
-        // We don’t want to change the content of the passed-in hash.
-        // The UTF-8 downgrade will have removed the UTF8 flag, but
-        // we need to store a text string. So create a temporary clone
-        // of the key SV that we can manipulate without affecting the
-        // (Perl-visible) content of the original hash key.
-
-        key_sv = newSVsv(key_sv);
-        sv_2mortal(key_sv);
-        SvUTF8_on(key_sv);
-    }
-
-    _encode( aTHX_ key_sv, encode_state );
+    _encode_string_sv( aTHX_ encode_state, key_sv );
 }
 
 void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
@@ -452,6 +466,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             STRLEN key_length;
 
             HE* h_entry;
+            bool heutf8;
 
             I32 keyscount = _magic_safe_hv_iterinit(aTHX_ hash);
 
@@ -463,18 +478,40 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                 struct sortable_hash_entry sortables[keyscount];
 
                 while ( (h_entry = hv_iternext(hash)) ) {
-                    if (HeUTF8(h_entry) || (!encode_state->text_keys && !CBF_HeUTF8(h_entry))) {
-                        key = HePV(h_entry, key_length);
-                        sortables[curkey].is_utf8 = !!HeUTF8(h_entry);
-                        sortables[curkey].buffer = key;
-                        sortables[curkey].length = key_length;
-                    }
-                    else {
-                        SV* key_sv = HeSVKEY_force(h_entry);
-                        sv_utf8_upgrade(key_sv);
-                        sortables[curkey].is_utf8 = true;
+                    heutf8 = HeUTF8(h_entry);
 
-                        sortables[curkey].buffer = SvPV(key_sv, sortables[curkey].length);
+                    switch (encode_state->string_encode_mode) {
+                        case CBF_STRING_ENCODE_SV:
+                            if (heutf8 || !CBF_HeUTF8(h_entry)) {
+                                STORE_SORTABLE_HASH_KEY( sortables[curkey], h_entry, key, key_length, heutf8 );
+                            }
+                            else {
+                                STORE_UPGRADED_SORTABLE_HASH_KEY(sortables[curkey], h_entry);
+                            }
+
+                            break;
+
+                        case CBF_STRING_ENCODE_UNICODE:
+                            if (heutf8) {
+                                STORE_SORTABLE_HASH_KEY( sortables[curkey], h_entry, key, key_length, true );
+                            }
+                            else {
+                                STORE_UPGRADED_SORTABLE_HASH_KEY(sortables[curkey], h_entry);
+                            }
+                            break;
+
+                        case CBF_STRING_ENCODE_UTF8:
+                        case CBF_STRING_ENCODE_OCTETS:
+                            if (heutf8) {
+                                STORE_DOWNGRADED_SORTABLE_HASH_KEY(sortables[curkey], h_entry, encode_state->string_encode_mode == CBF_STRING_ENCODE_UTF8);
+                            }
+                            else {
+                                STORE_SORTABLE_HASH_KEY( sortables[curkey], h_entry, key, key_length, encode_state->string_encode_mode == CBF_STRING_ENCODE_UTF8 );
+                            }
+                            break;
+
+                        default:
+                            assert(0);
                     }
 
                     sortables[curkey].value = hv_iterval(hash, h_entry);
@@ -494,30 +531,26 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             else {
                 while ( (h_entry = hv_iternext(hash)) ) {
 
+                    /*
                     fprintf(stderr, "HeSVKEY: %p\n", HeSVKEY(h_entry));
                     fprintf(stderr, "HeUTF8: %d\n", HeUTF8(h_entry));
                     fprintf(stderr, "CBF_HeUTF8: %d\n", CBF_HeUTF8(h_entry));
+                    */
+// encode_state h_entry key key_length
 
                     switch (encode_state->string_encode_mode) {
                         case CBF_STRING_ENCODE_SV:
                             if (HeUTF8(h_entry) || !CBF_HeUTF8(h_entry)) {
-                                key = HePV(h_entry, key_length);
-
-                                _init_length_buffer( aTHX_ key_length, HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
-                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                                STORE_PLAIN_HASH_KEY( encode_state, h_entry, key, key_length, HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY );
                             }
                             else {
                                 _upgrade_and_store_hash_key( aTHX_ h_entry, encode_state);
-
                             }
                             break;
 
                         case CBF_STRING_ENCODE_UNICODE:
                             if (HeUTF8(h_entry)) {
-                                key = HePV(h_entry, key_length);
-
-                                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_UTF8, encode_state );
-                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                                STORE_PLAIN_HASH_KEY( encode_state, h_entry, key, key_length, CBOR_TYPE_UTF8 );
                             }
                             else {
                                 _upgrade_and_store_hash_key( aTHX_ h_entry, encode_state);
@@ -530,9 +563,7 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                                 _downgrade_and_store_hash_key( aTHX_ h_entry, encode_state, CBOR_TYPE_UTF8 );
                             }
                             else {
-                                key = HePV(h_entry, key_length);
-                                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_UTF8, encode_state );
-                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                                STORE_PLAIN_HASH_KEY( encode_state, h_entry, key, key_length, CBOR_TYPE_UTF8 );
                             }
 
                             break;
@@ -542,15 +573,13 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                                 _downgrade_and_store_hash_key( aTHX_ h_entry, encode_state, CBOR_TYPE_BINARY );
                             }
                             else {
-                                key = HePV(h_entry, key_length);
-                                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
-                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                                STORE_PLAIN_HASH_KEY( encode_state, h_entry, key, key_length, CBOR_TYPE_BINARY );
                             }
 
                             break;
 
                         default:
-                            _upgrade_and_store_hash_key( aTHX_ h_entry, encode_state);
+                            assert(0);
                     }
 
                     _encode( aTHX_ hv_iterval(hash, h_entry), encode_state );

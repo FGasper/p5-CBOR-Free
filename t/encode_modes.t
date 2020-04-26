@@ -26,24 +26,26 @@ use constant UTF8_0100 => do { utf8::encode( my $v = "\x{100}" ); $v };
 
 __PACKAGE__->runtests() if !caller;
 
-sub T16_test_given_unchanged {
-    for my $mode ( qw( sv encode_text as_text as_binary ) ) {
-        my $v = UTF8_00FF;
-        my $utf8_flag = utf8::is_utf8($v);
-        CBOR::Free::encode($v, string_encode_mode => $mode);
-        is( $v, UTF8_00FF, "$mode: given undecoded scalar is unchanged" );
-        is( utf8::is_utf8($v), $utf8_flag, "$mode: undecoded scalar internals are unchanged" );
+sub T32_test_given_unchanged {
+    for my $canonical ( 0, 1 ) {
+        for my $mode ( qw( sv encode_text as_text as_binary ) ) {
+            my $v = UTF8_00FF;
+            my $utf8_flag = utf8::is_utf8($v);
+            CBOR::Free::encode($v, canonical => $canonical, string_encode_mode => $mode);
+            is( $v, UTF8_00FF, "$mode: given undecoded scalar is unchanged" );
+            is( utf8::is_utf8($v), $utf8_flag, "$mode: undecoded scalar internals are unchanged (canonical: $canonical)" );
 
-        utf8::decode($v);
-        my $v_copy = $v;
-        $utf8_flag = utf8::is_utf8($v);
-        CBOR::Free::encode($v, string_encode_mode => $mode);
-        is( $v, $v_copy, "$mode: given decoded scalar is unchanged" );
-        is( utf8::is_utf8($v), $utf8_flag, "$mode: decoded scalar internals are unchanged" );
+            utf8::decode($v);
+            my $v_copy = $v;
+            $utf8_flag = utf8::is_utf8($v);
+            CBOR::Free::encode($v, canonical => $canonical, string_encode_mode => $mode);
+            is( $v, $v_copy, "$mode: given decoded scalar is unchanged" );
+            is( utf8::is_utf8($v), $utf8_flag, "$mode: decoded scalar internals are unchanged (canonical: $canonical)" );
+        }
     }
 }
 
-sub T15_test_encode_text {
+sub T18_test_encode_text {
     my @t = (
         [
             "\x{100}",
@@ -91,37 +93,28 @@ sub T15_test_encode_text {
         ],
     );
 
-    for my $t_ar (@t) {
-        my ($in, $expect, $label) = @$t_ar;
+    for my $canonical ( 0, 1 ) {
+        for my $t_ar (@t) {
+            my ($in, $expect, $label) = @$t_ar;
 
-        my %in_copy;
+            my %in_copy;
 
-        if ('HASH' eq ref $in) {
-            %in_copy = %$in;
-            CBOR::Free::_hash_keys_2_sv(\%in_copy);
-        }
-
-        my $got = CBOR::Free::encode($in, string_encode_mode => 'encode_text');
-
-        is(
-            sprintf('%v.02x', $got),
-            sprintf('%v.02x', $expect),
-            $label,
-        );
-
-        if (%in_copy) {
-            $got = CBOR::Free::encode(\%in_copy, string_encode_mode => 'encode_text');
+            my $got = CBOR::Free::encode(
+                $in,
+                string_encode_mode => 'encode_text',
+                canonical => $canonical,
+            );
 
             is(
                 sprintf('%v.02x', $got),
                 sprintf('%v.02x', $expect),
-                "SV keys: $label",
+                "$label (canonical: $canonical)",
             );
         }
     }
 }
 
-sub T12_test_wide_character_errors {
+sub T24_test_wide_character_errors {
 
     for my $mode ( qw( as_text  as_binary ) ) {
         my @t = (
@@ -139,27 +132,34 @@ sub T12_test_wide_character_errors {
             ],
         );
 
-        for my $t_ar (@t) {
-            my ($in, $label) = @$t_ar;
+        for my $canonical ( 0, 1 ) {
+            for my $t_ar (@t) {
+                my ($in, $label) = @$t_ar;
 
-            throws_ok(
-                sub { CBOR::Free::encode($in, string_encode_mode => $mode) },
-                'CBOR::Free::X::WideCharacter',
-                "$mode: wide character prompts appropriate exception",
-            );
+                throws_ok(
+                    sub {
+                        CBOR::Free::encode($in,
+                            canonical => $canonical,
+                            string_encode_mode => $mode,
+                        );
+                    },
+                    'CBOR::Free::X::WideCharacter',
+                    "$mode (canonical: $canonical): wide character prompts appropriate exception",
+                );
 
-            my $str = $@->get_message();
+                my $str = $@->get_message();
 
-            like(
-                $str,
-                qr<\\x\{100\}>x,
-                "$mode: exception message is escaped as expected",
-            );
+                like(
+                    $str,
+                    qr<\\x\{100\}>x,
+                    "$mode (canonical: $canonical): exception message is escaped as expected",
+                );
+            }
         }
     }
 }
 
-sub T5_test_as_text__happy_path {
+sub T10_test_as_text__happy_path {
     my @t = (
         [
             do {
@@ -205,20 +205,25 @@ sub T5_test_as_text__happy_path {
         ],
     );
 
-    for my $t_ar (@t) {
-        my ($in, $expect, $label) = @$t_ar;
+    for my $canonical ( 0, 1 ) {
+        for my $t_ar (@t) {
+            my ($in, $expect, $label) = @$t_ar;
 
-        my $got = CBOR::Free::encode($in, string_encode_mode => 'as_text');
+            my $got = CBOR::Free::encode($in,
+                canonical => $canonical,
+                string_encode_mode => 'as_text',
+            );
 
-        is(
-            sprintf('%v.02x', $got),
-            sprintf('%v.02x', $expect),
-            $label,
-        );
+            is(
+                sprintf('%v.02x', $got),
+                sprintf('%v.02x', $expect),
+                "$label (canonical: $canonical)",
+            );
+        }
     }
 }
 
-sub T5_test_as_binary__happy_path {
+sub T10_test_as_binary__happy_path {
     my @t = (
         [
             do {
@@ -264,16 +269,21 @@ sub T5_test_as_binary__happy_path {
         ],
     );
 
-    for my $t_ar (@t) {
-        my ($in, $expect, $label) = @$t_ar;
+    for my $canonical ( 0, 1 ) {
+        for my $t_ar (@t) {
+            my ($in, $expect, $label) = @$t_ar;
 
-        my $got = CBOR::Free::encode($in, string_encode_mode => 'as_binary');
+            my $got = CBOR::Free::encode($in,
+                canonical => $canonical,
+                string_encode_mode => 'as_binary',
+            );
 
-        is(
-            sprintf('%v.02x', $got),
-            sprintf('%v.02x', $expect),
-            $label,
-        );
+            is(
+                sprintf('%v.02x', $got),
+                sprintf('%v.02x', $expect),
+                "$label (canonical: $canonical)",
+            );
+        }
     }
 }
 

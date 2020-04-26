@@ -21,7 +21,6 @@
 #define CANONICAL_OPT           "canonical"
 #define PRESERVE_REFS_OPT       "preserve_references"
 #define SCALAR_REFS_OPT         "scalar_references"
-#define TEXT_KEYS_OPT           "text_keys"
 #define STRING_ENCODE_MODE_OPT  "string_encode_mode"
 
 #define UNUSED(x) (void)(x)
@@ -222,35 +221,7 @@ encode( SV * value, ... )
 
             optname = SvPVX(opt_sv);
 
-            if (strEQ(optname, CANONICAL_OPT)) {
-                ++i;
-                if (i<items && SvTRUE(ST(i))) {
-                    encode_state_flags |= ENCODE_FLAG_CANONICAL;
-                }
-            }
-
-            else if (strEQ(optname, TEXT_KEYS_OPT)) {
-                ++i;
-                if (i<items && SvTRUE(ST(i))) {
-                    encode_state_flags |= ENCODE_FLAG_TEXT_KEYS;
-                }
-            }
-
-            else if (strEQ(optname, PRESERVE_REFS_OPT)) {
-                ++i;
-                if (i<items && SvTRUE(ST(i))) {
-                    encode_state_flags |= ENCODE_FLAG_PRESERVE_REFS;
-                }
-            }
-
-            else if (strEQ(optname, SCALAR_REFS_OPT)) {
-                ++i;
-                if (i<items && SvTRUE(ST(i))) {
-                    encode_state_flags |= ENCODE_FLAG_SCALAR_REFS;
-                }
-            }
-
-            else if (strEQ(optname, STRING_ENCODE_MODE_OPT)) {
+            if (strEQ(optname, STRING_ENCODE_MODE_OPT)) {
                 ++i;
 
                 if (i<items) {
@@ -273,6 +244,31 @@ encode( SV * value, ... )
                     }
 
                 }
+            }
+
+            else if (strEQ(optname, CANONICAL_OPT)) {
+                ++i;
+                if (i<items && SvTRUE(ST(i))) {
+                    encode_state_flags |= ENCODE_FLAG_CANONICAL;
+                }
+            }
+
+            else if (strEQ(optname, PRESERVE_REFS_OPT)) {
+                ++i;
+                if (i<items && SvTRUE(ST(i))) {
+                    encode_state_flags |= ENCODE_FLAG_PRESERVE_REFS;
+                }
+            }
+
+            else if (strEQ(optname, SCALAR_REFS_OPT)) {
+                ++i;
+                if (i<items && SvTRUE(ST(i))) {
+                    encode_state_flags |= ENCODE_FLAG_SCALAR_REFS;
+                }
+            }
+
+            else {
+                warn("Invalid option: %s", optname);
             }
         }
 

@@ -59,6 +59,8 @@ CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
         [perlunitut](https://metacpan.org/pod/perlunitut) recommends (which you might be doing via `use utf8`)
         **AND** if you intend for your CBOR to contain exclusively text.
 
+        Think of this option as: “All my strings are decoded.”
+
         (Perl internals note: if !SvUTF8, the CBOR will be the UTF8-upgraded
         version.)
 
@@ -69,13 +71,17 @@ CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
         treating all input as octets, **BUT** you still intend for your CBOR to
         contain exclusively text.
 
+        Think of this option as: “I’ve encoded all my strings as UTF-8.”
+
         (Perl internals note: if SvUTF8, the CBOR will be the downgraded version.)
 
-    - `as_binary`: Like `as_text`, but outputs CBOR binary
+    - `as_binary`: It’s like `as_text`, but outputs CBOR binary
     instead of text.
 
         This is probably what you want if your application is “all binary,
         all the time”.
+
+        Think of this option as: “Just the bytes, ma’am.”
 - `text_keys` - EXPERIMENTAL. Encodes all Perl hash keys as CBOR text.
 If you use this mode then your strings **must** be properly decoded, or else
 the output CBOR may mangle your string.
@@ -163,21 +169,15 @@ CBOR binary strings become undecoded Perl strings.
     (See [CBOR::Free::Decoder](https://metacpan.org/pod/CBOR::Free::Decoder) and [CBOR::Free::SequenceDecoder](https://metacpan.org/pod/CBOR::Free::SequenceDecoder) for more
     character-decoding options.)
 
-    CBOR::Free guarantees that its UTF-8-decoding will _always_ enable the
-    resulting Perl string’s internal UTF8 flag—even for “invariant” strings
-    like `abc`. CBOR::Free also guarantees
-    the inverse: an undecoded Perl string from CBOR::Free will _never_ have
-    its internal UTF8 flag enabled.
-
     Notes:
 
     - Invalid UTF-8 in a CBOR text string is considered
     invalid input and will thus prompt a thrown exception.
     - You can reliably use `utf8::is_utf8()` to determine if a given Perl
     string came from CBOR text or binary, but **ONLY** if you test the scalar as
-    it appears in the newly-decoded data structure itself. Ordinarily you
-    should avoid `is_utf8()`, but with CBOR::Free-created strings
-    this limited use case is legitimate and potentially gainful.
+    it appears in the newly-decoded data structure itself. Generally Perl code
+    should avoid `is_utf8()`, but with CBOR::Free-created strings this limited
+    use case is legitimate and potentially gainful.
 
 - The only map keys that `decode()` accepts are integers and strings.
 An exception is thrown if the decoder finds anything else as a map key.
