@@ -12,6 +12,8 @@ use Test::Exception;
 
 use parent qw( Test::Class::Tiny );
 
+use Config;
+
 use Data::Dumper;
 
 use CBOR::Free;
@@ -99,5 +101,35 @@ sub T_incompletes {
         );
     }
 }
+
+#sub T0_config {
+#    my $encoded = CBOR::Free::encode( \%Config );
+#
+#    my $decoder = CBOR::Free::Decoder->new();
+#
+#    for my $shortfall ( 1 .. ( length($encoded) - 1 ) ) {
+#        my $short = substr( $encoded, 0, -$shortfall );
+#
+#        throws_ok(
+#            sub { CBOR::Free::decode( $short ) },
+#            'CBOR::Free::X::Incomplete',
+#            "decode() when CBOR is $shortfall byte(s) incomplete",
+#        );
+#
+#        throws_ok(
+#            sub { $decoder->decode( $short ) },
+#            'CBOR::Free::X::Incomplete',
+#            "decode() method when CBOR is $shortfall byte(s) incomplete",
+#        );
+#
+#        my $seqdecoder = CBOR::Free::SequenceDecoder->new();
+#
+#        is_deeply(
+#            [ $seqdecoder->give($short) ],
+#            [ undef ],
+#            "sequence decoder when CBOR is $shortfall byte(s) incomplete",
+#        );
+#    }
+#}
 
 1;

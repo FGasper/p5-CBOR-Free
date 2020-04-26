@@ -86,6 +86,8 @@ following the receive-decode-process-encode-output workflow that
 L<perlunitut> recommends (which you might be doing via C<use utf8>)
 B<AND> if you intend for your CBOR to contain exclusively text.
 
+Think of this option as: “All my strings are decoded.”
+
 (Perl internals note: if !SvUTF8, the CBOR will be the UTF8-upgraded
 version.)
 
@@ -96,13 +98,17 @@ This is probably what you want if you forgo character decoding (and encoding),
 treating all input as octets, B<BUT> you still intend for your CBOR to
 contain exclusively text.
 
+Think of this option as: “I’ve encoded all my strings as UTF-8.”
+
 (Perl internals note: if SvUTF8, the CBOR will be the downgraded version.)
 
-=item * C<as_binary>: Like C<as_text>, but outputs CBOR binary
+=item * C<as_binary>: It’s like C<as_text>, but outputs CBOR binary
 instead of text.
 
 This is probably what you want if your application is “all binary,
 all the time”.
+
+Think of this option as: “Just the bytes, ma’am.”
 
 =back
 
@@ -207,12 +213,6 @@ CBOR binary strings become undecoded Perl strings.
 (See L<CBOR::Free::Decoder> and L<CBOR::Free::SequenceDecoder> for more
 character-decoding options.)
 
-CBOR::Free guarantees that its UTF-8-decoding will I<always> enable the
-resulting Perl string’s internal UTF8 flag—even for “invariant” strings
-like C<abc>. CBOR::Free also guarantees
-the inverse: an undecoded Perl string from CBOR::Free will I<never> have
-its internal UTF8 flag enabled.
-
 Notes:
 
 =over
@@ -222,9 +222,9 @@ invalid input and will thus prompt a thrown exception.
 
 =item * You can reliably use C<utf8::is_utf8()> to determine if a given Perl
 string came from CBOR text or binary, but B<ONLY> if you test the scalar as
-it appears in the newly-decoded data structure itself. Ordinarily you
-should avoid C<is_utf8()>, but with CBOR::Free-created strings
-this limited use case is legitimate and potentially gainful.
+it appears in the newly-decoded data structure itself. Generally Perl code
+should avoid C<is_utf8()>, but with CBOR::Free-created strings this limited
+use case is legitimate and potentially gainful.
 
 =back
 

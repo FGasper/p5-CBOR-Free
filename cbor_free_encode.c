@@ -23,11 +23,14 @@ static const unsigned char CBOR_NEGINF_SHORT[3] = { 0xf9, 0xfc, 0x00 };
 
 static HV *tagged_stash = NULL;
 
+#define UTF8_DOWNGRADE_OR_CROAK(encode_state, sv) \
+    if (!sv_utf8_downgrade(sv, true)) { \
+        _croak_wide_character( aTHX_ encode_state, sv ); \
+    }
+
 #define UTF8_DOWNGRADE_IF_NEEDED(encode_state, to_encode) \
     if (SvUTF8(to_encode)) { \
-        if (!sv_utf8_downgrade(to_encode, true)) { \
-            _croak_wide_character( aTHX_ encode_state, to_encode ); \
-        } \
+        UTF8_DOWNGRADE_OR_CROAK(encode_state, to_encode); \
     }
 
 //----------------------------------------------------------------------
@@ -175,6 +178,7 @@ static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type,
     }
 }
 
+void _encode( pTHX_ SV *value, encode_ctx *encode_state );
 static inline void _encode_tag( pTHX_ IV tagnum, SV *value, encode_ctx *encode_state );
 
 // Return indicates to encode the actual value.
@@ -281,6 +285,32 @@ static inline void _encode_string_octets( pTHX_ encode_ctx* encode_state, SV* va
     UTF8_DOWNGRADE_IF_NEEDED(encode_state, to_encode);
 
     _encode_string_sv( aTHX_ encode_state, to_encode );
+}
+
+static inline void _upgrade_and_store_hash_key( pTHX_ HE* h_entry, encode_ctx *encode_state ) {
+    SV* key_sv = HeSVKEY_force(h_entry);
+    sv_utf8_upgrade(key_sv);
+    _encode( aTHX_ key_sv, encode_state );
+}
+
+static inline void _downgrade_and_store_hash_key( pTHX_ HE* h_entry, encode_ctx *encode_state, enum CBOR_TYPE string_type ) {
+    SV* key_sv = HeSVKEY_force(h_entry);
+    UTF8_DOWNGRADE_OR_CROAK(encode_state, key_sv);
+
+    if (string_type == CBOR_TYPE_UTF8) {
+
+        // We don’t want to change the content of the passed-in hash.
+        // The UTF-8 downgrade will have removed the UTF8 flag, but
+        // we need to store a text string. So create a temporary clone
+        // of the key SV that we can manipulate without affecting the
+        // (Perl-visible) content of the original hash key.
+
+        key_sv = newSVsv(key_sv);
+        sv_2mortal(key_sv);
+        SvUTF8_on(key_sv);
+    }
+
+    _encode( aTHX_ key_sv, encode_state );
 }
 
 void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
@@ -464,29 +494,63 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
             else {
                 while ( (h_entry = hv_iternext(hash)) ) {
 
-                    // If the key is HeUTF8, then we can use it as-is.
-                    // (This will yield a CBOR text key.)
-                    //
-                    // If the key is !CBF_HeUTF8 and we aren’t in text-keys
-                    // mode, then use the key as-is.
-                    // (This will yield a CBOR binary key.)
-                    //
-                    // If the key is !HeUTF8 but IS CBF_HeUTF8, then we
-                    // force an SV conversion and upgrade to UTF-8.
-                    //
-                    // Likewise, if the key is !HeUTF8 but we are in text-keys
-                    // mode, we need the same conversion.
+                    fprintf(stderr, "HeSVKEY: %p\n", HeSVKEY(h_entry));
+                    fprintf(stderr, "HeUTF8: %d\n", HeUTF8(h_entry));
+                    fprintf(stderr, "CBF_HeUTF8: %d\n", CBF_HeUTF8(h_entry));
 
-                    if (HeUTF8(h_entry) || (!encode_state->text_keys && !CBF_HeUTF8(h_entry))) {
-                        key = HePV(h_entry, key_length);
+                    switch (encode_state->string_encode_mode) {
+                        case CBF_STRING_ENCODE_SV:
+                            if (HeUTF8(h_entry) || !CBF_HeUTF8(h_entry)) {
+                                key = HePV(h_entry, key_length);
 
-                        _init_length_buffer( aTHX_ key_length, HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
-                        _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
-                    }
-                    else {
-                        SV* key_sv = HeSVKEY_force(h_entry);
-                        sv_utf8_upgrade(key_sv);
-                        _encode( aTHX_ key_sv, encode_state );
+                                _init_length_buffer( aTHX_ key_length, HeUTF8(h_entry) ? CBOR_TYPE_UTF8 : CBOR_TYPE_BINARY, encode_state );
+                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                            }
+                            else {
+                                _upgrade_and_store_hash_key( aTHX_ h_entry, encode_state);
+
+                            }
+                            break;
+
+                        case CBF_STRING_ENCODE_UNICODE:
+                            if (HeUTF8(h_entry)) {
+                                key = HePV(h_entry, key_length);
+
+                                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_UTF8, encode_state );
+                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                            }
+                            else {
+                                _upgrade_and_store_hash_key( aTHX_ h_entry, encode_state);
+
+                            }
+                            break;
+
+                        case CBF_STRING_ENCODE_UTF8:
+                            if (HeUTF8(h_entry)) {
+                                _downgrade_and_store_hash_key( aTHX_ h_entry, encode_state, CBOR_TYPE_UTF8 );
+                            }
+                            else {
+                                key = HePV(h_entry, key_length);
+                                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_UTF8, encode_state );
+                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                            }
+
+                            break;
+
+                        case CBF_STRING_ENCODE_OCTETS:
+                            if (HeUTF8(h_entry)) {
+                                _downgrade_and_store_hash_key( aTHX_ h_entry, encode_state, CBOR_TYPE_BINARY );
+                            }
+                            else {
+                                key = HePV(h_entry, key_length);
+                                _init_length_buffer( aTHX_ key_length, CBOR_TYPE_BINARY, encode_state );
+                                _COPY_INTO_ENCODE( encode_state, (unsigned char *) key, key_length );
+                            }
+
+                            break;
+
+                        default:
+                            _upgrade_and_store_hash_key( aTHX_ h_entry, encode_state);
                     }
 
                     _encode( aTHX_ hv_iterval(hash, h_entry), encode_state );

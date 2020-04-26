@@ -101,8 +101,6 @@ enabled. This is useful if you expect all strings (including binary) to be
 UTF-8 and want to handle them in Perl as character strings instead of
 byte strings.
 
-#----------------------------------------------------------------------
-
 =head2 I<OBJ>->set_tag_handlers( %TAG_CALLBACK )
 
 Takes a list of key/value pairs where each key is a tag (i.e., number)

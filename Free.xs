@@ -18,20 +18,11 @@
 
 #define _PACKAGE "CBOR::Free"
 
-#define CANONICAL_OPT "canonical"
-#define CANONICAL_OPT_LEN (sizeof(CANONICAL_OPT) - 1)
-
-#define PRESERVE_REFS_OPT "preserve_references"
-#define PRESERVE_REFS_OPT_LEN (sizeof(PRESERVE_REFS_OPT) - 1)
-
-#define SCALAR_REFS_OPT "scalar_references"
-#define SCALAR_REFS_OPT_LEN (sizeof(SCALAR_REFS_OPT) - 1)
-
-#define TEXT_KEYS_OPT "text_keys"
-#define TEXT_KEYS_OPT_LEN (sizeof(TEXT_KEYS_OPT) - 1)
-
-#define STRING_ENCODE_MODE_OPT "string_encode_mode"
-#define STRING_ENCODE_MODE_OPT_LEN (sizeof(STRING_ENCODE_MODE_OPT) - 1)
+#define CANONICAL_OPT           "canonical"
+#define PRESERVE_REFS_OPT       "preserve_references"
+#define SCALAR_REFS_OPT         "scalar_references"
+#define TEXT_KEYS_OPT           "text_keys"
+#define STRING_ENCODE_MODE_OPT  "string_encode_mode"
 
 #define UNUSED(x) (void)(x)
 
@@ -163,6 +154,56 @@ BOOT:
     cbf_stash = gv_stashpv(_PACKAGE, FALSE);
     newCONSTSUB(cbf_stash, "_MAX_RECURSION", newSVuv( MAX_ENCODE_RECURSE ));
 
+# Used in tests; useful to refactor to its own module?
+SV *
+_hash_keys_2_sv( SV * hashref )
+    CODE:
+        if (SVt_PVHV != SvTYPE(SvRV(hashref))) {
+            croak("need hashref");
+        }
+
+        HV *hash = (HV *)SvRV(hashref);
+
+        HE *stored = hv_store_ent(
+            hash,
+            newSVpvs("Hello"),
+            newSVpvs("There"),
+            0
+        );
+        fprintf(stderr, "HeSVKEY after store_ent: %p, %p\n", stored, HeSVKEY(stored));
+
+        HE *entry1 = hv_fetch_ent(hash, newSVpvs("Hello"), 0, 0);
+        if (NULL == entry1) {
+            croak("huh?");
+        }
+        else {
+            fprintf(stderr, "HeSVKEY after store_ent/fetch_ent: %p, %p\n", entry1, HeSVKEY(entry1));
+        }
+
+        HE *h_entry;
+
+        while ( (h_entry = hv_iternext(hash)) ) {
+            if (NULL == HeSVKEY(h_entry)) {
+fprintf(stderr, "no SV key\n");
+                // continue;
+                SV *keysv = HeSVKEY_force(h_entry);
+                keysv = newSVsv(keysv);
+//                SvREFCNT_inc(keysv);
+sv_dump(keysv);
+                HeSVKEY_set(h_entry, keysv);
+fprintf(stderr, "after set: %p\n", HeSVKEY(h_entry));
+            }
+else {
+fprintf(stderr, "entry has SV key\n");
+}
+        }
+sv_dump(hashref);
+
+        RETVAL = newSVsv(hashref);
+
+    OUTPUT:
+        RETVAL
+
 SV *
 encode( SV * value, ... )
     CODE:
@@ -170,10 +211,16 @@ encode( SV * value, ... )
         enum cbf_string_encode_mode string_encode_mode = CBF_STRING_ENCODE_SV;
 
         U8 i;
+        char* optname;
+        SV* opt_sv;
+
         for (i=1; i<items; i++) {
             if (!(i % 2)) continue;
 
-            char* optname = SvPV_nolen(ST(i));
+            opt_sv = ST(i);
+            if (!SvPOK(opt_sv)) continue;
+
+            optname = SvPVX(opt_sv);
 
             if (strEQ(optname, CANONICAL_OPT)) {
                 ++i;
