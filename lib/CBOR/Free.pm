@@ -11,7 +11,7 @@ our ($VERSION);
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.30_03';
+    $VERSION = '0.30_04';
     XSLoader::load();
 }
 
@@ -64,7 +64,11 @@ The encoder currently does not handle any other blessed references.
 =item * C<canonical> - A boolean that makes the encoder output
 CBOR in L<canonical form|https://tools.ietf.org/html/rfc7049#section-3.9>.
 
-=item * C<string_encode_mode> - Takes one of:
+=item * C<string_encode_mode> - Decides the logic to use for
+CBOR encoding of strings and hash keys. (The word “string”
+in the below descriptions applies equally to hash keys.)
+
+Takes one of:
 
 =over
 
