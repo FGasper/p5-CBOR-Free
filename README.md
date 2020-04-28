@@ -40,7 +40,12 @@ The encoder currently does not handle any other blessed references.
 
 - `canonical` - A boolean that makes the encoder output
 CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
-- `string_encode_mode` - Takes one of:
+- `string_encode_mode` - Decides the logic to use for
+CBOR encoding of strings and hash keys. (The word “string”
+in the below descriptions applies equally to hash keys.)
+
+    Takes one of:
+
     - `sv`: The default mode of operation. If the string’s internal
     UTF8 flag is set, it will become a CBOR text string; otherwise, it will be
     CBOR binary. This is good for IPC with other Perl code but isn’t a very
@@ -82,6 +87,7 @@ CBOR in [canonical form](https://tools.ietf.org/html/rfc7049#section-3.9).
         all the time”.
 
         Think of this option as: “Just the bytes, ma’am.”
+
 - `text_keys` - EXPERIMENTAL. Encodes all Perl hash keys as CBOR text.
 If you use this mode then your strings **must** be properly decoded, or else
 the output CBOR may mangle your string.

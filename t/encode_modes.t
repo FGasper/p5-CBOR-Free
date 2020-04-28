@@ -138,13 +138,14 @@ sub T24_test_wide_character_errors {
 
                 throws_ok(
                     sub {
-                        CBOR::Free::encode($in,
+                        my $cbor = CBOR::Free::encode($in,
                             canonical => $canonical,
                             string_encode_mode => $mode,
                         );
+                        diag sprintf('%v.02x', $cbor);
                     },
                     'CBOR::Free::X::WideCharacter',
-                    "$mode (canonical: $canonical): wide character prompts appropriate exception",
+                    "$label, $mode (canonical: $canonical): wide character prompts appropriate exception",
                 );
 
                 my $str = $@->get_message();
@@ -152,7 +153,7 @@ sub T24_test_wide_character_errors {
                 like(
                     $str,
                     qr<\\x\{100\}>x,
-                    "$mode (canonical: $canonical): exception message is escaped as expected",
+                    "$label, $mode (canonical: $canonical): exception message is escaped as expected",
                 );
             }
         }

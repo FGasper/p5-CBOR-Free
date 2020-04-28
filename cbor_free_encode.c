@@ -23,6 +23,17 @@ static const unsigned char CBOR_NEGINF_SHORT[3] = { 0xf9, 0xfc, 0x00 };
 
 static HV *tagged_stash = NULL;
 
+// Perl 5.18 and below appear not to set SvUTF8 if HeUTF8.
+// This macro corrects for that:
+#if PERL_VERSION < 20
+    #define CBF_HeSVKEY_force(h_entry, sv) \
+        sv = HeSVKEY_force(h_entry); \
+        if (HeUTF8(h_entry)) SvUTF8_on(sv);
+#else
+    #define CBF_HeSVKEY_force(h_entry, sv) \
+        sv = HeSVKEY_force(h_entry);
+#endif
+
 #define UTF8_DOWNGRADE_OR_CROAK(encode_state, sv) \
     if (!sv_utf8_downgrade(sv, true)) { \
         _croak_wide_character( aTHX_ encode_state, sv ); \
@@ -45,13 +56,15 @@ static HV *tagged_stash = NULL;
     sortables_entry.length = key_length;
 
 #define STORE_UPGRADED_SORTABLE_HASH_KEY(sortables_entry, h_entry) \
-    SV* key_sv = HeSVKEY_force(h_entry); \
+    SV* key_sv; \
+    CBF_HeSVKEY_force(h_entry, key_sv); \
     sv_utf8_upgrade(key_sv); \
     sortables_entry.is_utf8 = true; \
     sortables_entry.buffer = SvPV(key_sv, sortables_entry.length);
 
 #define STORE_DOWNGRADED_SORTABLE_HASH_KEY(sortables_entry, h_entry, key_is_utf8) \
-    SV* key_sv = HeSVKEY_force(h_entry); \
+    SV* key_sv; \
+    CBF_HeSVKEY_force(h_entry, key_sv); \
     UTF8_DOWNGRADE_OR_CROAK(encode_state, key_sv); \
     sortables_entry.is_utf8 = key_is_utf8; \
     sortables_entry.buffer = SvPV(key_sv, sortables_entry.length);
@@ -311,13 +324,15 @@ static inline void _encode_string_octets( pTHX_ encode_ctx* encode_state, SV* va
 }
 
 static inline void _upgrade_and_store_hash_key( pTHX_ HE* h_entry, encode_ctx *encode_state ) {
-    SV* key_sv = HeSVKEY_force(h_entry);
+    SV* key_sv;
+    CBF_HeSVKEY_force(h_entry, key_sv);
     sv_utf8_upgrade(key_sv);
     _encode_string_sv( aTHX_ encode_state, key_sv );
 }
 
 static inline void _downgrade_and_store_hash_key( pTHX_ HE* h_entry, encode_ctx *encode_state, enum CBOR_TYPE string_type ) {
-    SV* key_sv = HeSVKEY_force(h_entry);
+    SV* key_sv;
+    CBF_HeSVKEY_force(h_entry, key_sv);
     UTF8_DOWNGRADE_OR_CROAK(encode_state, key_sv);
 
     // We can do this without altering h_entry itself because
