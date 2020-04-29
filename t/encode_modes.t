@@ -45,6 +45,51 @@ sub T32_test_given_unchanged {
     }
 }
 
+sub T4_test_sv_hash_key {
+    my $the_key = (sort keys %!)[0];
+
+    my $key_cbor_text = CBOR::Free::encode($the_key, string_encode_mode => 'as_text');
+    my $key_cbor_binary = CBOR::Free::encode($the_key, string_encode_mode => 'as_binary');
+
+    my $cbor_plain = CBOR::Free::encode(\%!);
+
+    cmp_ok(
+        index($cbor_plain, $key_cbor_binary),
+        '>',
+        '-1',
+        'encode() with %!',
+    );
+
+    my $cbor_encode = CBOR::Free::encode(\%!, string_encode_mode => 'encode_text');
+
+    cmp_ok(
+        index($cbor_encode, $key_cbor_text),
+        '>',
+        '-1',
+        'encode() with %! (encode_text)',
+    );
+
+    my $cbor_as_text = CBOR::Free::encode(\%!, string_encode_mode => 'as_text');
+
+    cmp_ok(
+        index($cbor_as_text, $key_cbor_text),
+        '>',
+        '-1',
+        'encode() with %! (as_text)',
+    );
+
+    my $cbor_as_binary = CBOR::Free::encode(\%!, string_encode_mode => 'as_binary');
+
+    cmp_ok(
+        index($cbor_as_binary, $key_cbor_binary),
+        '>',
+        '-1',
+        'encode() with %! (as_binary)',
+    );
+
+    return;
+}
+
 sub T18_test_encode_text {
     my @t = (
         [

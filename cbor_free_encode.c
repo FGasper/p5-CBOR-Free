@@ -551,7 +551,6 @@ void _encode( pTHX_ SV *value, encode_ctx *encode_state ) {
                     fprintf(stderr, "HeUTF8: %d\n", HeUTF8(h_entry));
                     fprintf(stderr, "CBF_HeUTF8: %d\n", CBF_HeUTF8(h_entry));
                     */
-// encode_state h_entry key key_length
 
                     switch (encode_state->string_encode_mode) {
                         case CBF_STRING_ENCODE_SV:
