@@ -15,6 +15,10 @@ to the decoder.
 
 # DESCRIPTION
 
+<div>
+    <a href='https://coveralls.io/github/FGasper/p5-CBOR-Free?branch=master'><img src='https://coveralls.io/repos/github/FGasper/p5-CBOR-Free/badge.svg?branch=master' alt='Coverage Status' /></a>
+</div>
+
 This library implements [CBOR](https://tools.ietf.org/html/rfc7049)
 via XS under a license that permits commercial usage with no “strings
 attached”.
