@@ -26,10 +26,11 @@
 #define IS_64_BIT        (BYTEORDER > 0x10000)
 
 #define CONTROL_BYTE_MAJOR_TYPE_SHIFT 5
-#define CONTROL_BYTE_LENGTH_MASK 0x1f
 
-#define CONTROL_BYTE_LENGTH(byte) (byte & CONTROL_BYTE_LENGTH_MASK)
-#define CONTROL_BYTE_MAJOR_TYPE(byte) (byte >> CONTROL_BYTE_MAJOR_TYPE_SHIFT)
+#define _CONTROL_BYTE_LENGTH_MASK 0x1f
+
+#define CONTROL_BYTE_LENGTH_TYPE(byte) (((uint8_t) byte) & _CONTROL_BYTE_LENGTH_MASK)
+#define CONTROL_BYTE_MAJOR_TYPE(byte) (((uint8_t) byte) >> CONTROL_BYTE_MAJOR_TYPE_SHIFT)
 
 #define _croak croak
 
@@ -66,15 +67,6 @@ union anyint {
     uint16_t u16;
     uint32_t u32;
     uint64_t u64;
-};
-
-union control_byte {
-    uint8_t u8;
-
-    struct {
-        unsigned int length_type : 5;
-        unsigned int major_type : 3;
-    } pieces;
 };
 
 #define _croak croak
