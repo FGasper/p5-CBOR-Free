@@ -69,6 +69,7 @@ WriteMakefile1(
         'Test::Deep'      => 0,
         'Test::Differences' => 0,
         'Test::Class::Tiny' => 0.02,
+        'Test::Pod' => 1,
     },
 
     # SIGN => 1,
