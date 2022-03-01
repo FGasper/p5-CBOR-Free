@@ -365,9 +365,8 @@ SV *_decode_array( pTHX_ decode_ctx* decstate ) {
 
 // Sets incomplete_by.
 UV _decode_uint( pTHX_ decode_ctx* decstate ) {
-    union control_byte *control = (union control_byte *) decstate->curbyte;
 
-    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
+    if (CONTROL_BYTE_LENGTH(*decstate->curbyte) == CBOR_LENGTH_INDEFINITE) {
         _croak_invalid_control( aTHX_ decstate );
     }
 
@@ -376,9 +375,8 @@ UV _decode_uint( pTHX_ decode_ctx* decstate ) {
 
 // Sets incomplete_by.
 IV _decode_negint( pTHX_ decode_ctx* decstate ) {
-    union control_byte *control = (union control_byte *) decstate->curbyte;
 
-    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
+    if (CONTROL_BYTE_LENGTH(*decstate->curbyte) == CBOR_LENGTH_INDEFINITE) {
         _croak_invalid_control( aTHX_ decstate );
     }
 
@@ -393,7 +391,7 @@ IV _decode_negint( pTHX_ decode_ctx* decstate ) {
     if (positive >= 0x80000000U) {
         STRLEN offset = decstate->curbyte - decstate->start;
 
-        if (control->pieces.length_type == 0x1a) {
+        if (CONTROL_BYTE_LENGTH(*decstate->curbyte) == CBOR_LENGTH_LARGE) {
             offset -= 4;
         }
         else {
@@ -410,9 +408,8 @@ IV _decode_negint( pTHX_ decode_ctx* decstate ) {
 // Sets incomplete_by.
 // Return indicates whether string_h has SV.
 bool _decode_str( pTHX_ decode_ctx* decstate, union numbuf_or_sv* string_u ) {
-    union control_byte *control = (union control_byte *) decstate->curbyte;
 
-    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
+    if (CONTROL_BYTE_LENGTH(*decstate->curbyte) == CBOR_LENGTH_INDEFINITE) {
         ++decstate->curbyte;
 
         SV *string = newSVpvs("");  /* 5.10.0 lacks newSVpvs_flags() */
