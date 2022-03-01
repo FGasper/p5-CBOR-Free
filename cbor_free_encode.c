@@ -1,8 +1,4 @@
-#define PERL_NO_GET_CONTEXT
-
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
+#include "easyxs/init.h"
 
 #include <stdlib.h>
 
@@ -178,7 +174,7 @@ static inline void _COPY_INTO_ENCODE( encode_ctx *encode_state, const unsigned c
 // TODO? This could be a macro … it’d just be kind of unwieldy as such.
 static inline void _init_length_buffer( pTHX_ UV num, enum CBOR_TYPE major_type, encode_ctx *encode_state ) {
     uint8_t* control_byte_p = (void *) encode_state->scratch;
-    *control_byte_p = major_type << 5;
+    *control_byte_p = major_type << CONTROL_BYTE_MAJOR_TYPE_SHIFT;
 
     if ( num < CBOR_LENGTH_SMALL ) {
         *control_byte_p |= (uint8_t) num;
