@@ -1,9 +1,5 @@
 use ExtUtils::MakeMaker;
 
-use Devel::PPPort;
-
-Devel::PPPort::WriteFile();
-
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 WriteMakefile1(
