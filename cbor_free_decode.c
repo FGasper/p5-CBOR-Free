@@ -456,8 +456,6 @@ bool _decode_str( pTHX_ decode_ctx* decstate, union numbuf_or_sv* string_u ) {
 void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
     _RETURN_IF_INCOMPLETE( decstate, 1,  );
 
-    union control_byte *control = (union control_byte *) decstate->curbyte;
-
     union numbuf_or_sv my_key;
     my_key.numbuf.buffer = NULL;
 
@@ -468,7 +466,9 @@ void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
 
     bool my_key_has_sv = false;
 
-    switch (control->pieces.major_type) {
+    uint8_t major_type = CONTROL_BYTE_MAJOR_TYPE(*decstate->curbyte);
+
+    switch (major_type) {
         case CBOR_TYPE_UINT:
             my_key.numbuf.num.uv = _decode_uint( aTHX_ decstate );
             _RETURN_IF_SET_INCOMPLETE(decstate, );
@@ -500,7 +500,7 @@ void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
 
                 keystr = my_key.numbuf.buffer;
 
-                if (SHOULD_VALIDATE_UTF8(decstate, control->pieces.major_type)) {
+                if (SHOULD_VALIDATE_UTF8(decstate, major_type)) {
                     _validate_utf8_string_if_needed( aTHX_ decstate, keystr, my_key.numbuf.num.uv );
 
                     keylen = decstate->string_decode_mode == CBF_STRING_DECODE_NEVER ? my_key.numbuf.num.uv : -my_key.numbuf.num.uv;
@@ -534,12 +534,11 @@ void _decode_hash_entry( pTHX_ decode_ctx* decstate, HV *hash ) {
 
 // Sets incomplete_by.
 SV *_decode_map( pTHX_ decode_ctx* decstate ) {
-    union control_byte *control = (union control_byte *) decstate->curbyte;
 
     HV *hash = newHV();
     sv_2mortal( (SV *) hash );
 
-    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
+    if (CONTROL_BYTE_LENGTH(*decstate->curbyte) == CBOR_LENGTH_INDEFINITE) {
         ++decstate->curbyte;
 
         while (1) {
