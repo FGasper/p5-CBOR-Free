@@ -318,14 +318,12 @@ static inline UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate ) {
 
 // Sets incomplete_by.
 SV *_decode_array( pTHX_ decode_ctx* decstate ) {
-    union control_byte *control = (union control_byte *) decstate->curbyte;
-
     AV *array = newAV();
     sv_2mortal( (SV *) array );
 
     SV *cur = NULL;
 
-    if (control->pieces.length_type == CBOR_LENGTH_INDEFINITE) {
+    if (CONTROL_BYTE_LENGTH(*decstate->curbyte) == CBOR_LENGTH_INDEFINITE) {
         ++decstate->curbyte;
 
         while (1) {
