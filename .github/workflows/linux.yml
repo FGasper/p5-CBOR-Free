@@ -8,22 +8,45 @@ on:
       - '*'
   pull_request:
 
+env:
+    PERL_USE_UNSAFE_INC: 0
+    AUTHOR_TESTING: 1
+    AUTOMATED_TESTING: 1
+    RELEASE_TESTING: 1
+    PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
+
 jobs:
-  perl:
-
+  perl-alt:
     runs-on: ubuntu-latest
-
-    env:
-       PERL_USE_UNSAFE_INC: 0
-       AUTHOR_TESTING: 1
-       AUTOMATED_TESTING: 1
-       RELEASE_TESTING: 1
-       PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
 
     strategy:
       fail-fast: false
       matrix:
         perl-version:
+          - '5.020.003-main-longdouble-buster'
+
+    container:
+      image: simcop2387/perl-tester:${{ matrix.perl-version }}
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: recursive
+      - run: git submodule init && git submodule update
+      - run: perl -V
+      - run: cpanm --notest --installdeps .
+      - run: perl Makefile.PL
+      - run: make
+      - run: prove -wlvmb t
+
+  perl:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        perl-version:
+          - '5.34'
           - '5.32'
           - '5.30'
           - '5.28'
@@ -46,7 +69,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - run: git submodule init && git submodule update
+        with:
+            submodules: recursive
       - name: perl -V
         run: perl -V
       - name: Install Dependencies
