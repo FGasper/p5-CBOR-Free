@@ -12,9 +12,13 @@ cbor_free_decode.c
 cbor_free_decode.h
 cbor_free_encode.c
 cbor_free_encode.h
-easyxs/.gitignore
 easyxs/LICENSE
 easyxs/README.md
+easyxs/easyxs.h
+easyxs/easyxs_debug.h
+easyxs/easyxs_numeric.h
+easyxs/easyxs_perlcall.h
+easyxs/easyxs_string.h
 easyxs/init.h
 easyxs/ppport.h
 lib/CBOR/Free.pm
