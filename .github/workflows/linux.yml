@@ -24,6 +24,7 @@ jobs:
       matrix:
         perl-version:
           - '5.020.003-main-longdouble-buster'
+          - '5.020.003-main-quadmath-buster'
 
     container:
       image: simcop2387/perl-tester:${{ matrix.perl-version }}
