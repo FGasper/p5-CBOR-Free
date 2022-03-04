@@ -137,5 +137,5 @@ jobs:
       - name: Get the qemu container
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Run tests on s390x/ubuntu
-        run: docker run --rm --interactive --tty s390x/ubuntu bash -c "curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
+        run: docker run --rm --interactive s390x/ubuntu bash -c "apt install curl perl make; curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
 
