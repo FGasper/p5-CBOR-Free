@@ -1,6 +1,6 @@
 Revision history for Perl module CBOR::Free
 
-0.32
+0.32 4 March 2022
 - Fix compatibility with big-endian systems.
 - Add Test::Pod requirement for testing.
 - Internal: Use Easy XS for boilerplate.
