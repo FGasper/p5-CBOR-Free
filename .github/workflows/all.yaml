@@ -86,7 +86,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cpanm -n Devel::Cover::Report::Coveralls
-          cover -test -report -ignore_re easyxs Coveralls
+          cover -test -ignore_re easyxs -report Coveralls
 
   macOS:
     runs-on: macOS-latest
