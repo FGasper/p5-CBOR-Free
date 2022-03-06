@@ -133,7 +133,7 @@ jobs:
       matrix:
         docker_image:
           - s390x/ubuntu
-          - arm32v7
+          - arm32v7/ubuntu
 
     steps:
       - name: Get the qemu container
