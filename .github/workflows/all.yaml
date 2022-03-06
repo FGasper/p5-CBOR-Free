@@ -135,19 +135,8 @@ jobs:
           - s390x/ubuntu
           - arm32v7
 
-        bash_cmd:
-          - |
-            apt update
-            apt install -y curl perl make git gcc
-            git clone --recurse-submodules $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
-            cd $( echo $GITHUB_REPOSITORY | cut -d/ -f2 )
-            curl -L https://cpanmin.us | perl - --notest --installdeps .
-            perl Makefile.PL
-            make
-            prove -wlvmb t
-
     steps:
       - name: Get the qemu container
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Run tests on ${{ matrix.docker_image }}
-        run: docker run --rm --interactive ${{ matrix.docker_image }} bash -c ${{ matrix.bash_cmd }}
+        run: docker run --rm --interactive ${{ matrix.docker_image }} bash -c "apt update; apt install -y curl perl make git gcc; git clone --recurse-submodules $GITHUB_SERVER_URL/$GITHUB_REPOSITORY; cd $( echo $GITHUB_REPOSITORY | cut -d/ -f2 ); curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
