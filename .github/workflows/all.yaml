@@ -14,36 +14,6 @@ env:
     PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
 
 jobs:
-  linux-alt-perl:
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        perl-version:
-          - '5.020.003'
-          - '5.024.004'
-          - '5.026.003'
-          - '5.028.003'
-          - '5.030.003'
-          - '5.032.001'
-        build-config:
-          - main-longdouble-buster
-          - main-quadmath-buster
-
-    container:
-      image: simcop2387/perl-tester:${{ matrix.perl-version }}-${{ matrix.build-config }}
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-            submodules: recursive
-      - run: perl -V
-      - run: cpanm --notest --installdeps .
-      - run: perl Makefile.PL
-      - run: make
-      - run: prove -wlvmb t
-
   linux:
     runs-on: ubuntu-latest
 
@@ -94,6 +64,36 @@ jobs:
         run: |
           cpanm -n Devel::Cover::Report::Coveralls
           cover -test -ignore_re easyxs -report Coveralls
+
+  linux-alt-perl:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        perl-version:
+          - '5.020.003'
+          - '5.024.004'
+          - '5.026.003'
+          - '5.028.003'
+          - '5.030.003'
+          - '5.032.001'
+        build-config:
+          - main-longdouble-buster
+          - main-quadmath-buster
+
+    container:
+      image: simcop2387/perl-tester:${{ matrix.perl-version }}-${{ matrix.build-config }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+            submodules: recursive
+      - run: perl -V
+      - run: cpanm --notest --installdeps .
+      - run: perl Makefile.PL
+      - run: make
+      - run: prove -wlvmb t
 
   macOS:
     runs-on: macOS-latest
