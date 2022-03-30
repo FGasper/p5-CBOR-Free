@@ -1,4 +1,8 @@
-#define NO_XSLOCKS 1
+/* First prevent Perl from defining htons et al. as macros that
+   will require aTHX. That redfinition is problematic because we
+   use those functions in pure, non-XS functions here.
+*/
+#define NO_XSLOCKS
 
 #include "easyxs/init.h"
 
@@ -81,6 +85,9 @@ static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
 }
 
 static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
+#ifdef CBF_64BIT_INET
+    *( (uint64_t*) buffer ) = htonll((uint64_t) num);
+#else
     *( (uint32_t*) buffer ) =
 #if IS_64_BIT
         htonl((uint32_t) (num >> 32))
@@ -90,6 +97,7 @@ static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
     ;
 
     *( (uint32_t*) (buffer + 4) ) = htonl((uint32_t) (num & 0xffffffff));
+#endif
 }
 
 //----------------------------------------------------------------------

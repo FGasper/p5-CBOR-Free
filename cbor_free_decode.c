@@ -1,3 +1,4 @@
+#define NO_XSLOCKS
 #include "easyxs/init.h"
 
 #include "cbor_free_common.h"
@@ -32,36 +33,17 @@
 
 // Basically ntohll(), but it accepts a pointer.
 static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
-    UV num = 0;
-
-#if IS_64_BIT
-    num |= *(buffer++);
-    num <<= 8;
-
-    num |= *(buffer++);
-    num <<= 8;
-
-    num |= *(buffer++);
-    num <<= 8;
-
-    num |= *(buffer++);
-    num <<= 8;
+#ifdef CBF_64BIT_INET
+    return ntohll( *( (uint64_t*) buffer ) );
 #else
-    buffer += 4;
+
+    return (
+#if IS_64_BIT
+        ( ((UV) ntohl( *( (uint32_t*) buffer ) )) << 32 ) +
 #endif
-
-    num |= *(buffer++);
-    num <<= 8;
-
-    num |= *(buffer++);
-    num <<= 8;
-
-    num |= *(buffer++);
-    num <<= 8;
-
-    num |= *(buffer++);
-
-    return num;
+        ntohl( *( (uint32_t*) buffer + 1 ) )
+    );
+#endif
 }
 
 const char *MAJOR_TYPE_DESCRIPTION[] = {
@@ -288,7 +270,7 @@ static inline UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate ) {
 
 #if !IS_64_BIT
 
-            if (decstate->curbyte[0] || decstate->curbyte[1] || decstate->curbyte[2] || decstate->curbyte[3]) {
+            if (*( (uint32_t*) decstate->curbyte )) {
                 _croak_cannot_decode_64bit( aTHX_ decstate );
             }
 #endif
