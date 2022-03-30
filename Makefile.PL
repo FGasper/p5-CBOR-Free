@@ -112,6 +112,7 @@ sub _ntohll_exists {
     my $dir = File::Temp::tempdir( CLEANUP => 1 );
     open my $fh, '>', "$dir/c.c";
     syswrite $fh, <<CC;
+#include <stdint.h>
 #include <arpa/inet.h>
 int main() {
   uint64_t a = ntohll(0);
