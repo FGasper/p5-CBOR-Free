@@ -3,6 +3,7 @@
 #include "easyxs/init.h"
 
 #include <stdlib.h>
+#include <arpa/inet.h>
 
 #include "cbor_free_encode.h"
 
