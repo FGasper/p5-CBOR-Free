@@ -1,3 +1,5 @@
+#define NO_XSLOCKS 1
+
 #include "easyxs/init.h"
 
 #include <stdlib.h>
