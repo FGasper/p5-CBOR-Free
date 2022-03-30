@@ -68,32 +68,25 @@ static HV *tagged_stash = NULL;
 //----------------------------------------------------------------------
 
 // These encode num as big-endian into buffer.
-// Importantly, on big-endian systems this is just a memcpy,
-// while on little-endian systems it’s a bswap.
 
 static inline void _u16_to_buffer( UV num, uint8_t *buffer ) {
-    *(buffer++) = num >> 8;
-    *(buffer++) = num;
+    *( (uint16_t*) buffer ) = htons((uint16_t) num);
 }
 
 static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
-    *(buffer++) = num >> 24;
-    *(buffer++) = num >> 16;
-    *(buffer++) = num >> 8;
-    *(buffer++) = num;
+    *( (uint32_t*) buffer ) = htonl((uint32_t) num);
 }
 
 static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
+    *( (uint32_t*) buffer ) =
 #if IS_64_BIT
-    *(buffer++) = num >> 56;
-    *(buffer++) = num >> 48;
-    *(buffer++) = num >> 40;
-    *(buffer++) = num >> 32;
+        htonl((uint32_t) (num >> 32))
+#else
+        0
 #endif
-    *(buffer++) = num >> 24;
-    *(buffer++) = num >> 16;
-    *(buffer++) = num >> 8;
-    *(buffer++) = num;
+    ;
+
+    *( (uint32_t*) (buffer + 4) ) = htonl((uint32_t) (num & 0xffffffff));
 }
 
 //----------------------------------------------------------------------
