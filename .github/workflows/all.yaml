@@ -90,6 +90,8 @@ jobs:
         with:
             submodules: recursive
       - run: perl -V
+      - run: apt update
+      - run: apt install -y curl
       - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
       - run: perl Makefile.PL
       - run: make
