@@ -14,138 +14,162 @@ env:
     PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        perl-version:
-          - '5.34'
-          - '5.32'
-          - '5.30'
-          - '5.28'
-          - '5.26'
-          - '5.24'
-          - '5.22'
-          - '5.20'
-          - '5.18'
-          - '5.16'
-          - '5.14'
-          - '5.12'
-          - '5.10'
-        include:
-          - perl-version: '5.32'
-            os: ubuntu-latest
-            coverage: true
-
-    container:
-      image: perldocker/perl-tester:${{ matrix.perl-version }}
-
+  testsolaris:
+    runs-on: macos-10.15
+    name: A job to run test Solaris
     steps:
-      - uses: actions/checkout@v3
-        with:
-            submodules: recursive
-      - name: perl -V
-        run: perl -V
-      - name: Install Dependencies
-        run: cpanm --notest --installdeps .
-      - name: perl Makefile.PL
-        run: perl Makefile.PL
-      - name: make
-        run: make
-      - name: Run Tests (no coverage)
-        if: ${{ !matrix.coverage }}
-        run: make test
-      - name: Run tests (with coverage)
-        if: ${{ matrix.coverage }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Test in solaris
+      id: test
+      uses: vmactions/solaris-vm@v0.0.3
+      with:
+        prepare: pkgutil -y -i curl
         run: |
-          cpanm -n Devel::Cover::Report::Coveralls
-          cover -test -ignore_re easyxs -report Coveralls
-
-  linux-alt-perl:
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        perl-version:
-          - '5.020.003'
-          - '5.024.004'
-          - '5.026.003'
-          - '5.028.003'
-          - '5.030.003'
-          - '5.032.001'
-        build-config:
-          - main-longdouble-buster
-          - main-quadmath-buster
-
-    container:
-      image: simcop2387/perl-tester:${{ matrix.perl-version }}-${{ matrix.build-config }}
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-            submodules: recursive
-      - run: perl -V
-      - run: apt update
-      - run: apt install -y curl
-      - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
-      - run: perl Makefile.PL
-      - run: make
-      - run: prove -wlvmb t
-
-  macOS:
-    runs-on: macOS-latest
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-            submodules: recursive
-      - name: Set up Perl
-        run: brew install perl
-      - name: perl -V
-        run: perl -V
-      - name: Install Dependencies
-        run: curl -L https://cpanmin.us | perl - --notest --installdeps .
-      - name: perl Makefile.PL
-        run: perl Makefile.PL
-      - name: make
-        run: make
-      - name: Run Tests
-        run: make test
-
-  windows:
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-            submodules: recursive
-      - name: perl -V
-        run: perl -V
-      - name: Install Dependencies
-        run: curl -L https://cpanmin.us | perl - --notest --installdeps .
-      - name: perl Makefile.PL
-        run: perl Makefile.PL
-      - name: make
-        run: make
-      - name: Run Tests
-        run: make test
-
-  qemu:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        platform:
-          - s390x
-          - arm32v7
-
-    steps:
-      - name: Get the qemu container
-        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-      - name: Run tests on ${{ matrix.docker_image }}
-        run: docker run --rm --interactive ${{ matrix.platform }}/ubuntu bash -c "apt update; apt install -y curl perl make git gcc; git clone --recurse-submodules $GITHUB_SERVER_URL/$GITHUB_REPOSITORY; cd $( echo $GITHUB_REPOSITORY | cut -d/ -f2 ); curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
+          if [ -n "test" ]; then
+            echo "false"
+          fi
+          if [ "test" ]; then
+            echo "test"
+          fi
+          pwd
+          ls -lah
+          whoami
+          env
+          psrinfo -vp
+          cat /etc/release
+          echo "OK"
+#  linux:
+#    runs-on: ubuntu-latest
+#
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        perl-version:
+#          - '5.34'
+#          - '5.32'
+#          - '5.30'
+#          - '5.28'
+#          - '5.26'
+#          - '5.24'
+#          - '5.22'
+#          - '5.20'
+#          - '5.18'
+#          - '5.16'
+#          - '5.14'
+#          - '5.12'
+#          - '5.10'
+#        include:
+#          - perl-version: '5.32'
+#            os: ubuntu-latest
+#            coverage: true
+#
+#    container:
+#      image: perldocker/perl-tester:${{ matrix.perl-version }}
+#
+#    steps:
+#      - uses: actions/checkout@v3
+#        with:
+#            submodules: recursive
+#      - name: perl -V
+#        run: perl -V
+#      - name: Install Dependencies
+#        run: cpanm --notest --installdeps .
+#      - name: perl Makefile.PL
+#        run: perl Makefile.PL
+#      - name: make
+#        run: make
+#      - name: Run Tests (no coverage)
+#        if: ${{ !matrix.coverage }}
+#        run: make test
+#      - name: Run tests (with coverage)
+#        if: ${{ matrix.coverage }}
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          cpanm -n Devel::Cover::Report::Coveralls
+#          cover -test -ignore_re easyxs -report Coveralls
+#
+#  linux-alt-perl:
+#    runs-on: ubuntu-latest
+#
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        perl-version:
+#          - '5.020.003'
+#          - '5.024.004'
+#          - '5.026.003'
+#          - '5.028.003'
+#          - '5.030.003'
+#          - '5.032.001'
+#        build-config:
+#          - main-longdouble-buster
+#          - main-quadmath-buster
+#
+#    container:
+#      image: simcop2387/perl-tester:${{ matrix.perl-version }}-${{ matrix.build-config }}
+#
+#    steps:
+#      - uses: actions/checkout@v3
+#        with:
+#            submodules: recursive
+#      - run: perl -V
+#      - run: apt update
+#      - run: apt install -y curl
+#      - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+#      - run: perl Makefile.PL
+#      - run: make
+#      - run: prove -wlvmb t
+#
+#  macOS:
+#    runs-on: macOS-latest
+#
+#    steps:
+#      - uses: actions/checkout@v3
+#        with:
+#            submodules: recursive
+#      - name: Set up Perl
+#        run: brew install perl
+#      - name: perl -V
+#        run: perl -V
+#      - name: Install Dependencies
+#        run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+#      - name: perl Makefile.PL
+#        run: perl Makefile.PL
+#      - name: make
+#        run: make
+#      - name: Run Tests
+#        run: make test
+#
+#  windows:
+#    runs-on: windows-latest
+#
+#    steps:
+#      - uses: actions/checkout@v3
+#        with:
+#            submodules: recursive
+#      - name: perl -V
+#        run: perl -V
+#      - name: Install Dependencies
+#        run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+#      - name: perl Makefile.PL
+#        run: perl Makefile.PL
+#      - name: make
+#        run: make
+#      - name: Run Tests
+#        run: make test
+#
+#  qemu:
+#    runs-on: ubuntu-latest
+#
+#    strategy:
+#      matrix:
+#        platform:
+#          - s390x
+#          - arm32v7
+#
+#    steps:
+#      - name: Get the qemu container
+#        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+#      - name: Run tests on ${{ matrix.docker_image }}
+#        run: docker run --rm --interactive ${{ matrix.platform }}/ubuntu bash -c "apt update; apt install -y curl perl make git gcc; git clone --recurse-submodules $GITHUB_SERVER_URL/$GITHUB_REPOSITORY; cd $( echo $GITHUB_REPOSITORY | cut -d/ -f2 ); curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
