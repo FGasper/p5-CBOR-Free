@@ -138,6 +138,8 @@ jobs:
   qemu:
     runs-on: ubuntu-latest
 
+    name: QEMU (${{ matrix.platform }})
+
     strategy:
       matrix:
         platform:
@@ -145,7 +147,8 @@ jobs:
           - arm32v7
 
     steps:
+      - uses: actions/checkout@v3
       - name: Get the qemu container
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-      - name: Run tests on ${{ matrix.docker_image }}
-        run: docker run --rm --interactive ${{ matrix.platform }}/ubuntu bash -c "apt update; apt install -y curl perl make git gcc; git clone --recurse-submodules $GITHUB_SERVER_URL/$GITHUB_REPOSITORY; cd $( echo $GITHUB_REPOSITORY | cut -d/ -f2 ); curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
+      - name: Run tests on ${{ matrix.platform }}
+        run: docker run --rm --interactive --mount type=bind,source=$(pwd),target=/host ${{ matrix.platform }}/ubuntu bash -c "apt update; apt install -y curl perl make git gcc; perl -V; cd /host; curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
