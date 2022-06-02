@@ -44,7 +44,7 @@ jobs:
       image: perldocker/perl-tester:${{ matrix.perl-version }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: perl -V
@@ -87,7 +87,7 @@ jobs:
       image: simcop2387/perl-tester:${{ matrix.perl-version }}-${{ matrix.build-config }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - run: perl -V
@@ -102,7 +102,7 @@ jobs:
     runs-on: macOS-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: Set up Perl
@@ -122,7 +122,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: perl -V
@@ -148,7 +148,7 @@ jobs:
           - arm32v7
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: Get the qemu container
