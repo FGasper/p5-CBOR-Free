@@ -606,7 +606,11 @@ double decode_half_float(uint8_t *halfp) {
 }
 
 static inline float _decode_float_to_host( pTHX_ decode_ctx* decstate, uint8_t *ptr ) {
-    *((uint32_t *) decstate->scratch.bytes) = ntohl( *((uint32_t *) ptr) );
+    uint32_t u32;
+
+    memcpy(&u32, ptr, sizeof(u32));
+
+    *((uint32_t *) decstate->scratch.bytes) = ntohl(u32);
 
     return decstate->scratch.as_float;
 }
