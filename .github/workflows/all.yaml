@@ -91,6 +91,12 @@ jobs:
         with:
             submodules: recursive
       - run: perl -V
+      - name: Tolerate EOL Debian Buster
+        run: |
+            sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list
+            sed -i 's/security.debian.org/archive.debian.org/g' /etc/apt/sources.list
+            sed -i '/buster-updates/d' /etc/apt/sources.list
+            sed -i '/buster-backports/d' /etc/apt/sources.list
       - run: apt update
       - run: apt install -y curl
       - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
@@ -127,8 +133,11 @@ jobs:
             submodules: recursive
       - name: perl -V
         run: perl -V
-      - name: Install Dependencies
-        run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+      - name: Install cpanm
+        run: cpan -I App::cpanminus
+      - name: Install dependencies
+        #run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+        run: cpanm --notest --installdeps .
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
@@ -143,9 +152,11 @@ jobs:
 
     strategy:
       matrix:
-        platform:
-          - s390x
-          - arm32v7
+        include:
+          - platform: s309x
+            ubuntu_tag: 22.04
+          - platform: arm32v7
+            ubuntu_tag: 20.04
 
     steps:
       - uses: actions/checkout@main
@@ -154,4 +165,4 @@ jobs:
       - name: Get the qemu container
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Run tests on ${{ matrix.platform }}
-        run: docker run --rm --interactive --mount type=bind,source=$(pwd),target=/host ${{ matrix.platform }}/ubuntu bash -c "apt update; apt install -y curl perl make git gcc; perl -V; cd /host; curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
+        run: docker run --rm --interactive --mount type=bind,source=$(pwd),target=/host ${{ matrix.platform }}/ubuntu:${{ matrix.ubuntu_tag }} bash -c "apt update; apt install -y curl perl make git gcc; perl -V; cd /host; curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
