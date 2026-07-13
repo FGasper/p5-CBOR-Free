@@ -107,7 +107,7 @@ jobs:
       - run: apt install -y curl
       - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
       - name: Install extra dependencies
-        run: cpanm CBOR::XS
+        run: curl -L https://cpanmin.us | perl - --notest CBOR::XS
       - run: perl Makefile.PL
       - run: make
       - run: prove -wlvmb t
