@@ -154,9 +154,10 @@ jobs:
     name: QEMU (${{ matrix.platform }})
 
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - platform: s309x
+          - platform: s390x
             docker_arch: s390x
             ubuntu_tag: 22.04
           - platform: arm32v7
