@@ -93,10 +93,13 @@ jobs:
       - run: perl -V
       - name: Tolerate EOL Debian Buster
         run: |
-            sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list
-            sed -i 's/security.debian.org/archive.debian.org/g' /etc/apt/sources.list
-            sed -i '/buster-updates/d' /etc/apt/sources.list
-            sed -i '/buster-backports/d' /etc/apt/sources.list
+            for f in $(find /etc/apt -name '*.list'); do
+                sed -i 's/deb.debian.org/archive.debian.org/g' "$f"
+                sed -i 's/security.debian.org/archive.debian.org/g' "$f"
+                sed -i '/buster-updates/d' "$f"
+                sed -i '/buster-backports/d' "$f"
+            done
+      - run: cat /etc/apt/sources.list
       - run: apt update
       - run: apt install -y curl
       - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
