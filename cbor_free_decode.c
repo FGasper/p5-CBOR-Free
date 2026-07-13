@@ -47,7 +47,7 @@ static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
 
     return (
 #if IS_64_BIT
-        ( ((UV) ntohl(high_val) << 32 ) +
+        ((UV) ntohl(high_val) << 32 ) +
 #endif
         ntohl(low_val)
     );
