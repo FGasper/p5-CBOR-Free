@@ -156,7 +156,7 @@ jobs:
   qemu:
     runs-on: ubuntu-latest
 
-    name: QEMU (${{ matrix.image }})
+    name: QEMU (${{ matrix.docker_arch }} ${{ matrix.image }})
 
     strategy:
       fail-fast: false
