@@ -151,6 +151,27 @@ jobs:
       - name: Run Tests
         run: make test
 
+  alpine:
+    runs-on: ubuntu-latest
+
+    name: Alpine (${{ matrix.docker_arch }} ${{ matrix.image }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - docker_arch: 386
+            image: alpine:latest
+
+    steps:
+      - uses: actions/checkout@main
+        with:
+            submodules: recursive
+      - name: Get the qemu container
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      - name: Run tests on ${{ matrix.platform }}
+        run: docker run --rm --interactive --platform linux/${{ matrix.docker_arch }} --mount type=bind,source=$(pwd),target=/host ${{ matrix.platform }}/ubuntu:${{ matrix.ubuntu_tag }} bash -c "apk update && apk add bash curl perl perl-dev make git gcc musl-dev && perl -V && cd /host && curl -L https://cpanmin.us | perl - --notest --installdeps . && perl Makefile.PL && make && prove -wlvmb t"
+
   qemu:
     runs-on: ubuntu-latest
 
