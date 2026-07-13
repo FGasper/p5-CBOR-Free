@@ -156,7 +156,7 @@ jobs:
   qemu:
     runs-on: ubuntu-latest
 
-    name: QEMU (${{ matrix.platform }})
+    name: QEMU (${{ matrix.image }})
 
     strategy:
       fail-fast: false
@@ -167,7 +167,7 @@ jobs:
           - docker_arch: arm/v7
             image: ubuntu:20.04
           - docker_arch: 386
-            ubuntu_tag: debian:bookworm
+            image: debian:bookworm
 
     steps:
       - uses: actions/checkout@main
