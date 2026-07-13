@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 // For ntohs and ntohl
 #include <arpa/inet.h>
@@ -34,8 +35,15 @@
 // Basically ntohll(), but it accepts a pointer.
 static inline UV _buffer_u64_to_uv( unsigned char *buffer ) {
 #ifdef CBF_64BIT_INET
-    return ntohll( *( (uint64_t*) buffer ) );
+    uint64_t u64;
+    memcpy(&u64, buffer, sizeof(u64));
+    return ntohll(u64);
 #else
+    uint32_t high_val, low_val;
+
+    // Safely copy the first 4 bytes and the second 4 bytes
+    memcpy(&high_val, buffer, sizeof(uint32_t));
+    memcpy(&low_val, buffer + sizeof(uint32_t), sizeof(uint32_t));
 
     return (
 #if IS_64_BIT
@@ -259,7 +267,9 @@ static inline UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            ret = ntohs( *((uint16_t *) decstate->curbyte) );
+            uint16_t u16;
+            memcpy(&u16, decstate->curbyte, sizeof(u16));
+            ret = ntohs(u16);
 
             decstate->curbyte += 2;
 
@@ -270,7 +280,9 @@ static inline UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate ) {
 
             ++decstate->curbyte;
 
-            ret = ntohl( *((uint32_t *) decstate->curbyte) );
+            uint32_t u32;
+            memcpy(&u32, decstate->curbyte, sizeof(u32));
+            ret = ntohl(u32);
 
             decstate->curbyte += 4;
 
@@ -282,8 +294,9 @@ static inline UV _parse_for_uint_len2( pTHX_ decode_ctx* decstate ) {
             ++decstate->curbyte;
 
 #if !IS_64_BIT
-
-            if (*( (uint32_t*) decstate->curbyte )) {
+            uint32_t high_bits;
+            memcpy(&high_bits, decstate->curbyte, sizeof(high_bits));
+            if (high_bits) {
                 _croak_cannot_decode_64bit( aTHX_ decstate );
             }
 #endif

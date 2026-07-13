@@ -156,7 +156,7 @@ jobs:
   alpine:
     runs-on: ubuntu-latest
 
-    name: Alpine (${{ matrix.docker_arch }} ${{ matrix.image }})
+    name: Alpine (${{ matrix.docker_arch }})
 
     strategy:
       fail-fast: false
