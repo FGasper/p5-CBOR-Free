@@ -21,6 +21,9 @@ jobs:
       fail-fast: false
       matrix:
         perl-version:
+          - '5.42'
+          - '5.40'
+          - '5.38'
           - '5.36'
           - '5.34'
           - '5.32'
@@ -44,7 +47,7 @@ jobs:
       image: perldocker/perl-tester:${{ matrix.perl-version }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: perl -V
@@ -87,10 +90,19 @@ jobs:
       image: simcop2387/perl-tester:${{ matrix.perl-version }}-${{ matrix.build-config }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - run: perl -V
+      - name: Tolerate EOL Debian Buster
+        run: |
+            for f in $(find /etc/apt -name '*.list'); do
+                sed -i 's/deb.debian.org/archive.debian.org/g' "$f"
+                sed -i 's/security.debian.org/archive.debian.org/g' "$f"
+                sed -i '/buster-updates/d' "$f"
+                sed -i '/buster-backports/d' "$f"
+            done
+      - run: cat /etc/apt/sources.list
       - run: apt update
       - run: apt install -y curl
       - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
@@ -102,7 +114,7 @@ jobs:
     runs-on: macOS-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: Set up Perl
@@ -122,13 +134,16 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: perl -V
         run: perl -V
-      - name: Install Dependencies
-        run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+      - name: Install cpanm
+        run: cpan -I App::cpanminus
+      - name: Install dependencies
+        #run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+        run: cpanm --notest --installdeps .
       - name: perl Makefile.PL
         run: perl Makefile.PL
       - name: make
@@ -142,16 +157,21 @@ jobs:
     name: QEMU (${{ matrix.platform }})
 
     strategy:
+      fail-fast: false
       matrix:
-        platform:
-          - s390x
-          - arm32v7
+        include:
+          - platform: s390x
+            docker_arch: s390x
+            ubuntu_tag: 22.04
+          - platform: arm32v7
+            docker_arch: arm/v7
+            ubuntu_tag: 20.04
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@main
         with:
             submodules: recursive
       - name: Get the qemu container
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Run tests on ${{ matrix.platform }}
-        run: docker run --rm --interactive --mount type=bind,source=$(pwd),target=/host ${{ matrix.platform }}/ubuntu bash -c "apt update; apt install -y curl perl make git gcc; perl -V; cd /host; curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
+        run: docker run --rm --interactive --platform linux/${{ matrix.docker_arch }} --mount type=bind,source=$(pwd),target=/host ${{ matrix.platform }}/ubuntu:${{ matrix.ubuntu_tag }} bash -c "apt update; apt install -y curl perl make git gcc; perl -V; cd /host; curl -L https://cpanmin.us | perl - --notest --installdeps .; perl Makefile.PL; make; prove -wlvmb t"
