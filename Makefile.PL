@@ -19,16 +19,13 @@ WriteMakefile1(
         },
     },
 
-	
-
     NAME         => 'CBOR::Free',
     AUTHOR       => 'Felipe Gasper (FELIPE)',
     VERSION_FROM => 'lib/CBOR/Free.pm',         # finds \$VERSION
     ABSTRACT_FROM => 'lib/CBOR/Free.pm',
     LICENSE      => 'perl',
 
-    INC => '-Wall -I. -fsanitize=address',
-	LDFLAGS => "$Config{ldflags} -fsanitize=address",
+    INC => '-Wall -I.',
 
     DEFINE => join(
         q< >,
