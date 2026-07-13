@@ -10,7 +10,7 @@ use CBOR::Free;
 
 my $is_64bit = eval { pack 'Q' };
 
-my $perl_uses_odd_numbers = $Config::Config{'uselongdouble'} || $Config::Config{'quadmath'};
+my $perl_uses_odd_numbers = $Config::Config{'uselongdouble'} || $Config::Config{'usequadmath'};
 
 SKIP: {
     skip "CBOR::XS didn’t load: $@" if !eval { require CBOR::XS; 1 };
