@@ -10,7 +10,7 @@ use CBOR::Free;
 
 my $is_64bit = eval { pack 'Q' };
 
-my $is_long_double = $Config::Config{'uselongdouble'};
+my $perl_uses_odd_numbers = $Config::Config{'uselongdouble'} || $Config::Config{'quadmath'};
 
 SKIP: {
     skip "CBOR::XS didn’t load: $@" if !eval { require CBOR::XS; 1 };
@@ -22,7 +22,7 @@ SKIP: {
         1,
 
         # Not all long-double Perls break here, but some do.
-        ( $is_long_double ? () : 1.1 ),
+        ( $perl_uses_odd_numbers ? () : 1.1 ),
 
         -1,
         -24,
