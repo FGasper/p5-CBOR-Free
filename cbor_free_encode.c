@@ -7,6 +7,7 @@
 #include "easyxs/init.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <arpa/inet.h>
 
 #include "cbor_free_encode.h"
@@ -77,18 +78,21 @@ static HV *tagged_stash = NULL;
 // These encode num as big-endian into buffer.
 
 static inline void _u16_to_buffer( UV num, uint8_t *buffer ) {
-    *( (uint16_t*) buffer ) = htons((uint16_t) num);
+    uint16_t u16 = htons((uint16_t) num);
+    memcpy(buffer, &u16, sizeof(u16));
 }
 
 static inline void _u32_to_buffer( UV num, unsigned char *buffer ) {
-    *( (uint32_t*) buffer ) = htonl((uint32_t) num);
+    uint32_t u32 = htonl((uint32_t) num);
+    memcpy(buffer, &u32, sizeof(u32));
 }
 
 static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
 #ifdef CBF_64BIT_INET
-    *( (uint64_t*) buffer ) = htonll((uint64_t) num);
+    uint64_t u64 = htonll((uint64_t) num);
+    memcpy(buffer, &u64, sizeof(u64));
 #else
-    *( (uint32_t*) buffer ) =
+    uint32_t high_bits =
 #if IS_64_BIT
         htonl((uint32_t) (num >> 32))
 #else
@@ -96,7 +100,10 @@ static inline void _u64_to_buffer( UV num, unsigned char *buffer ) {
 #endif
     ;
 
-    *( (uint32_t*) (buffer + 4) ) = htonl((uint32_t) (num & 0xffffffff));
+    uint32_t low_bits = htonl((uint32_t) (num & 0xffffffff));
+
+    memcpy(buffer, &high_bits, sizeof(uint32_t));
+    memcpy(buffer + sizeof(uint32_t), &low_bits, sizeof(uint32_t));
 #endif
 }
 
