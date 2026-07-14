@@ -6,12 +6,17 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 // For ntohs and ntohl
 #include <arpa/inet.h>
 
-#define _IS_INCOMPLETE(decstate, len) \
-    ((len + decstate->curbyte) > decstate->end)
+static inline bool _IS_INCOMPLETE(decode_ctx* decstate, UV len) {
+    fprintf(stderr, "len: %d\n", len);
+    fprintf(stderr, "decstate->end: %p\n", decstate->end);
+    fprintf(stderr, "decstate->curbyte: %p\n", decstate->curbyte);
+    return len > (decstate->end - decstate->curbyte);
+}
 
 #define _SET_INCOMPLETE(decstate, len) \
     decstate->incomplete_by = (len + decstate->curbyte) - decstate->end;
