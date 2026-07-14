@@ -163,11 +163,11 @@ jobs:
         - i386
         - s390x
         - riscv64
-        - ppc64le
+        - ppc64le # crashes on build
         - amd64
         - armhf
         - arm/v7
-        - aarch64
+        - aarch64 # crashes on build
 
     steps:
       - uses: actions/checkout@main
@@ -176,13 +176,12 @@ jobs:
       - name: Get the qemu container
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Run tests
-        # Set O1 optimization to avoid a ppc64le crash when building:
-        run: docker run --rm --interactive --platform linux/${{ matrix.docker_arch }} --mount type=bind,source=$(pwd),target=/host alpine:latest sh -c "export OPTIMIZE='-O1'; apk update && apk add bash curl wget perl perl-dev make git gcc musl-dev && perl -V && cd /host && curl -L https://cpanmin.us | perl - --notest --installdeps . && perl Makefile.PL && make && prove -wlvmb t"
+        run: docker run --rm --interactive --platform linux/${{ matrix.docker_arch }} --mount type=bind,source=$(pwd),target=/host alpine:latest sh -c "apk update && apk add clang bash curl wget perl perl-dev make git gcc musl-dev && export CC=clang && export LD=clang && perl -V && cd /host && curl -L https://cpanmin.us | perl - --notest --installdeps . && perl Makefile.PL && make && prove -wlvmb t"
 
   qemu:
     runs-on: ubuntu-latest
 
-    name: QEMU (${{ matrix.docker_arch }})
+    name: ${{ matrix.docker_arch }}, ${{ matrix.image }}
 
     strategy:
       fail-fast: false
