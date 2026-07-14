@@ -37,26 +37,18 @@ SV* _seqdecode_get( pTHX_ seqdecode_ctx* seqdecode) {
         reset_reflist_if_needed(aTHX_ decode_state);
     }
 
-    fprintf(stderr, "----- before cbf_decode_one\n");
     SV *referent = cbf_decode_one( aTHX_ seqdecode->decode_state );
-
-    fprintf(stderr, "----- after cbf_decode_one\n");
 
     if (seqdecode->decode_state->incomplete_by) {
         seqdecode->decode_state->incomplete_by = 0;
         return &PL_sv_undef;
     }
 
-    fprintf(stderr, "----- before sv_chop\n");
-
     // TODO: Once the lead offset gets big enough,
     // recreate this buffer.
     sv_chop( seqdecode->cbor, decode_state->curbyte );
 
-    fprintf(stderr, "----- before advance_decode_state_buffer\n");
-
     advance_decode_state_buffer( aTHX_ decode_state );
-    fprintf(stderr, "----- after advance_decode_state_buffer\n");
 
     return newRV_noinc(referent);
 }
@@ -374,15 +366,11 @@ new(SV *class)
 SV *
 give(seqdecode_ctx* seqdecode, SV* addend)
     CODE:
-        fprintf(stderr, "----- before sv_catsv\n");
         sv_catsv( seqdecode->cbor, addend );
 
-        fprintf(stderr, "----- before renew_decode_state_buffer\n");
         renew_decode_state_buffer( aTHX_ seqdecode->decode_state, seqdecode->cbor );
 
-        fprintf(stderr, "----- before _seqdecode_get\n");
         RETVAL = _seqdecode_get( aTHX_ seqdecode);
-        fprintf(stderr, "----- after _seqdecode_get\n");
 
     OUTPUT:
         RETVAL
