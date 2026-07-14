@@ -166,7 +166,7 @@ jobs:
         - ppc64le
         - amd64
         - armhf
-        - armv7l
+        - arm/v7
         - aarch64
 
     steps:
