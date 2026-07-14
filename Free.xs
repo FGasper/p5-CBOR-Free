@@ -366,15 +366,15 @@ new(SV *class)
 SV *
 give(seqdecode_ctx* seqdecode, SV* addend)
     CODE:
-        printf("----- before sv_catsv\n");
+        fprintf(stderr, "----- before sv_catsv\n");
         sv_catsv( seqdecode->cbor, addend );
 
-        printf("----- before renew_decode_state_buffer\n");
+        fprintf(stderr, "----- before renew_decode_state_buffer\n");
         renew_decode_state_buffer( aTHX_ seqdecode->decode_state, seqdecode->cbor );
 
-        printf("----- before _seqdecode_get\n");
+        fprintf(stderr, "----- before _seqdecode_get\n");
         RETVAL = _seqdecode_get( aTHX_ seqdecode);
-        printf("----- after _seqdecode_get\n");
+        fprintf(stderr, "----- after _seqdecode_get\n");
 
     OUTPUT:
         RETVAL
