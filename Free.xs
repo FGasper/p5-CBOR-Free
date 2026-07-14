@@ -374,6 +374,7 @@ give(seqdecode_ctx* seqdecode, SV* addend)
 
         printf("----- before _seqdecode_get\n");
         RETVAL = _seqdecode_get( aTHX_ seqdecode);
+        printf("----- after _seqdecode_get\n");
 
     OUTPUT:
         RETVAL
