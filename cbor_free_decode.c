@@ -440,8 +440,10 @@ bool _decode_str( pTHX_ decode_ctx* decstate, union numbuf_or_sv* string_u ) {
     string_u->numbuf.num.uv = _parse_for_uint_len2( aTHX_ decstate );
     fprintf(stderr, "after _parse_for_uint_len2\n");
     _RETURN_IF_SET_INCOMPLETE(decstate, false);
+    fprintf(stderr, "after _parse_for_uint_len2 2\n");
 
     _RETURN_IF_INCOMPLETE( decstate, string_u->numbuf.num.uv, false );
+    fprintf(stderr, "after _parse_for_uint_len2 3\n");
 
     string_u->numbuf.buffer = decstate->curbyte;
 
