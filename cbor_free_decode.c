@@ -403,8 +403,10 @@ IV _decode_negint( pTHX_ decode_ctx* decstate ) {
 // Sets incomplete_by.
 // Return indicates whether string_h has SV.
 bool _decode_str( pTHX_ decode_ctx* decstate, union numbuf_or_sv* string_u ) {
+    fprintf(stderr, "in _decode_str\n");
 
     if (CONTROL_BYTE_LENGTH_TYPE(*decstate->curbyte) == CBOR_LENGTH_INDEFINITE) {
+    fprintf(stderr, "in _decode_str - indefinite\n");
         ++decstate->curbyte;
 
         SV *string = newSVpvs("");  /* 5.10.0 lacks newSVpvs_flags() */
@@ -641,6 +643,7 @@ static inline SV *_decode_str_to_sv( pTHX_ decode_ctx* decstate ) {
 
 // Sets incomplete_by.
 SV *cbf_decode_one( pTHX_ decode_ctx* decstate ) {
+    fprintf(stderr, "--- start cbf_decode_one\n");
     SV *ret = NULL;
 
     _RETURN_IF_INCOMPLETE( decstate, 1, NULL );
