@@ -188,9 +188,17 @@ jobs:
       matrix:
         include:
           - docker_arch: s390x
-            image: ubuntu:22.04
+            image: ubuntu:latest
+          - docker_arch: riscv64
+            image: ubuntu:latest
+          - docker_arch: ppc64le
+            image: ubuntu:latest
+          - docker_arch: aarch64
+            image: ubuntu:latest
           - docker_arch: arm/v7
-            image: ubuntu:20.04
+            image: ubuntu:latest
+          - docker_arch: amd64
+            image: ubuntu:latest
           - docker_arch: 386
             image: debian:bookworm
 
