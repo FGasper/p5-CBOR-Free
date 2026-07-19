@@ -104,8 +104,9 @@ jobs:
             done
       - run: cat /etc/apt/sources.list
       - run: apt update
-      - run: apt install -y curl
-      - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+      - run: apt install cpanminus
+      - run: cpanm --notest --installdeps .
+      - run: cpanm CBOR::XS
       - run: perl Makefile.PL
       - run: make
       - run: prove -wlvmb t
