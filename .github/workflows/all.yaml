@@ -104,9 +104,10 @@ jobs:
             done
       - run: cat /etc/apt/sources.list
       - run: apt update
-      - run: apt install -y cpanminus
-      - run: cpanm --notest --installdeps .
-      - run: cpanm CBOR::XS
+      # NB: apt-installed cpanm runs a different perl.
+      - run: apt install -y curl
+      - run: curl -L https://cpanmin.us | perl - --notest --installdeps .
+      - run: curl -L https://cpanmin.us | perl - CBOR::XS
       - run: perl Makefile.PL
       - run: make
       - run: prove -wlvmb t
