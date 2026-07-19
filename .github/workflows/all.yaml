@@ -104,7 +104,7 @@ jobs:
             done
       - run: cat /etc/apt/sources.list
       - run: apt update
-      - run: apt install cpanminus
+      - run: apt install -y cpanminus
       - run: cpanm --notest --installdeps .
       - run: cpanm CBOR::XS
       - run: perl Makefile.PL
